@@ -1,0 +1,24 @@
+{
+  "eslint.enable": true,
+  "eslint.run": "onType",
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+  "eslint.alwaysShowStatus": true,
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // GitHub Copilot Agent Mode settings for SOLAR-Ralph autonomous operation.
+  // Agent mode is required for ralph-loop.prompt.md and all pipeline loop execution.
+  "github.copilot.chat.agent.enabled": true,
+
+  // Autopilot / Bypass Approvals — Pipeline 2 (Simple Fix) optimization:
+  // Uncomment the line below to allow agents to run terminal commands
+  // without a manual "Allow" click on each command.
+  // CAUTION: Only enable in trusted workspaces. Confirm the exact key
+  // matches your installed VS Code + Copilot extension version.
+  // "github.copilot.chat.agent.terminal.allowAutoExecute": true,
+
+  // Keep Copilot Chat active with follow-up prompts after agent responses.
+  "github.copilot.chat.followUps": "always"
+}
