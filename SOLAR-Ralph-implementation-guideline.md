@@ -72,11 +72,13 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 
 All `[POST-IMPLEMENT]` customizations are consolidated into a single file: `.github/solar-setup.md`.
 
-**Option A — Auto-fill (recommended):** Let an agent scan the codebase and fill in the values for you:
+**Option A — Auto-fill (recommended):** Let the default Copilot agent scan the codebase and fill in the values:
 
 ```
 /solar-scan-repo
 ```
+
+> **Important:** Run this with the **default Copilot agent** — do not prefix with `@Orchestration-Governor` or any specialist. The setup commands are utility scripts, not development tasks; routing them through the Governor triggers its pipeline system, which is not appropriate here.
 
 The agent detects your stack, commands, folder paths, and conventions from existing project files and writes them into `solar-setup.md`. Review the output and correct any fields marked `NEEDS MANUAL INPUT`.
 
@@ -89,6 +91,8 @@ The agent detects your stack, commands, folder paths, and conventions from exist
 ```
 /solar-apply-setup
 ```
+
+> **Important:** Run this with the **default Copilot agent** (same reason — no `@` prefix).
 
 The agent reads `.github/solar-setup.md` and writes the values into every agent file, skill file, hook, and instruction file. It reports which files were updated and flags any ambiguities for manual review.
 
