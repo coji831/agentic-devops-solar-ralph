@@ -162,7 +162,8 @@ if (Test-Path "package.json") {
             $js  = Join-Path ".github/hooks" "$_.js"
             $cjs = Join-Path ".github/hooks" "$_.cjs"
             if (Test-Path $js) {
-                Rename-Item $js $cjs
+                Copy-Item -Path $js -Destination $cjs -Force
+                Remove-Item -Path $js -Force
                 Write-Host "  RENAME .github/hooks/$_.js -> $_.cjs" -ForegroundColor Green
             }
         }
