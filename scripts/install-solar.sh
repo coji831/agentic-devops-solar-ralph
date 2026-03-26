@@ -58,14 +58,15 @@ FILES=(
 
     # Hooks
     ".github/hooks/hooks.json"
-    ".github/hooks/user-prompt-submit.js"
-    ".github/hooks/post-tool-use.js"
-    ".github/hooks/stop.js"
+    ".github/hooks/user-prompt-submit.cjs"
+    ".github/hooks/post-tool-use.cjs"
+    ".github/hooks/stop.cjs"
 
     # Commands
     ".github/commands/ralph-loop.prompt.md"
     ".github/commands/audit-story.prompt.md"
     ".github/commands/solar-apply-setup.prompt.md"
+    ".github/commands/solar-scan-repo.prompt.md"
 
     # Skills - universal
     ".github/skills/frontend-review/SKILL.md"
@@ -176,31 +177,13 @@ if [ "$failed" -gt 0 ]; then
     echo -e "${YELLOW}Re-run with --force to retry failed files.${NC}"
 fi
 
-# -- ESM detection: rename hook .js -> .cjs if package.json has "type":"module" --
-if [ -f "package.json" ] && grep -qE '"type"\s*:\s*"module"' package.json 2>/dev/null; then
-    echo -e "${YELLOW}  Detected \"type\":\"module\" in package.json - renaming hook scripts to .cjs${NC}"
-    for hook in user-prompt-submit post-tool-use stop; do
-        js=".github/hooks/${hook}.js"
-        cjs=".github/hooks/${hook}.cjs"
-        if [ -f "$js" ]; then
-            mv "$js" "$cjs"
-            echo -e "${GREEN}  RENAME .github/hooks/${hook}.js -> ${hook}.cjs${NC}"
-        fi
-    done
-    # Patch hooks.json references
-    hj=".github/hooks/hooks.json"
-    if [ -f "$hj" ]; then
-        sed -i 's/user-prompt-submit\.js/user-prompt-submit.cjs/g; s/post-tool-use\.js/post-tool-use.cjs/g; s/stop\.js/stop.cjs/g' "$hj"
-        echo -e "${GREEN}  PATCHED .github/hooks/hooks.json (.js -> .cjs)${NC}"
-    fi
-    echo ""
-fi
-
 echo ""
 echo -e "${CYAN}=== Next Steps ===${NC}"
 echo ""
 echo "  1. Fill in .github/solar-setup.md with your project details"
-echo "     (project name, stack, commands, git conventions)"
+echo "     Option A (auto): run /solar-scan-repo in Copilot chat to detect your"
+echo "       stack, commands, and paths automatically, then review the output."
+echo "     Option B (manual): open .github/solar-setup.md and fill in every field."
 echo ""
 echo "  2. Run /solar-apply-setup in Copilot chat to distribute values"
 echo "     to all [POST-IMPLEMENT] sections automatically"

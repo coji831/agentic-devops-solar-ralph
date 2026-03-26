@@ -216,6 +216,7 @@ AGENTS.md
 .github/commands/ralph-loop.prompt.md
 .github/commands/audit-story.prompt.md
 .github/commands/solar-apply-setup.prompt.md
+.github/commands/solar-scan-repo.prompt.md
 
 # Setup config (fill this first, then run /solar-apply-setup)
 .github/solar-setup.md                                 [POST-IMPLEMENT]
@@ -257,6 +258,6 @@ docs/knowledge-base/connected-agent-topologies.md
 docs/knowledge-base/mcp-integration-patterns.md
 ```
 
-**Total files: 49**
+**Total files: 50**
 **Universal (copy as-is): 28**
 **Post-implement (must customize): 21**

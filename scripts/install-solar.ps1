@@ -45,14 +45,15 @@ $FILES = @(
 
     # Hooks
     ".github/hooks/hooks.json",
-    ".github/hooks/user-prompt-submit.js",
-    ".github/hooks/post-tool-use.js",
-    ".github/hooks/stop.js",
+    ".github/hooks/user-prompt-submit.cjs",
+    ".github/hooks/post-tool-use.cjs",
+    ".github/hooks/stop.cjs",
 
     # Commands
     ".github/commands/ralph-loop.prompt.md",
     ".github/commands/audit-story.prompt.md",
     ".github/commands/solar-apply-setup.prompt.md",
+    ".github/commands/solar-scan-repo.prompt.md",
 
     # Skills - universal
     ".github/skills/frontend-review/SKILL.md",
@@ -153,37 +154,13 @@ if ($failed -gt 0) {
     Write-Host "Re-run with -Force to retry failed files." -ForegroundColor Yellow
 }
 
-# -- ESM detection: rename hook .js -> .cjs if package.json has "type":"module" --
-if (Test-Path "package.json") {
-    $pkgContent = Get-Content "package.json" -Raw
-    if ($pkgContent -match '"type"\s*:\s*"module"') {
-        Write-Host "  Detected `"type`":`"module`" in package.json - renaming hook scripts to .cjs" -ForegroundColor Yellow
-        @("user-prompt-submit", "post-tool-use", "stop") | ForEach-Object {
-            $js  = Join-Path ".github/hooks" "$_.js"
-            $cjs = Join-Path ".github/hooks" "$_.cjs"
-            if (Test-Path $js) {
-                Copy-Item -Path $js -Destination $cjs -Force
-                Remove-Item -Path $js -Force
-                Write-Host "  RENAME .github/hooks/$_.js -> $_.cjs" -ForegroundColor Green
-            }
-        }
-        $hj = ".github/hooks/hooks.json"
-        if (Test-Path $hj) {
-            (Get-Content $hj -Raw) `
-                -replace 'user-prompt-submit\.js','user-prompt-submit.cjs' `
-                -replace 'post-tool-use\.js','post-tool-use.cjs' `
-                -replace 'stop\.js','stop.cjs' | Set-Content $hj -NoNewline
-            Write-Host "  PATCHED .github/hooks/hooks.json (.js -> .cjs)" -ForegroundColor Green
-        }
-        Write-Host ""
-    }
-}
-
 Write-Host ""
 Write-Host "=== Next Steps ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  1. Fill in .github/solar-setup.md with your project details"
-Write-Host "     (project name, stack, commands, git conventions)"
+Write-Host "     Option A (auto): run /solar-scan-repo in Copilot chat to detect your"
+Write-Host "       stack, commands, and paths automatically, then review the output."
+Write-Host "     Option B (manual): open .github/solar-setup.md and fill in every field."
 Write-Host ""
 Write-Host "  2. Run /solar-apply-setup in Copilot chat to distribute values"
 Write-Host "     to all [POST-IMPLEMENT] sections automatically"
