@@ -14,45 +14,33 @@ The SOLAR-Ralph Harness is a professional-grade template for implementing the **
 
 Unlike flat multi-agent systems, SOLAR-Ralph uses a **Hierarchical Multi-Agent System (HMAS)** to manage complexity and prevent "Context Rot."
 
-| Layer | Component        | Implementation          | Purpose                                                 |
-| :---- | :--------------- | :---------------------- | :------------------------------------------------------ |
-| **S** | **Specialist**   | `.github/agents/*.md`   | High-fidelity domain experts (Frontend, Security, DB).  |
-| **O** | **Orchestrator** | `.github/AGENTS.md`     | The Governor. Decomposes tasks and routes via `/skill`. |
-| **L** | **Ledger**       | `.github/.ai_ledger.md` | Amnesia-free persistent state and "Mistake Records".    |
-| **A** | **Adversarial**  | `Audit-Story.md`        | Reward Auditing (ARA) to prevent "Code Gaming".         |
-| **R** | **Recursive**    | `/ralph-loop`           | Deterministic iteration via the Ralph Wiggum Technique. |
+| Layer | Component        | Implementation              | Purpose                                                |
+| :---- | :--------------- | :-------------------------- | :----------------------------------------------------- |
+| **S** | **Specialist**   | `.github/agents/*.agent.md` | High-fidelity domain experts (Frontend, Security, DB). |
+| **O** | **Orchestrator** | `.github/AGENTS.md`         | The Governor. Decomposes tasks and routes via skills.  |
+| **L** | **Ledger**       | `.github/.ai_ledger.md`     | Amnesia-free persistent state and "Mistake Records".   |
+| **A** | **Adversarial**  | Review Auditors + Security  | Reward Auditing (ARA) to prevent "Code Gaming".        |
+| **R** | **Recursive**    | `/ralph-loop` + Stop hooks  | Deterministic iteration via bounded loops.             |
 
 ---
 
-## 🚀 Quick Start (5 Minutes)
+## 🚀 Quick Start
 
-1.  **Clone the Harness:**
-    `git clone https://github.com/coji831/agentic-devops-solar-ralph.`
+**1. Install:**
 
-2.  **Install MCP Infrastructure:**
-    Configure your `.vscode/mcp.json` with the included servers for browser automation and repo access.
+```bash
+# Windows (PowerShell)
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
 
-3.  **Initialize the Ledger:**
-    `cp.ai_ledger.example.md.ai_ledger.md`
+# macOS/Linux (Bash)
+curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
+```
 
-4.  **Launch your first Autonomous Loop:**
+**2. Setup:** Run `/solar-setup-quick` (or `/solar-setup-full` for advanced customization)
 
-    ```bash
-    /ralph-loop "Implement a secure JWT auth flow. Use TDD. <promise>SUCCESS</promise>" --max-iterations 20
-    ```
+**3. Test:** Run `/ralph-loop "Add a README badge"`
 
----
-
-## 🛠️ Template Setup — Applying to a New Repo
-
-SOLAR-Ralph ships in **template mode** (SOLAR is inactive by default). For the complete step-by-step setup guide — including which files to copy, what to customize, and how to activate the system — see the **[Full Implementation Guideline](SOLAR-Ralph-implementation-guideline.md)**.
-
-**TL;DR:**
-
-1. Copy universal files into your target repo (see guideline Step 1)
-2. Customize `[POST-IMPLEMENT]` sections for your stack (see guideline Step 2)
-3. Populate `/memories/repo/` with your repo's facts (see guideline Step 3)
-4. Set `SOLAR_ACTIVE: true` in `.ai_ledger.md` to activate hooks
+**📖 Detailed Guide:** See [SOLAR-Ralph Implementation Guideline](SOLAR-Ralph-implementation-guideline.md)
 
 ---
 
@@ -72,17 +60,23 @@ Included specialized auditors that hunt for "Proxy Sovereignty"—detecting when
 
 ### 4. Hybrid Persistent Memory
 
-Combines local `/memories/repo/` fact files with GitHub-hosted **Copilot Memory** for cross-session intelligence that survives amnesia.
+Combines local `.github/memories/repo/` fact files with GitHub-hosted **Copilot Memory** for cross-session intelligence that survives amnesia.
 
 ---
 
 ## 📂 Repository Structure
 
-- `.github/agents/` - Specialist personas (Claude 4.5/GPT-5 optimized).
-- `.github/skills/` - Procedural knowledge (TDD, migrations, security scans).
-- `.github/hooks/` - Lifecycle automation (Stop hooks, Post-tool lints).
-- `/verification-artifacts/` - Evidence backbone for release readiness.
-- `.github/AGENTS.md` - The global pipeline contract and delegation rules.
+- `.github/AGENTS.md` - Orchestration contract and pipeline definitions
+- `.github/.ai_ledger.md` - Persistent work state and mistake ledger
+- `.github/agents/` - 14 specialist personas (Governor, Architects, Specialists, Auditors)
+- `.github/skills/` - 14 reusable workflows (Implementation, Testing, Review, Governance)
+- `.github/prompts/` - Setup commands and runtime prompts
+- `.github/commands/` - Core runtime commands (`ralph-loop`, `audit-story`)
+- `.github/hooks/` - Lifecycle automation (Stop hooks, Post-tool-use validation)
+- `.github/guides/` - Operator documentation and workflow guides
+- `.github/memories/repo/` - Persistent fact templates (optional)
+- `verification-artifacts/` - Evidence backbone for release readiness
+- `docs/knowledge-base/` - Pattern guides and architectural references
 
 ---
 
