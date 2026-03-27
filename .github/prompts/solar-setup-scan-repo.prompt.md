@@ -1,3 +1,9 @@
+---
+name: solar-setup-scan-repo
+description: Auto-detect project stack, commands, and paths, then fill solar-setup.md
+agent: Solar Bootstrap
+---
+
 <!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
 
 ⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
@@ -38,41 +44,3 @@ Step 3 - STACK: Scan `package.json` dependencies for:
 - ORM/DB: prisma, drizzle, typeorm, mongoose, pg
 - Auth: look for jwt, bcrypt, passport, next-auth in imports or middleware files
 - State: context, redux, zustand, jotai
-- Test runners: vitest, jest, playwright, cypress, supertest
-
-Step 4 - COMMANDS: Read `package.json` scripts block. Map to:
-INSTALL_CMD, DEV_CMD, TEST_CMD, TYPECHECK_CMD, LINT_CMD, BUILD_CMD
-Use the exact npm/yarn/pnpm invocation (e.g. "npm run dev", not "vite").
-
-Step 5 - GIT: Read `.github/copilot-instructions.md` or `docs/guides/git-convention.md` for branch naming and commit format.
-
-Step 6 - BOUNDARIES: Find all `.instructions.md` files. Note their paths and applyTo globs.
-If none exist, infer from folder structure (apps/frontend, apps/backend, src/).
-
-Step 7 - DOCS: Find `docs/architecture.md` or equivalent. List top 3-5 agent-relevant docs.
-
-Step 8 - WRITE: Use a file-edit tool to overwrite every `[placeholder]` in `.github/solar-setup.md`.
-Do not change structure. Undetected values become `NEEDS MANUAL INPUT`.
-
-Step 9 - REPORT: After saving, list each field as FILLED, NEEDS MANUAL INPUT, or INFERRED.
-</detection_steps>
-
-<example_transformation>
-Before: FRONTEND_FRAMEWORK: [placeholder]
-Detected: "dependencies": { "react": "^18.0.0" }
-After: FRONTEND_FRAMEWORK: react
-</example_transformation>
-
----
-
-**After this command completes:**
-
-1. Open `.github/solar-setup.md` and review the values.
-2. Fix any fields marked `NEEDS MANUAL INPUT` or `INFERRED`.
-3. Run the next step to apply values to core files:
-
-```
-/solar-setup-core-config
-```
-
-> Use the **default Copilot agent** (no `@` prefix) for all setup commands.

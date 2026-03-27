@@ -1,3 +1,9 @@
+---
+name: solar-setup-core-config
+description: Apply core config values from solar-setup.md to SOLAR files
+agent: Solar Bootstrap
+---
+
 <!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
 
 ⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
@@ -38,46 +44,3 @@ Read `.github/solar-setup.md` and apply every configured value to the 4 core SOL
 Step 1 - READ: Load `.github/solar-setup.md` in full. Note all values.
 
 Step 2 - CHECK UNFILLED: If any field still says `[placeholder]` or `NEEDS MANUAL INPUT`,
-auto-detect it from the codebase (package.json, README, folder structure).
-Write the detected value back into `.github/solar-setup.md` before continuing.
-
-Step 3 - APPLY to `.github/copilot-instructions.md`:
-
-- Replace `[YOUR-REPO-NAME]` with REPO_NAME.
-- Fill Quick Start section with INSTALL_CMD, DEV_CMD, TEST_CMD.
-- Fill Architecture section with FRONTEND_STACK, BACKEND_STACK, STATE_APPROACH, AUTH_APPROACH.
-- Fill Workflows section with DEV_WORKFLOW, DEPLOY_TARGETS.
-- Fill Git section with BRANCH_FORMAT, COMMIT_FORMAT.
-- Fill Key Files section with ARCHITECTURE_DOC and other KEY_DOCS values.
-- If the file already exists with project content, merge only the SOLAR-Ralph Operating Overlay subsection.
-
-Step 4 - APPLY to `.github/hooks/hooks.json`:
-
-- Replace `tsc --noEmit` with TYPECHECK_CMD from setup config.
-- If LINT_CMD is set, append it as a second check after the typecheck.
-
-Step 5 - APPLY to `.github/guides/solar-ralph-workflow.md`:
-
-- Fill `[POST-IMPLEMENT]` blocks with DEV_WORKFLOW and DEPLOY_TARGETS.
-- Fill branch naming and commit format from GIT_BRANCH_FORMAT and GIT_COMMIT_FORMAT.
-
-Step 6 - REPORT: List each file as UPDATED or SKIPPED (with reason). Flag any values that could not be applied.
-</execution_steps>
-
-<example_transformation>
-Before: Install: `[install command]` | Dev: `[dev command]`
-Setup value: INSTALL_CMD: npm install, DEV_CMD: npm run dev
-After: Install: `npm install` | Dev: `npm run dev`
-</example_transformation>
-
----
-
-**After this command completes:**
-
-Run the next step to apply values to all agent, skill, and path instruction files:
-
-```
-/solar-setup-agent-config
-```
-
-> Use `@solar-bootstrap` for all setup commands to ensure they run in isolation from SOLAR governance.

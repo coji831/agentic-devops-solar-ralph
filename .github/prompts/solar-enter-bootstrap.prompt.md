@@ -1,3 +1,9 @@
+---
+name: solar-enter-bootstrap
+description: Manually activate SOLAR-Ralph bootstrap mode (emergency only)
+agent: Solar Bootstrap
+---
+
 <!-- Manual Bootstrap Mode Activator - Use for emergency setup recovery only -->
 
 <identity>

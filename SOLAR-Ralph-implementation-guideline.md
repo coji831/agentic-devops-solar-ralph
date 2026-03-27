@@ -36,9 +36,62 @@ These 5 items are the absolute minimum to have a functioning SOLAR loop. Everyth
 
 ## Applying to a New Repo — Step-by-Step
 
-### Step 1: Install SOLAR Files
+### Step 1: Scan Target Repository
 
-Run the installer script from the **root of your target repo**. It downloads all required files from GitHub — no need to clone the template repo.
+Run the minimal setup scanner from the **root of your target repo**. This downloads ONLY what's needed to scan your project and fill `.github/solar-setup.md`.
+
+**Windows (PowerShell):**
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar-setup-only.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
+```
+
+**macOS / Linux (Bash):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar-setup-only.sh | bash
+```
+
+**What gets downloaded (5 files only):**
+
+1. `.github/solar-setup.md` — Empty template for project configuration
+2. `.github/agents/solar-bootstrap.agent.md` — Bootstrap agent (governance bypass)
+3. `.github/prompts/solar-setup-scan-repo.prompt.md` — Repository scanner
+4. `.github/instructions/solar.md` — SOLAR-specific instructions
+5. `.github/solar.config.json` — Bootstrap mode configuration
+
+**What is NOT downloaded:**
+
+- All other prompts, agents, skills, hooks, guides, knowledge base (installed in Step 2)
+
+> **Purpose:** Verify that the Solar Bootstrap agent can scan your repo WITHOUT being affected by existing `AGENTS.md` or `copilot-instructions.md` files.
+
+**Run the repository scanner:**
+
+```
+/solar-setup-scan-repo
+```
+
+**Expected behavior:**
+
+- Scanner detects: project name, tech stack (React/Vue/Express/etc.), commands (dev/test/build), folder paths, test framework
+- Writes findings to `.github/solar-setup.md`
+- Completes WITHOUT delegating to specialists or invoking pipelines
+- Works correctly even if your repo already has `AGENTS.md` or `copilot-instructions.md`
+
+**Review the output:**
+
+- Open `.github/solar-setup.md` and verify detected values
+- Correct any `NEEDS MANUAL INPUT` or `INFERRED:` entries
+- Fix any misdetections
+
+> **🔬 Governance Bypass Test:** If the scanner delegates to other agents or fails due to existing governance files, the Solar Bootstrap agent is NOT bypassing governance correctly. Stop and troubleshoot before proceeding to Step 2.
+
+---
+
+### Step 2: Install Full SOLAR Framework
+
+Once the scan completes successfully and `.github/solar-setup.md` is filled, install the complete SOLAR framework:
 
 **Windows (PowerShell):**
 
@@ -52,85 +105,85 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops
 curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
 ```
 
+**What gets downloaded (~52 files):**
+
+- `AGENTS.md` — Orchestration contract
+- All agent files (13 specialists, auditors, governor, architect, bootstrap)
+- All skill files (13 skills)
+- All setup prompts (core-config, agent-config, scaffold)
+- Runtime commands (ralph-loop, audit-story)
+- Hooks (hooks.json, stop.cjs, post-tool-use.cjs, user-prompt-submit.cjs)
+- Guides (5 operator guides)
+- Knowledge base (6 pattern guides)
+- Verification artifacts folder
+
 **Options:**
 
-- Add `-Force` (PowerShell) or `--force` (Bash) to overwrite files that already exist.
-- The scripts are idempotent by default: they skip files already present and report what was downloaded, skipped, or failed.
+- Add `-Force` (PowerShell) or `--force` (Bash) to overwrite files that already exist
+- Scripts are idempotent: skip files already present, report downloaded/skipped/failed
 
-> **What gets downloaded:** All agents (including `solar-bootstrap`), skills, commands (including bootstrap mode toggles), hooks, operator guides (including bootstrap mode guide), verification artifacts, `solar-setup.md`, `.ai_ledger.md`, `AGENTS.md`, and repo memory scaffolding templates.
->
-> **What is NOT downloaded** (intentionally excluded):
->
-> - `docs/research/` — template development tracking only
-> - `.vscode/mcp.json` / `.vscode/settings.json` — configure manually (see Layer 9)
-> - `SOLAR-Ralph-implementation-guideline.md` — stays in the template repo
-> - `README.md` — write your own
+---
 
-> **Prefer manual copy?** See the [Complete File Inventory](#complete-file-inventory) section for the full per-file list.
+### Step 3: Apply Configuration to SOLAR Files
 
-### Step 2: Fill in the Setup Config and Apply
+The `.github/solar-setup.md` file is already filled (from Step 1 scan). Now apply those values to all SOLAR files.
 
-All `[POST-IMPLEMENT]` customizations are consolidated into a single file: `.github/solar-setup.md`.
-
-**Option A — Auto-fill (recommended):** Let the bootstrap agent scan the codebase and fill in the values:
+**3a.** Apply core configuration:
 
 ```
-@solar-bootstrap /solar-setup-scan-repo
+/solar-setup-core-config
 ```
 
-> **Important:** Run this with the `@solar-bootstrap` agent to ensure governance isolation. The bootstrap agent bypasses all SOLAR rules (AGENTS.md, copilot-instructions.md, hooks) so setup commands can configure the system without interference from the rules they're establishing. See [docs/guides/bootstrap-mode-guide.md](docs/guides/bootstrap-mode-guide.md) for details.
+**Updates:** `.github/instructions/solar.md`, `.github/hooks/hooks.json`, `.github/guides/solar-ralph-workflow.md`
 
-The agent detects your stack, commands, folder paths, and conventions from existing project files and writes them into `solar-setup.md`. Review the output and correct any fields marked `NEEDS MANUAL INPUT`.
-
-**Option B — Manual fill:** Open `.github/solar-setup.md` directly and fill in every value yourself (project name, stack, commands, folder paths, git conventions).
-
-> **Note for `copilot-instructions.md`:** If your repo already has this file, do **not** replace it — merge instead. Copy the "SOLAR-Ralph Operating Overlay" subsection into your existing Workflows section. The setup agent handles new repos automatically; for existing files, merge manually after the agent runs.
-
-**2b.** Apply values to core SOLAR files (copilot-instructions, hooks, workflow guide):
+**3b.** Apply agent and skill configuration:
 
 ```
-@solar-bootstrap /solar-setup-core-config
+/solar-setup-agent-config
 ```
 
-**2c.** Apply values to all agent, skill, and path instruction files:
+**Updates:** 8 agent files, 6+ skill files, path-specific `.instructions.md` files
+
+**3c.** Create project scaffolding:
 
 ```
-@solar-bootstrap /solar-setup-agent-config
+/solar-setup-scaffold
 ```
 
-> **Important:** Run both with the **default Copilot agent** (no `@` prefix). Run them in order -- 2b first, then 2c.
+**Creates:** `.ai_ledger.md`, 7 memory templates in `/memories/repo/`
 
 Each command reports which files were updated and flags anything needing manual review.
 
-> The detailed per-file customization reference is in the [Complete File Inventory](#complete-file-inventory) section below if you prefer to customize files manually.
+### Step 3: Populate Repository Memory (Optional)
 
-### Step 3: Populate Repo Memory
+Memory templates were created by `/solar-setup-scaffold` in Step 2d. Optionally populate them with project-specific facts:
 
-**Workflow:**
+**Option A — Let Governor populate automatically:**
+Skip this step. The Governor will populate memory files as needed during normal operation.
 
-1. Run the Orchestration Governor prompt below — it will scan your codebase and fill in each file with verified facts about your repo.
-2. Copilot reads the filled files and stores the content internally as repo-scoped memory.
-3. Once Copilot has ingested them, delete the `memories/repo/` folder from git — they are not needed at runtime and the live memory is managed by Copilot internally.
-
-Run the Orchestration Governor in `chat` mode with the prompt:
+**Option B — Pre-populate with facts:**
 
 ```
-@Orchestration-Governor explore the codebase and populate your memory with verified facts about architecture, commands, workflow, frontend, backend, security, and verification use templates from memories/repo/.
+@Orchestration-Governor explore the codebase and populate your memory with verified facts about architecture, commands, workflow, frontend, backend, security, and verification. Use templates from memories/repo/.
 ```
 
-Files to populate then delete:
+The Governor reads `/memories/repo/*.md` templates and fills them with project-specific facts.
 
-```
-/memories/repo/commands.md
-/memories/repo/architecture.md
-/memories/repo/workflow-facts.md
-/memories/repo/frontend-facts.md
-/memories/repo/backend-facts.md
-/memories/repo/security-facts.md
-/memories/repo/verification-facts.md
-```
+**Memory files to populate:**
 
-### Step 4: Verify the Hook
+- `commands.md` — Build, test, dev, deploy commands
+- `architecture.md` — Tech stack, folder structure, dependencies
+- `workflow-facts.md` — Git conventions, branching, PR process
+- `frontend-facts.md` — Frontend patterns, state management, routing
+- `backend-facts.md` — Backend patterns, API design, data layer
+- `security-facts.md` — Auth approach, secrets management, validation
+- `verification-facts.md` — Test strategy, coverage requirements
+
+**Important:** Memory files STAY in the repository. They are consumed by agents on every session. Do NOT delete them after population.
+
+---
+
+### Step 5: Verify the Hook
 
 Run the Stop hook manually to confirm Session-Type detection works.
 
@@ -150,7 +203,7 @@ echo "Session-Type: chat" > .ai_ledger.md
 
 Then test loop mode — update `.ai_ledger.md` to set `Session-Type: loop` and confirm the hook blocks exit until a `<promise>WORK_PACKAGE_COMPLETE</promise>` tag is written to the Completion Promise field.
 
-### Step 5: Activate SOLAR
+### Step 6: Activate SOLAR
 
 Once all POST-IMPLEMENT customizations are complete and the hook test passes, activate the system in `.github/solar.config.json`:
 
@@ -191,7 +244,7 @@ Your ledger `Current Objective` section should look like:
 - Completion Promise: pending
 ```
 
-### Step 6: Run a Smoke Test Story
+### Step 7: Run a Smoke Test Story
 
 Pick a trivial task (e.g., "add a README badge") and execute it with `/ralph-loop` to verify the full pipeline runs end to end: Governor → Specialist → Test → Review → Close.
 

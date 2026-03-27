@@ -1,3 +1,9 @@
+---
+name: solar-exit-bootstrap
+description: Deactivate SOLAR-Ralph bootstrap mode and restore normal operation
+agent: Solar Bootstrap
+---
+
 <!-- Manual Bootstrap Mode Deactivator - Restores normal operation -->
 
 <identity>

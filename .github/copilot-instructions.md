@@ -8,12 +8,8 @@
 
   ⚠️  APPLYING TO AN EXISTING REPO?
   If your target repo already has a .github/copilot-instructions.md,
-  do NOT replace it. Instead, MERGE the SOLAR-Ralph sections below
-  into your existing file:
-    - Copy the "SOLAR-Ralph Operating Overlay" subsection into your
-      existing ## Workflows section (or add it after).
-    - Copy the "📁 SOLAR-Ralph Key Files" section at the bottom.
-    - Keep all your existing project-specific content intact.
+  do NOT replace it. Keep your existing file and let SOLAR-Ralph use
+  .github/instructions/solar.md for all SOLAR-specific instructions.
 
   SETUP CHECKLIST (fill in every [POST-IMPLEMENT] block, then activate):
   1. [ ] Replace [YOUR-REPO-NAME] with your project name (line below)
@@ -27,12 +23,15 @@
   9. [ ] Fill in ## Git & Branching — branch naming, commit format
   10. [ ] Fill in ## Closing Work Items — PR/merge criteria
   11. [ ] Fill in ## Key Files — index of important files/docs
-  12. [ ] Set `SOLAR_ACTIVE: true` in .ai_ledger.md to enable hooks
+  12. [ ] Run /solar-setup-scan-repo to auto-detect project details
+  13. [ ] Set `SOLAR_ACTIVE: true` in .ai_ledger.md to enable hooks
+
+  NOTE: All SOLAR-specific instructions are in .github/instructions/solar.md
   ============================================================ -->
 
 Operational playbook for AI agents contributing to `[YOUR-REPO-NAME]`.
 
-> **Setup:** Fill in every `[POST-IMPLEMENT]` block. SOLAR-Ralph sections are ready to use as-is.
+> **Setup:** Fill in every `[POST-IMPLEMENT]` block below. SOLAR-Ralph instructions are in `.github/instructions/solar.md`.
 
 ## ⚡ Quick Start
 
@@ -53,39 +52,6 @@ Install: `[install command]` | Dev: `[dev command]` | Tests: `[test command]`
 <!-- [POST-IMPLEMENT: workflow summaries + links to detailed guides] -->
 
 Development: [local dev flow] | Testing: [framework + command] | Deployment: [targets]
-
-### 🤖 SOLAR-Ralph Operating Overlay
-
-When work is executed through the repo's SOLAR-Ralph files, treat the current workflow above as the governing delivery path and the SOLAR files as the execution overlay.
-
-- Orchestration contract: `AGENTS.md`
-- Restart-safe ledger: `.ai_ledger.md`
-- Lifecycle hooks: `.github/hooks/hooks.json`
-- Path-specific instructions: <!-- [POST-IMPLEMENT: any special instructions for certain file paths] -->
-- Operator guides: `.github/guides/solar-ralph-workflow.md`, `.github/guides/agent-operations-guide.md`, `.github/guides/memory-governance-guide.md`
-
-Working rules:
-
-- Keep active execution state in `.ai_ledger.md`.
-- Keep concise persistent facts in `/memories/repo/`.
-- Keep durable guidance in `docs/`.
-- Use bounded recursive repair loops with explicit completion promises instead of open-ended retry.
-- Route frontend, backend, security, review, and documentation work through their matching specialist roles when the SOLAR overlay is active.
-
-### 🧪 Task-Level Development Workflow
-
-Follow this sequence for every task (feature, bug fix, or enhancement):
-
-1. **Review** — Confirm AC clarity; resolve ambiguities before coding.
-2. **Plan** — Identify impacted areas; check <!-- [POST-IMPLEMENT: architecture docs or impacted areas guide] --> for conflicts.
-3. **Implement** — Keep scope bound to AC; defer extras to a follow-up task.
-4. **Test** — Cover happy path + at least one edge case; isolate unit tests for new logic.
-5. **Run Locally** — Verify manually; capture any AC discrepancies.
-6. **Docs** — Record decisions, data shape changes, performance notes.
-7. **Pre-Commit Gate** — Tests pass; type check & lint clean.
-8. **Commit** — `<type>(<scope>): <summary>`; include doc updates in same commit. <!-- [POST-IMPLEMENT:  Replace with project-specific commit message format] -->
-
-If blocked: pause and record the blocker with a concrete escalation reason in `.ai_ledger.md`.
 
 ## 🏷️ Naming & Structure
 
@@ -118,14 +84,6 @@ If blocked: pause and record the blocker with a concrete escalation reason in `.
 ## 🛠️ Resources
 
 <!-- [POST-IMPLEMENT: add links to architecture docs, style guides, testing guidelines, or any other resources agents should reference during implementation] -->
-
-## 📁 SOLAR-Ralph Key Files
-
-<!-- [POST-IMPLEMENT: add any other important files that agents should be aware of -->
-
-SOLAR Workflow: `.github/guides/solar-ralph-workflow.md`
-Agent Operations: `.github/guides/agent-operations-guide.md`
-Memory Governance: `.github/guides/memory-governance-guide.md`
 
 ---
 
