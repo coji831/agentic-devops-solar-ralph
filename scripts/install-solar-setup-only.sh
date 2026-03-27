@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# install-solar-setup-only.sh - Minimal SOLAR-Ralph Setup Scanner
+# install-solar-setup-only.sh - Minimal SOLAR-Ralph Quick Setup Installer
 #
-# Downloads ONLY what's needed to scan the repo and fill solar-setup.md.
+# Downloads ONLY what's needed to run /solar-setup-quick.
 # Run this from the ROOT of your target repo.
 #
 # One-liner install:
@@ -13,14 +13,16 @@ REPO="coji831/agentic-devops-solar-ralph"
 BRANCH="main"
 BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
-echo "📦 SOLAR-Ralph Setup Scanner - Minimal Install"
+echo "📦 SOLAR-Ralph Quick Setup - Minimal Install"
 echo "=============================================="
 echo ""
 
-# Minimal file list - ONLY what's needed to scan repo
+# Minimal file list - ONLY what's needed for /solar-setup-quick
 FILES=(
     ".github/solar-setup.md"
+    ".github/.ai_ledger.template.md"
     ".github/agents/solar-bootstrap.agent.md"
+    ".github/prompts/solar-setup-quick.prompt.md"
     ".github/prompts/solar-setup-scan-repo.prompt.md"
     ".github/instructions/solar.instructions.md"
     ".github/solar.config.json"

@@ -60,13 +60,15 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 
 **Setup Commands:**
 
-- `/solar-setup-scan-repo` — Auto-detect project stack and paths
-- `/solar-setup-core-config` — Apply config to core SOLAR files
-- `/solar-setup-agent-config` — Apply config to agents, skills, and path instructions
-- `/solar-setup-scaffold` — Create ledger, solar.instructions.md, and memory templates
+- `/solar-setup-quick` — All-in-one setup (scan + config + scaffold + activate) - RECOMMENDED
+- `/solar-setup-scan-repo` — Manual: Auto-detect project stack and paths only
+- `/solar-setup-core-config` — Manual: Apply config to core SOLAR files
+- `/solar-setup-agent-config` — Manual: Apply config to agents, skills, and path instructions
+- `/solar-setup-scaffold` — Manual: Create ledger and memory templates
+- `/solar-setup-memory` — Advanced: Create memory templates on demand
 
 **Activation:**
-All governance and memory files are created only after setup is complete. SOLAR remains disabled until `solar.active: true` is set in `.github/solar.config.json`.
+All governance and memory files are created only after setup is complete. SOLAR remains disabled until `solar.active: true` is set in `.github/solar.config.json` (automatically set by `/solar-setup-quick`).
 
 ---
 

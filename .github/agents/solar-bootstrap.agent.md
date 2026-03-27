@@ -3,7 +3,7 @@ name: Solar Bootstrap
 description: Dedicated utility agent for SOLAR-Ralph setup operations. Bypasses all governance rules and operates in complete isolation. ONLY invoke for /solar-setup-* commands.
 tools: [read, search, edit, execute, todo]
 model: GPT-5 mini (copilot)
-user-invocable: false
+user-invocable: true
 ---
 
 <!--
