@@ -12,7 +12,7 @@ $repo = "coji831/agentic-devops-solar-ralph"
 $branch = "main"
 $baseUrl = "https://raw.githubusercontent.com/$repo/$branch"
 
-Write-Host "📦 SOLAR-Ralph Setup Scanner - Minimal Install" -ForegroundColor Cyan
+Write-Host "SOLAR-Ralph Setup Scanner - Minimal Install" -ForegroundColor Cyan
 Write-Host "=============================================="
 Write-Host ""
 
@@ -39,11 +39,11 @@ function Download-File {
     try {
         $url = "$baseUrl/$file"
         Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing
-        Write-Host "✓ $file" -ForegroundColor Green
+        Write-Host "Downloaded: $file" -ForegroundColor Green
         return $true
     }
     catch {
-        Write-Host "✗ $file (download failed)" -ForegroundColor Red
+        Write-Host "Failed: $file" -ForegroundColor Red
         return $false
     }
 }
@@ -63,10 +63,10 @@ foreach ($file in $files) {
 
 Write-Host ""
 Write-Host "=============================================="
-Write-Host "✓ Downloaded: $succeeded files" -ForegroundColor Green
+Write-Host "Downloaded: $succeeded files" -ForegroundColor Green
 if ($failed -gt 0) {
-    Write-Host "✗ Failed: $failed files" -ForegroundColor Red
+    Write-Host "Failed: $failed files" -ForegroundColor Red
 }
 Write-Host ""
-Write-Host "Next step: Run /solar-setup-scan-repo to detect project details"
+Write-Host "Next step: Run /solar-setup-scan-repo"
 Write-Host ""

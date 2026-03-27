@@ -65,7 +65,17 @@ Development: [local dev flow] | Testing: [framework + command] | Deployment: [ta
 
 <!-- [POST-IMPLEMENT: doc types, content requirements, style guide] -->
 
-## 🛠️ Code Change Checklist
+## � Scripting Standards
+
+**ASCII-Only for Shell Scripts:**
+
+- NEVER use Unicode, emoji, or non-ASCII characters in `.sh`, `.ps1`, `.bat`, or any executable script files
+- Scripts served from web URLs (GitHub raw, CDN) often fail to parse when they contain UTF-8 characters
+- Use plain ASCII text only: A-Z, a-z, 0-9, and standard punctuation
+- Replace emoji/symbols with descriptive text: ❌ "✓" → ✅ "Success:", ❌ "📦" → ✅ "Package:"
+- This prevents encoding errors when scripts are downloaded and executed directly
+
+## �🛠️ Code Change Checklist
 
 <!-- [POST-IMPLEMENT: checklist items] -->
 
