@@ -75,7 +75,7 @@ All `[POST-IMPLEMENT]` customizations are consolidated into a single file: `.git
 **Option A — Auto-fill (recommended):** Let the default Copilot agent scan the codebase and fill in the values:
 
 ```
-/solar-scan-repo
+/solar-setup-scan-repo
 ```
 
 > **Important:** Run this with the **default Copilot agent** — do not prefix with `@Orchestration-Governor` or any specialist. The setup commands are utility scripts, not development tasks; routing them through the Governor triggers its pipeline system, which is not appropriate here.
@@ -86,15 +86,21 @@ The agent detects your stack, commands, folder paths, and conventions from exist
 
 > **Note for `copilot-instructions.md`:** If your repo already has this file, do **not** replace it — merge instead. Copy the "SOLAR-Ralph Operating Overlay" subsection into your existing Workflows section. The setup agent handles new repos automatically; for existing files, merge manually after the agent runs.
 
-**2b.** Once `solar-setup.md` is filled (via either option), distribute all values automatically:
+**2b.** Apply values to core SOLAR files (copilot-instructions, hooks, workflow guide):
 
 ```
-/solar-apply-setup
+/solar-setup-core-config
 ```
 
-> **Important:** Run this with the **default Copilot agent** (same reason — no `@` prefix).
+**2c.** Apply values to all agent, skill, and path instruction files:
 
-The agent reads `.github/solar-setup.md` and writes the values into every agent file, skill file, hook, and instruction file. It reports which files were updated and flags any ambiguities for manual review.
+```
+/solar-setup-agent-config
+```
+
+> **Important:** Run both with the **default Copilot agent** (no `@` prefix). Run them in order -- 2b first, then 2c.
+
+Each command reports which files were updated and flags anything needing manual review.
 
 > The detailed per-file customization reference is in the [Complete File Inventory](#complete-file-inventory) section below if you prefer to customize files manually.
 
@@ -146,11 +152,32 @@ Then test loop mode — update `.ai_ledger.md` to set `Session-Type: loop` and c
 
 ### Step 5: Activate SOLAR
 
-Once all POST-IMPLEMENT customizations are complete and the hook test passes, activate the system in `.ai_ledger.md`:
+Once all POST-IMPLEMENT customizations are complete and the hook test passes, activate the system in `.github/solar.config.json`:
 
-1. Change `SOLAR_ACTIVE: false` → `SOLAR_ACTIVE: true` in the `Current Objective` section
-2. Set `Completion Promise: pending`
-3. Remove the `<!-- TEMPLATE STATE: ... -->` comment at the top
+Change `"enabled": false` → `"enabled": true`:
+
+```json
+{
+  "solar": {
+    "enabled": true,
+    "mode": "simple",
+    "description": "SOLAR-Ralph system configuration"
+  },
+  ...
+}
+```
+
+**Configuration options:**
+
+- `solar.enabled` — Global on/off switch (overrides everything)
+- `solar.mode` — Operating mode: `"simple"` (chat), `"loop"` (autonomous), `"plan"`, `"manual-test"`
+- `hooks.enabled` — Global hook switch
+- Each hook has `enabled` and `activeModes` fields for granular control
+
+Then update `.ai_ledger.md`:
+
+1. Set `Completion Promise: pending` (if not already set)
+2. Remove the `<!-- TEMPLATE STATE: ... -->` comment at the top
 
 Your ledger `Current Objective` section should look like:
 
@@ -160,7 +187,6 @@ Your ledger `Current Objective` section should look like:
 - Pipeline: (none)
 - Pipeline Stage: (none)
 - Session-Type: chat
-- SOLAR_ACTIVE: true
 - VerificationTarget: (none)
 - Completion Promise: pending
 ```
@@ -195,6 +221,7 @@ AGENTS.md
 
 # Hooks
 .github/hooks/hooks.json                               [POST-IMPLEMENT]
+.github/solar.config.json
 
 # Skills
 .github/skills/frontend-feature-implementation/SKILL.md        [POST-IMPLEMENT]
@@ -215,10 +242,11 @@ AGENTS.md
 # Commands
 .github/commands/ralph-loop.prompt.md
 .github/commands/audit-story.prompt.md
-.github/commands/solar-apply-setup.prompt.md
-.github/commands/solar-scan-repo.prompt.md
+.github/commands/solar-setup-scan-repo.prompt.md
+.github/commands/solar-setup-core-config.prompt.md
+.github/commands/solar-setup-agent-config.prompt.md
 
-# Setup config (fill this first, then run /solar-apply-setup)
+# Setup config (fill this first, then run /solar-setup-core-config)
 .github/solar-setup.md                                 [POST-IMPLEMENT]
 
 # Path-specific instructions

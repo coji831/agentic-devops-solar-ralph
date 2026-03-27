@@ -23,7 +23,7 @@ $FILES = @(
     "AGENTS.md",
     ".ai_ledger.md",
 
-    # Setup config (fill this first, then run /solar-apply-setup)
+    # Setup config (fill this first, then run /solar-setup-core-config)
     ".github/solar-setup.md",
 
     # Agents - universal (governance, auditors, architect)
@@ -45,6 +45,7 @@ $FILES = @(
 
     # Hooks
     ".github/hooks/hooks.json",
+    ".github/solar.config.json",
     ".github/hooks/user-prompt-submit.cjs",
     ".github/hooks/post-tool-use.cjs",
     ".github/hooks/stop.cjs",
@@ -52,8 +53,9 @@ $FILES = @(
     # Commands
     ".github/commands/ralph-loop.prompt.md",
     ".github/commands/audit-story.prompt.md",
-    ".github/commands/solar-apply-setup.prompt.md",
-    ".github/commands/solar-scan-repo.prompt.md",
+    ".github/commands/solar-setup-scan-repo.prompt.md",
+    ".github/commands/solar-setup-core-config.prompt.md",
+    ".github/commands/solar-setup-agent-config.prompt.md",
 
     # Skills - universal
     ".github/skills/frontend-review/SKILL.md",
@@ -158,11 +160,11 @@ Write-Host ""
 Write-Host "=== Next Steps ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  1. Fill in .github/solar-setup.md with your project details"
-Write-Host "     Option A (auto): run /solar-scan-repo in Copilot chat to detect your"
+Write-Host "     Option A (auto): run /solar-setup-scan-repo in Copilot chat to detect your"
 Write-Host "       stack, commands, and paths automatically, then review the output."
 Write-Host "     Option B (manual): open .github/solar-setup.md and fill in every field."
 Write-Host ""
-Write-Host "  2. Run /solar-apply-setup in Copilot chat to distribute values"
+Write-Host "  2. Run /solar-setup-core-config in Copilot chat to distribute values"
 Write-Host "     to all [POST-IMPLEMENT] sections automatically"
 Write-Host ""
 Write-Host "  3. Populate repo memory - run in Copilot chat:"

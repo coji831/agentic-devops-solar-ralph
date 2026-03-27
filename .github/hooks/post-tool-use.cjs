@@ -22,23 +22,55 @@ process.stdin.on("end", () => {
       return;
     }
 
+    const configPath = path.resolve(__dirname, "../solar.config.json");
+    let config = null;
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    } catch (e) {
+      // Config missing or invalid - exit silently
+      process.exit(0);
+    }
+
+    // Global kill switches
+    if (
+      !config.solar?.enabled ||
+      !config.hooks?.enabled ||
+      !config.hooks?.postToolUse?.enabled
+    ) {
+      process.exit(0);
+    }
+
     const ledgerPath = path.resolve(__dirname, "../../.ai_ledger.md");
     const ledger = fs.existsSync(ledgerPath)
       ? fs.readFileSync(ledgerPath, "utf8")
       : "";
-    const solarActive = /SOLAR_ACTIVE:\s*true/i.test(ledger);
 
-    if (!solarActive) {
-      console.log(JSON.stringify({ continue: true }));
-      return;
+    // Determine current mode from Session-Type in ledger
+    const sessionTypeMatch = ledger.match(/Session-Type:\s*(\w+)/i);
+    const sessionType = sessionTypeMatch
+      ? sessionTypeMatch[1].toLowerCase()
+      : "chat";
+    const currentMode = config.sessionTypes?.[sessionType] || "simple";
+
+    // Check if this hook should be active for the current mode
+    const activeModes = config.hooks.postToolUse.activeModes || [];
+    if (!activeModes.includes(currentMode)) {
+      process.exit(0);
     }
 
-    const inLoop = /Session-Type:\s*loop/i.test(ledger);
+    // Check if type-check is enabled for this mode
+    const modeConfig = config.modes?.[currentMode] || {};
+    const shouldTypeCheck =
+      modeConfig.typeCheckOnWrite &&
+      config.hooks.postToolUse.typeCheck?.enabled;
 
-    if (inLoop) {
+    if (shouldTypeCheck) {
       let tscMessage = "";
       try {
-        execSync("npx tsc --noEmit 2>&1", { timeout: 10000, encoding: "utf8" });
+        const tscCmd =
+          config.hooks.postToolUse.typeCheck.command || "npx tsc --noEmit";
+        const tscTimeout = config.hooks.postToolUse.typeCheck.timeout || 10000;
+        execSync(tscCmd + " 2>&1", { timeout: tscTimeout, encoding: "utf8" });
       } catch (e) {
         if (e.stdout) {
           const errors = (e.stdout.match(/error TS\d+[^\n]*/g) || []).slice(

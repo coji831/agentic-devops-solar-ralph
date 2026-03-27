@@ -36,7 +36,7 @@ FILES=(
     "AGENTS.md"
     ".ai_ledger.md"
 
-    # Setup config (fill this first, then run /solar-apply-setup)
+    # Setup config (fill this first, then run /solar-setup-core-config)
     ".github/solar-setup.md"
 
     # Agents - universal (governance, auditors, architect)
@@ -58,6 +58,7 @@ FILES=(
 
     # Hooks
     ".github/hooks/hooks.json"
+    ".github/solar.config.json"
     ".github/hooks/user-prompt-submit.cjs"
     ".github/hooks/post-tool-use.cjs"
     ".github/hooks/stop.cjs"
@@ -65,8 +66,9 @@ FILES=(
     # Commands
     ".github/commands/ralph-loop.prompt.md"
     ".github/commands/audit-story.prompt.md"
-    ".github/commands/solar-apply-setup.prompt.md"
-    ".github/commands/solar-scan-repo.prompt.md"
+    ".github/commands/solar-setup-scan-repo.prompt.md"
+    ".github/commands/solar-setup-core-config.prompt.md"
+    ".github/commands/solar-setup-agent-config.prompt.md"
 
     # Skills - universal
     ".github/skills/frontend-review/SKILL.md"
@@ -181,12 +183,15 @@ echo ""
 echo -e "${CYAN}=== Next Steps ===${NC}"
 echo ""
 echo "  1. Fill in .github/solar-setup.md with your project details"
-echo "     Option A (auto): run /solar-scan-repo in Copilot chat to detect your"
+echo "     Option A (auto): run /solar-setup-scan-repo in Copilot chat to detect your"
 echo "       stack, commands, and paths automatically, then review the output."
 echo "     Option B (manual): open .github/solar-setup.md and fill in every field."
 echo ""
-echo "  2. Run /solar-apply-setup in Copilot chat to distribute values"
-echo "     to all [POST-IMPLEMENT] sections automatically"
+echo "  2a. Run /solar-setup-core-config in Copilot chat to apply values to core files"
+echo "      (copilot-instructions.md, hooks.json, solar-ralph-workflow.md)"
+echo ""
+echo "  2b. Run /solar-setup-agent-config in Copilot chat to apply values to all"
+echo "      agent, skill, and path instruction files"
 echo ""
 echo "  3. Populate repo memory - run in Copilot chat:"
 echo "     @Orchestration-Governor explore the codebase and populate"

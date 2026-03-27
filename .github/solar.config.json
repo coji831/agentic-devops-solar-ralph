@@ -1,0 +1,57 @@
+{
+  "solar": {
+    "enabled": false,
+    "mode": "simple",
+    "description": "SOLAR-Ralph system configuration"
+  },
+  "modes": {
+    "simple": {
+      "description": "Standard chat - hooks passive, no loop enforcement",
+      "enforceCompletion": false,
+      "typeCheckOnWrite": false
+    },
+    "loop": {
+      "description": "Autonomous loop - hooks enforce continuation until complete",
+      "enforceCompletion": true,
+      "typeCheckOnWrite": true
+    },
+    "plan": {
+      "description": "Planning mode - validation warnings only, no blocking",
+      "enforceCompletion": false,
+      "typeCheckOnWrite": false
+    },
+    "manual-test": {
+      "description": "Manual testing - all hooks silent",
+      "enforceCompletion": false,
+      "typeCheckOnWrite": false
+    }
+  },
+  "hooks": {
+    "enabled": true,
+    "userPromptSubmit": {
+      "enabled": true,
+      "activeModes": ["loop"],
+      "blockOnPendingTask": true
+    },
+    "postToolUse": {
+      "enabled": true,
+      "activeModes": ["loop"],
+      "typeCheck": {
+        "enabled": true,
+        "command": "npx tsc --noEmit",
+        "timeout": 10000
+      }
+    },
+    "stop": {
+      "enabled": true,
+      "activeModes": ["loop"],
+      "enforceLoopContinuation": true
+    }
+  },
+  "sessionTypes": {
+    "chat": "simple",
+    "loop": "loop",
+    "manual-test": "manual-test",
+    "plan": "plan"
+  }
+}

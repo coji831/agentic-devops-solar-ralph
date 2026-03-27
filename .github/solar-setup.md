@@ -3,7 +3,7 @@
 **Option A — Auto-fill (recommended):** Run this command to have an agent scan the codebase and fill in these values for you:
 
 ```
-/solar-scan-repo
+/solar-setup-scan-repo
 ```
 
 Then review and correct any fields marked `# NEEDS MANUAL INPUT`.
@@ -13,7 +13,7 @@ Then review and correct any fields marked `# NEEDS MANUAL INPUT`.
 Once all values are filled (via either option), distribute them to every agent, skill, hook, and instruction file by running:
 
 ```
-/solar-apply-setup
+/solar-setup-core-config
 ```
 
 ---
