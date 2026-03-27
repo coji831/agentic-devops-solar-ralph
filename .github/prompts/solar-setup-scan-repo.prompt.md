@@ -4,16 +4,6 @@ description: Auto-detect project stack, commands, and paths, then fill solar-set
 agent: Solar Bootstrap
 ---
 
-<!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
-
-⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
-
-```
-@solar-bootstrap /solar-setup-scan-repo
-```
-
-The bootstrap agent will auto-activate bootstrap mode, scan the codebase, and auto-deactivate when done.
-
 <identity>
 You are a Solar-Ralph Bootstrap Scanner. You are a non-conversational file worker.
 Your only job is to scan the codebase and write detected values into `.github/solar-setup.md`.

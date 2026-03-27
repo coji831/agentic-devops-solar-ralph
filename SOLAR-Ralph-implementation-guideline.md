@@ -1,144 +1,183 @@
-# SOLAR-Ralph Implementation Guideline — v2 (Quick Setup First)
+# SOLAR-Ralph Implementation Guideline
 
-A streamlined, general-first installation and setup flow for SOLAR-Ralph. This version prioritizes a working minimal install and a single pragmatic "quick setup" path so users can start using SOLAR immediately. Advanced configuration and tuning are deferred to a separate section.
+A streamlined installation and setup flow for SOLAR-Ralph with two clear paths: Quick Setup (recommended) for fastest deployment, or Full Setup (advanced) for complete customization.
 
 ## TL;DR
 
-- Quick Setup: install minimal scanner → run `/solar-setup-quick` (scan + config + scaffold + activate) → run smoke test
-- Manual Setup: use granular commands for troubleshooting
-- Advanced Setup: optional tuning (agent config, memory population, hook fine-tuning)
+1. **Install:** Download all SOLAR files (one installer, ~60 files)
+2. **Setup:** Choose your path
+   - **Quick:** `/solar-setup-quick` → core config only, fastest (recommended)
+   - **Full:** `/solar-setup-full` → core + agent/skill customization
+3. **Test:** `/ralph-loop "Add a README badge"` → verify SOLAR works
 
 ---
 
-## Quick Setup (Recommended)
+## Installation (Single Step)
 
-1. Install minimal scanner (one-liner from release):
+Download all SOLAR-Ralph files to your repository root:
 
-   PowerShell:
+**Windows (PowerShell):**
 
-   ```powershell
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar-setup-only.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
-   ```
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
+```
 
-   Bash (macOS / Linux):
+**macOS / Linux (Bash):**
 
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar-setup-only.sh | bash
-   ```
+```bash
+curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
+```
 
-2. Run the quick setup command (combines scan + config + scaffold + activate):
+**What gets downloaded (~60 files):**
 
-   ```text
-   /solar-setup-quick
-   ```
-
-   What it does:
-   - Runs the repository scanner and writes `.github/solar-setup.md`
-   - Applies core configuration to SOLAR files in `.github/`
-   - Creates `.github/.ai_ledger.md` from template
-   - Sets `"active": true` in `.github/solar.config.json` to activate SOLAR
-   - Skips memory files and agent-config (uses defaults for speed)
-
-3. Smoke test (simple story):
-
-   ```text
-   /ralph-loop "Add a README badge"
-   ```
-
-   If the smoke test completes, SOLAR is operational. If not, use the Manual Setup flow below.
+- Orchestration contract (AGENTS.md)
+- All 14 agents (governor, specialists, auditors, architect)
+- All 14 skills (implementation, testing, review, governance)
+- All setup commands and runtime commands
+- Lifecycle hooks (hooks.json + 3 .cjs files)
+- Operator guides (5 guides)
+- Knowledge base (6 pattern guides)
+- Verification artifacts folder
 
 ---
 
-## Manual Setup (Troubleshooting / Granular Control)
+## Setup Options
 
-1. Install minimal scanner (same one-liner above)
-2. Run scanner only:
+### Option 1: Quick Setup (Partial Customization For Your Project - Recommended)
 
-   ```text
+**Run:**
+
+```text
+/solar-setup-quick
+```
+
+**What it does:**
+
+- Scans repository and detects project details
+- Applies core configuration (instructions, hooks, guides)
+- Creates working ledger from template
+- Activates SOLAR (sets `solar.active: true`)
+- Uses default agent settings (no customization)
+
+**Time:** ~2 minutes  
+**Best for:** Getting SOLAR running quickly, standard tech stacks
+
+**Next:** Smoke test with `/ralph-loop "Add a README badge"`
+
+**Optional later:** Run `/solar-setup-agent-config` to customize agents/skills with your tech stack
+
+---
+
+### Option 2: Full Setup (Full Customization)
+
+**Run:**
+
+```text
+/solar-setup-full
+```
+
+**What it does:**
+
+- Everything Quick Setup does
+- **PLUS:** Customizes all 14 agents with your tech stack
+- **PLUS:** Customizes all 14 skills with your frameworks
+- Updates frontend/backend specialist instructions
+- Updates implementation and testing skill guidance
+
+**Time:** ~5 minutes  
+**Best for:** Complex monorepos, non-standard stacks, teams wanting full customization
+
+**Next:** Smoke test with `/ralph-loop "Add a README badge"`
+
+---
+
+## Smoke Test
+
+After either setup, verify SOLAR works end-to-end:
+
+```text
+/ralph-loop "Add a README badge"
+```
+
+**Expected behavior:**
+
+- Governor orchestrates the task
+- Specialist implements the change
+- Tests run automatically
+- Loop completes with success message
+
+**If it fails:** Check errors, verify setup files exist, retry with `/solar-setup-quick` or `/solar-setup-full`
+
+---
+
+## Manual Setup (Troubleshooting Only)
+
+If automated setup fails, run individual steps:
+
+1. **Scan repository:**
+
+   ```
    /solar-setup-scan-repo
    ```
 
-3. Review `.github/solar-setup.md` and correct any `NEEDS MANUAL INPUT` or misdetections.
-4. Install full framework if desired:
+   Review `.github/solar-setup.md` and correct any misdetections
 
-   PowerShell:
+2. **Apply core config:**
 
-   ```powershell
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install-solar.ps1; .\install-solar.ps1; Remove-Item install-solar.ps1
    ```
-
-5. Apply core config:
-
-   ```text
    /solar-setup-core-config
    ```
 
-6. Apply agent/skill config (optional):
+3. **Apply agent config (optional):**
 
-   ```text
+   ```
    /solar-setup-agent-config
    ```
 
-7. Create scaffolding (ledger, memory templates):
+4. **Create scaffolding:**
 
-   ```text
+   ```
    /solar-setup-scaffold
    ```
 
-8. Run smoke test `/ralph-loop` as above.
+5. **Manually activate:** Edit `.github/solar.config.json`, set `"active": true`
 
 ---
 
-## Advanced Setup (Optional — defer until needed)
+## Advanced Setup (Optional)
 
-- **Custom agent configuration:** `/solar-setup-agent-config` — customize tool restrictions and tech stack references
-- **Create memory templates:** `/solar-setup-memory` — create structured fact files in `.github/memories/repo/`
-- **Populate memory:** Run Governor to fill templates with project facts (optional optimization)
-- **Hook verification:** Manual terminal commands to test Session-Type detection (paranoia/debugging only)
+### Memory Templates
 
-These steps are intentionally optional and can be completed later as the project matures.
+Create structured fact files for the governor to populate:
+
+```
+/solar-setup-memory
+```
+
+**Creates:** 7 memory template files in `.github/memories/repo/`
+
+- commands.md
+- architecture.md
+- workflow-facts.md
+- frontend-facts.md
+- backend-facts.md
+- security-facts.md
+- verification-facts.md
+
+**Populate:** Run `@Orchestration-Governor explore the codebase and populate .github/memories/repo/` (optional, for faster subsequent sessions)
 
 ---
 
 ## Implementation Status
 
-**✅ Implemented:**
+**✅ Completed:**
 
-- ✅ All core files moved to `.github/` (AGENTS.md, .ai_ledger.template.md, memories/repo/)
-- ✅ `SOLAR_ACTIVE moved to `solar.config.json` (`solar.active` field)
-- ✅ Hooks updated to read config instead of ledger
-- ✅ Ledger template cleaned (no SOLAR_ACTIVE field)
-- ✅ `.github/prompts/solar-setup-quick.prompt.md` created (combined setup command)
-- ✅ `.github/prompts/solar-setup-memory.prompt.md` created (memory on demand)
-- ✅ Installer scripts updated for new paths
+- Single installer downloads all files
+- Two setup paths: Quick (fast) and Full (customized)
+- All core files in `.github/` structure
+- Config-based activation (`solar.active` in config)
+- Ledger template approach
+- Complete agent and skill customization support
 
-**🚧 Remaining Work:**
-
-- 📝 Bulk update ~40+ files (agents, skills, prompts, guides, docs) to reference new `.github/` paths
-- 📝 Update README.md and main implementation guideline
-- 📝 Test quick setup flow in target repo
-
-**Usage:**
-
-- **Quick setup:** Download minimal installer → run `/solar-setup-quick` → smoke test
-- **Memory (optional):** Run `/solar-setup-memory` to create templates
-- **Activation:** Already active after `/solar-setup-quick` (no manual config edit needed)
-
----
-
-## Verification Checklist
-
-1. ✅ Run Quick Setup in a test repo → verify `/solar-setup-quick` completes successfully
-2. ✅ Verify `.github/.ai_ledger.md` created from template
-3. ✅ Verify `solar.active: true` set in config
-4. ✅ Run smoke test `/ralph-loop "add badge"` → verify SOLAR loops correctly
-5. ✅ Optional: Run `/solar-setup-memory` → verify templates created
-6. ✅ Manual Setup still works for troubleshooting (granular commands)
-
----
-
-**Next Steps for Full Rollout:**
-
-- Complete bulk path updates in remaining documentation files
-- Test in 2-3 different repo types (frontend-only, full-stack, monorepo)
-- Update main README.md with new quick setup flow
+**🎯 Ready for Use:**
+Install → Choose setup path → Smoke test → SOLAR is operational!

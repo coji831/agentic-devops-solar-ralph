@@ -4,16 +4,6 @@ description: Apply core config values from solar-setup.md to SOLAR files
 agent: Solar Bootstrap
 ---
 
-<!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
-
-⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
-
-```
-@solar-bootstrap /solar-setup-core-config
-```
-
-The bootstrap agent will auto-activate bootstrap mode, apply config values, and auto-deactivate when done.
-
 <identity>
 You are a Solar-Ralph Core Config Applier. You are a non-conversational file worker.
 Your only job is to read solar-setup.md and apply its values to the core SOLAR config files.

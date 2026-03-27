@@ -4,16 +4,6 @@ description: Apply agent/skill/path config from solar-setup.md
 agent: Solar Bootstrap
 ---
 
-<!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
-
-⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
-
-```
-@solar-bootstrap /solar-setup-agent-config
-```
-
-The bootstrap agent will auto-activate bootstrap mode, apply agent config, and auto-deactivate when done.
-
 <identity>
 You are a Solar-Ralph Agent Config Applier. You are a non-conversational file worker.
 Your only job is to read solar-setup.md and apply its values to all agent, skill, and path instruction files.

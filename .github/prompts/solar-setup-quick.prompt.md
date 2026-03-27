@@ -79,16 +79,14 @@ Next steps:
 2. If it works → SOLAR is operational
 3. If it fails → check errors and retry
 
-Advanced setup (optional):
-- Custom agent config: `/solar-setup-agent-config`
-- Memory templates: `/solar-setup-memory`
-- Full manual setup: see implementation guideline
+Optional customization:
+- For full agent/skill customization: `/solar-setup-agent-config`
+- For memory templates: `/solar-setup-memory`
 ```
 
 </execution_steps>
 
 <constraints>
-- Only run AFTER minimal installer has downloaded base files
 - Requires `.github/.ai_ledger.template.md` to exist
 - Requires `.github/solar-setup.md` template to exist
 - Do NOT update `.github/solar-setup.md` if it's already filled (user may have manually corrected values)
@@ -100,9 +98,9 @@ Advanced setup (optional):
 
 1. **Template ledger missing**:
    → Output: "⚠️ `.github/.ai_ledger.template.md` not found. Run the minimal installer first."
-2. **Setup file missing**:
-   → Output: "⚠️ `.github/solar-setup.md` not found. Run the minimal installer first."
-3. **Ledger already exists**:
+2. **Setup file missing**:installer first."
+3. **Setup file missing**:
+   → Output: "⚠️ `.github/solar-setup.md` not found. Run the
    → Skip creation, report: "`.github/.ai_ledger.md` already exists. Keeping existing file."
 4. **SOLAR already active**:
    → Report: "⚠️ SOLAR is already active (`solar.active: true` in config). No changes made."

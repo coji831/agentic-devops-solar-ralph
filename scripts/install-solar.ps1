@@ -59,6 +59,7 @@ $FILES = @(
 
     # Setup prompts
     ".github/prompts/solar-setup-quick.prompt.md",
+    ".github/prompts/solar-setup-full.prompt.md",
     ".github/prompts/solar-setup-scan-repo.prompt.md",
     ".github/prompts/solar-setup-core-config.prompt.md",
     ".github/prompts/solar-setup-agent-config.prompt.md",
@@ -168,23 +169,21 @@ if ($failed -gt 0) {
 }
 
 Write-Host ""
-Write-Host "=== Next Steps ===" -ForegroundColor Cyan
+Write-Host "=== Setup Options ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Quick Setup (Recommended):"
-Write-Host "    Run /solar-setup-quick in Copilot chat"
-Write-Host "    (combines scan + config + scaffold + activate)"
+Write-Host "  Option 1: Quick Setup (Recommended)"
+Write-Host "    Run: /solar-setup-quick"
+Write-Host "    - Scans repo and applies core configuration"
+Write-Host "    - Creates ledger and activates SOLAR"
+Write-Host "    - Uses default agent settings (fastest path)"
+Write-Host "    - Optional: Run /solar-setup-agent-config later for customization"
 Write-Host ""
-Write-Host "  Manual Setup (Troubleshooting):"
-Write-Host "    1. Run /solar-setup-scan-repo to detect project details"
-Write-Host "    2. Review .github/solar-setup.md and correct any misdetections"
-Write-Host "    3. Run /solar-setup-core-config to apply config"
-Write-Host "    4. Run /solar-setup-agent-config (optional)"
-Write-Host "    5. Run /solar-setup-scaffold to create ledger and memory templates"
+Write-Host "  Option 2: Full Setup (Advanced)"
+Write-Host "    Run: /solar-setup-full"
+Write-Host "    - Does everything Quick Setup does"
+Write-Host "    - PLUS customizes all 14 agents and skills with your tech stack"
+Write-Host "    - Best for complex monorepos or non-standard stacks"
 Write-Host ""
-Write-Host "  Advanced (Optional):"
-Write-Host "    - Run /solar-setup-memory to create memory templates"
-Write-Host "    - Populate memory with @Orchestration-Governor"
-Write-Host ""
-Write-Host "  Smoke Test:"
+Write-Host "  Smoke Test (after either setup):"
 Write-Host "    /ralph-loop `"Add a README badge`""
 Write-Host ""
