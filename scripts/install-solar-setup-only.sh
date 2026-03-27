@@ -22,7 +22,7 @@ FILES=(
     ".github/solar-setup.md"
     ".github/agents/solar-bootstrap.agent.md"
     ".github/prompts/solar-setup-scan-repo.prompt.md"
-    ".github/instructions/solar.md"
+    ".github/instructions/solar.instructions.md"
     ".github/solar.config.json"
 )
 

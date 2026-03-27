@@ -57,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 1. `.github/solar-setup.md` — Empty template for project configuration
 2. `.github/agents/solar-bootstrap.agent.md` — Bootstrap agent (governance bypass)
 3. `.github/prompts/solar-setup-scan-repo.prompt.md` — Repository scanner
-4. `.github/instructions/solar.md` — SOLAR-specific instructions
+4. `.github/instructions/solar.instructions.md` — SOLAR-specific instructions
 5. `.github/solar.config.json` — Bootstrap mode configuration
 
 **What is NOT downloaded:**
@@ -134,7 +134,7 @@ The `.github/solar-setup.md` file is already filled (from Step 1 scan). Now appl
 /solar-setup-core-config
 ```
 
-**Updates:** `.github/instructions/solar.md`, `.github/hooks/hooks.json`, `.github/guides/solar-ralph-workflow.md`
+**Updates:** `.github/instructions/solar.instructions.md`, `.github/hooks/hooks.json`, `.github/guides/solar-ralph-workflow.md`
 
 **3b.** Apply agent and skill configuration:
 

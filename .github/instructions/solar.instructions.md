@@ -13,7 +13,7 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 - Orchestration contract: `AGENTS.md`
 - Restart-safe ledger: `.ai_ledger.md`
 - Lifecycle hooks: `.github/hooks/hooks.json`
-- Path-specific instructions: `.github/instructions/solar.md`
+- Path-specific instructions: `.github/instructions/solar.instructions.md`
 - Operator guides: `.github/guides/solar-ralph-workflow.md`, `.github/guides/agent-operations-guide.md`, `.github/guides/memory-governance-guide.md`
 
 **Working Rules:**
@@ -63,7 +63,7 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 - `/solar-setup-scan-repo` — Auto-detect project stack and paths
 - `/solar-setup-core-config` — Apply config to core SOLAR files
 - `/solar-setup-agent-config` — Apply config to agents, skills, and path instructions
-- `/solar-setup-scaffold` — Create ledger, solar.md, and memory templates
+- `/solar-setup-scaffold` — Create ledger, solar.instructions.md, and memory templates
 
 **Activation:**
 All governance and memory files are created only after setup is complete. SOLAR remains disabled until `SOLAR_ACTIVE: true` is set in `.ai_ledger.md`.

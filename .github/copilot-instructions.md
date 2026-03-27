@@ -9,7 +9,7 @@
   ⚠️  APPLYING TO AN EXISTING REPO?
   If your target repo already has a .github/copilot-instructions.md,
   do NOT replace it. Keep your existing file and let SOLAR-Ralph use
-  .github/instructions/solar.md for all SOLAR-specific instructions.
+  .github/instructions/solar.instructions.md for all SOLAR-specific instructions.
 
   SETUP CHECKLIST (fill in every [POST-IMPLEMENT] block, then activate):
   1. [ ] Replace [YOUR-REPO-NAME] with your project name (line below)
@@ -26,12 +26,12 @@
   12. [ ] Run /solar-setup-scan-repo to auto-detect project details
   13. [ ] Set `SOLAR_ACTIVE: true` in .ai_ledger.md to enable hooks
 
-  NOTE: All SOLAR-specific instructions are in .github/instructions/solar.md
+  NOTE: All SOLAR-specific instructions are in .github/instructions/solar.instructions.md
   ============================================================ -->
 
 Operational playbook for AI agents contributing to `[YOUR-REPO-NAME]`.
 
-> **Setup:** Fill in every `[POST-IMPLEMENT]` block below. SOLAR-Ralph instructions are in `.github/instructions/solar.md`.
+> **Setup:** Fill in every `[POST-IMPLEMENT]` block below. SOLAR-Ralph instructions are in `.github/instructions/solar.instructions.md`.
 
 ## ⚡ Quick Start
 
