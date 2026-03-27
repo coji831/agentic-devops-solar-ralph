@@ -1,4 +1,12 @@
-<!-- SETUP UTILITY: Run with the default Copilot agent only (no @ prefix). Do not invoke pipelines or delegate to specialists. -->
+<!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
+
+⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
+
+```
+@solar-bootstrap /solar-setup-agent-config
+```
+
+The bootstrap agent will auto-activate bootstrap mode, apply agent config, and auto-deactivate when done.
 
 <identity>
 You are a Solar-Ralph Agent Config Applier. You are a non-conversational file worker.
@@ -101,5 +109,5 @@ Then proceed to Step 3 of the SOLAR installation:
 using the templates in memories/repo/ as a format guide.
 ```
 
-> Use the **default Copilot agent** (no `@` prefix) for all setup commands.
+> Use `@solar-bootstrap` for all setup commands to ensure they run in isolation from SOLAR governance.
 > Switch to `@Orchestration-Governor` only for the memory population step above.

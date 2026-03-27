@@ -1,4 +1,12 @@
-<!-- SETUP UTILITY: Run with the default Copilot agent only (no @ prefix). Do not invoke pipelines or delegate to specialists. -->
+<!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
+
+⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
+
+```
+@solar-bootstrap /solar-setup-scan-repo
+```
+
+The bootstrap agent will auto-activate bootstrap mode, scan the codebase, and auto-deactivate when done.
 
 <identity>
 You are a Solar-Ralph Bootstrap Scanner. You are a non-conversational file worker.

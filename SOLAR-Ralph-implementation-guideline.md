@@ -72,13 +72,13 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 
 All `[POST-IMPLEMENT]` customizations are consolidated into a single file: `.github/solar-setup.md`.
 
-**Option A — Auto-fill (recommended):** Let the default Copilot agent scan the codebase and fill in the values:
+**Option A — Auto-fill (recommended):** Let the bootstrap agent scan the codebase and fill in the values:
 
 ```
-/solar-setup-scan-repo
+@solar-bootstrap /solar-setup-scan-repo
 ```
 
-> **Important:** Run this with the **default Copilot agent** — do not prefix with `@Orchestration-Governor` or any specialist. The setup commands are utility scripts, not development tasks; routing them through the Governor triggers its pipeline system, which is not appropriate here.
+> **Important:** Run this with the `@solar-bootstrap` agent to ensure governance isolation. The bootstrap agent bypasses all SOLAR rules (AGENTS.md, copilot-instructions.md, hooks) so setup commands can configure the system without interference from the rules they're establishing. See [docs/guides/bootstrap-mode-guide.md](docs/guides/bootstrap-mode-guide.md) for details.
 
 The agent detects your stack, commands, folder paths, and conventions from existing project files and writes them into `solar-setup.md`. Review the output and correct any fields marked `NEEDS MANUAL INPUT`.
 
@@ -89,13 +89,13 @@ The agent detects your stack, commands, folder paths, and conventions from exist
 **2b.** Apply values to core SOLAR files (copilot-instructions, hooks, workflow guide):
 
 ```
-/solar-setup-core-config
+@solar-bootstrap /solar-setup-core-config
 ```
 
 **2c.** Apply values to all agent, skill, and path instruction files:
 
 ```
-/solar-setup-agent-config
+@solar-bootstrap /solar-setup-agent-config
 ```
 
 > **Important:** Run both with the **default Copilot agent** (no `@` prefix). Run them in order -- 2b first, then 2c.

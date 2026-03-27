@@ -116,16 +116,16 @@ If blocked: pause and record the blocker with a concrete escalation reason in `.
 <!-- [POST-IMPLEMENT:  add any project-specific gates, e.g., performance benchmarks, security review] -->
 
 ## 🛠️ Resources
+
 <!-- [POST-IMPLEMENT: add links to architecture docs, style guides, testing guidelines, or any other resources agents should reference during implementation] -->
 
 ## 📁 SOLAR-Ralph Key Files
 
 <!-- [POST-IMPLEMENT: add any other important files that agents should be aware of -->
+
 SOLAR Workflow: `.github/guides/solar-ralph-workflow.md`
 Agent Operations: `.github/guides/agent-operations-guide.md`
 Memory Governance: `.github/guides/memory-governance-guide.md`
-
-
 
 ---
 

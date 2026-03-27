@@ -24,6 +24,12 @@
       "description": "Manual testing - all hooks silent",
       "enforceCompletion": false,
       "typeCheckOnWrite": false
+    },
+    "bootstrap": {
+      "description": "Bootstrap mode - all governance disabled, SOLAR setup utilities only",
+      "enforceCompletion": false,
+      "typeCheckOnWrite": false,
+      "ignoreGlobalInstructions": true
     }
   },
   "hooks": {
@@ -52,6 +58,7 @@
     "chat": "simple",
     "loop": "loop",
     "manual-test": "manual-test",
-    "plan": "plan"
+    "plan": "plan",
+    "bootstrap": "bootstrap"
   }
 }

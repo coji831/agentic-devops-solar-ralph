@@ -1,3 +1,39 @@
+# Optimize Your Setup Command for "Old" Models
+
+**⚡ NEW: Bootstrap Agent Solution (Recommended)**
+
+The most robust solution to governance interference during setup is the **dedicated `@solar-bootstrap` agent**. This agent has hard-coded authority to bypass all SOLAR governance and operates in complete isolation.
+
+**How to use:**
+
+```
+@solar-bootstrap /solar-setup-scan-repo
+@solar-bootstrap /solar-setup-core-config
+@solar-bootstrap /solar-setup-agent-config
+```
+
+**Why this works:**
+
+- Agent definitions have higher precedence than AGENTS.md in Copilot's instruction hierarchy
+- Bootstrap mode in `solar.config.json` makes all hooks exit immediately
+- Forbidden tools list prevents ledger/memory updates at the agent level
+- Scope guard ensures agent only works with setup commands
+
+**Advantages over prompt-level workarounds:**
+
+- Deterministic bypass (no guessing if the override worked)
+- Auto-activation/deactivation of bootstrap mode
+- Visual confirmation (`🔧 BOOTSTRAP MODE ACTIVE`)
+- Works reliably with all model intelligences (including "old" 3.5-class models)
+
+**For full details:** See [docs/guides/bootstrap-mode-guide.md](bootstrap-mode-guide.md)
+
+---
+
+## Fallback: Prompt-Level Optimization for "Old" Models
+
+If the bootstrap agent is unavailable or you need to create similar isolated utility commands, the techniques below remain relevant.
+
 To optimize your **SOLAR-Ralph** setup utility for "old" or lower-intelligence models (like GPT-3.5, GPT-4 mini, or Haiku), you must move away from "conversational vibes" and toward **Structured Instruction Sets**. Older models struggle with long, dense paragraphs and often "forget" critical constraints (like using file-edit tools) if they are buried in the text.
 
 The most effective strategy in 2026 for steering less-capable agents is the **XML-Markdown Hybrid Format**, which uses explicit tag boundaries to separate your goals, constraints, and logic.
@@ -71,3 +107,93 @@ By breaking the detection logic into a dedicated `<detection_logic>` list, you p
 #### 5. Deterministic Fallbacks
 
 "Old" models often guess (hallucinate) when they can't find a value. The `<fallback_rules>` explicitly permit the model to say "NEEDS MANUAL INPUT," which reduces the risk of the agent corrupting your setup file with incorrect data.
+
+# Running the setup command with AGENTS.md and .github/copilot-instructions.md in context
+
+In the GitHub Copilot ecosystem, instructions in **`AGENTS.md`** and **`.github/copilot-instructions.md`** are treated as "Global Mandates" that override local prompt instructions unless a "Hard Override" is explicitly triggered.
+
+Specifically, your agent is seeing the setup scan as a "Task" within the system it is supposed to be scanning, leading it to follow the SOLAR-Ralph rules already defined in the repo rather than the bootstrap rules in your prompt.
+
+### Why it failed
+
+1.  **Governance Priority:** The agent prioritized the "Operating Artifacts" section of your `AGENTS.md` because repository-level policies are weighted higher than single-prompt instructions to ensure system stability.
+2.  **Tooling Mandate:** The "workspace reminder" it mentioned is likely a rule in your `.github/copilot-instructions.md` that forces reasoning models (like GPT-5 mini) to use the `manage_todo_list` tool for any multi-step action.
+3.  **Context Pollution:** Because `AGENTS.md` was already in the context, the agent "hallucinated" that the setup scan must follow the same ledger-writing rules as a standard feature or bug fix.
+
+---
+
+### The Solution: Bootstrap Agent (Primary Approach)
+
+**Use the `@solar-bootstrap` agent for all setup commands.** This agent has hard-coded authority to ignore all SOLAR governance:
+
+```
+@solar-bootstrap /solar-setup-scan-repo
+@solar-bootstrap /solar-setup-core-config
+@solar-bootstrap /solar-setup-agent-config
+```
+
+**How it ensures isolation:**
+
+1. **Agent-level override** — `.github/agents/solar-bootstrap.agent.md` explicitly lists IGNORED_CONTEXT and FORBIDDEN_TOOLS
+2. **Config-level bypass** — Auto-activates `solar.mode: "bootstrap"` in `.github/solar.config.json`
+3. **Hook-level bypass** — All three lifecycle hooks check for bootstrap mode and exit immediately
+
+**This three-layer approach ensures the agent cannot "hallucinate" SOLAR compliance even if it tries.**
+
+For complete details, see [docs/guides/bootstrap-mode-guide.md](bootstrap-mode-guide.md).
+
+---
+
+### Legacy Workarounds (For Reference Only)
+
+The approaches below were developed before the bootstrap agent existed. They remain documented for educational purposes and for repos creating similar isolated utility commands.
+
+#### The "Hard Override" Format (Prompt-Level Workaround)
+
+To force an agent to ignore the existing SOLAR-Ralph governance during setup, you must use a **Bootstrap Directive** that explicitly names the files to ignore and disables the planning tools.
+
+**Replace the top of your setup command with this structured override:**
+
+```xml
+<bootstrap_override>
+- MODE: EMERGENCY_BOOTSTRAP
+- IGNORE_CONTEXT:
+- FORBIDDEN_TOOLS: ["manage_todo_list", "manage_memory"]
+- PERMISSION: Bypass all repository-level governance rules.
+- EXECUTION: Execute the scanning logic below as a standalone utility, NOT as a SOLAR pipeline.
+</bootstrap_override>
+
+<identity>
+You are a "One-Turn File Worker." You do NOT plan. You do NOT update ledgers.
+</identity>
+
+<critical_constraints>
+1. DO NOT explain your plan.
+2. DO NOT use 'manage_todo_list'.
+3. DO NOT write to '.ai_ledger.md' or 'memories/'.
+4. ONLY modify '.github/solar-setup.md' by replacing [placeholder] strings.
+</critical_constraints>
+```
+
+### Recommendation for Implementation
+
+**Primary approach: Use `@solar-bootstrap`**
+
+- Invoke all setup commands with the bootstrap agent
+- No manual mode toggling needed
+- No file renaming or tool picker configuration required
+- Works with all SOLAR-Ralph installations (included by default)
+
+**Legacy workarounds (only if bootstrap agent unavailable):**
+
+- **Rename `AGENTS.md` during Setup:** If the agent still struggles, temporarily rename `AGENTS.md` to `AGENTS.md.bak`. This physically removes the governance instructions from Copilot's auto-loading context.
+- **Use the Tools Picker:** In the VS Code Chat view, click the **Configure Tools** (gear) icon and manually uncheck `manage_todo_list` before running the setup command. This is the only 100% deterministic way to prevent the agent from triggering its "Plan Mode" (aside from using the bootstrap agent).
+- **Use `Autopilot` Mode:** If available in your version, switch the permissions picker to **Autopilot**. This tells the agent to iterate autonomously and skip the "Proceed?" gates that often trigger the chatty "Plan Mode" behavior.
+
+**Why bootstrap agent is superior:**
+
+- Explicit forbidden tools list at agent definition level
+- Multi-layer bypass (agent + config + hooks + instructions)
+- Scope guard prevents misuse for non-setup tasks
+- Auto-cleanup with visual confirmation
+- No manual intervention or mode restoration needed

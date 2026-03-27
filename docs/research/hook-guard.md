@@ -1,3 +1,5 @@
+# Hook Guard: Preventing Unintended Agent Termination
+
 The issue where the agent stops after the first step is caused by the line `console.log(JSON.stringify({ continue: false }));`. In the 2026 GitHub Copilot hook schema, returning `continue: false` from any lifecycle hook (like `PostToolUse` or `userPromptSubmitted`) acts as a "kill switch" that terminates the entire agent session immediately.[1]
 
 To fully suspend the SOLAR-Ralph system during setup or when deactivated, you should use a **Passive Pass-through** pattern. When the system is off, the hook should exit with code `0` and provide no output (or `{ "continue": true }`), allowing the agent to proceed with its native behavior.

@@ -31,6 +31,11 @@ const sessionType = sessionTypeMatch
   : "chat";
 const currentMode = config.sessionTypes?.[sessionType] || "simple";
 
+// Bootstrap mode bypass - governance disabled during setup
+if (currentMode === "bootstrap") {
+  process.exit(0);
+}
+
 // Check if this hook should be active for the current mode
 const activeModes = config.hooks.stop.activeModes || [];
 if (!activeModes.includes(currentMode)) {

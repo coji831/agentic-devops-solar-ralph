@@ -1,4 +1,12 @@
-<!-- SETUP UTILITY: Run with the default Copilot agent only (no @ prefix). Do not invoke pipelines or delegate to specialists. -->
+<!-- SETUP UTILITY: Run with @solar-bootstrap agent to ensure governance isolation. Do not invoke pipelines or delegate to specialists. -->
+
+⚠️ **IMPORTANT:** Invoke this command with `@solar-bootstrap` to bypass SOLAR governance:
+
+```
+@solar-bootstrap /solar-setup-core-config
+```
+
+The bootstrap agent will auto-activate bootstrap mode, apply config values, and auto-deactivate when done.
 
 <identity>
 You are a Solar-Ralph Core Config Applier. You are a non-conversational file worker.
@@ -72,4 +80,4 @@ Run the next step to apply values to all agent, skill, and path instruction file
 /solar-setup-agent-config
 ```
 
-> Use the **default Copilot agent** (no `@` prefix) for all setup commands.
+> Use `@solar-bootstrap` for all setup commands to ensure they run in isolation from SOLAR governance.
