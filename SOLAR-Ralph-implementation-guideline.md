@@ -57,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 - Add `-Force` (PowerShell) or `--force` (Bash) to overwrite files that already exist.
 - The scripts are idempotent by default: they skip files already present and report what was downloaded, skipped, or failed.
 
-> **What gets downloaded:** All agents, skills, commands, hooks, operator guides, verification artifacts, `solar-setup.md`, `.ai_ledger.md`, `AGENTS.md`, and repo memory scaffolding templates.
+> **What gets downloaded:** All agents (including `solar-bootstrap`), skills, commands (including bootstrap mode toggles), hooks, operator guides (including bootstrap mode guide), verification artifacts, `solar-setup.md`, `.ai_ledger.md`, `AGENTS.md`, and repo memory scaffolding templates.
 >
 > **What is NOT downloaded** (intentionally excluded):
 >
@@ -218,9 +218,13 @@ AGENTS.md
 .github/agents/docs-curator.agent.md                           [POST-IMPLEMENT]
 .github/agents/release-readiness-specialist.agent.md
 .github/agents/cache-external-integration-specialist.agent.md  [POST-IMPLEMENT]
+.github/agents/solar-bootstrap.agent.md
 
 # Hooks
 .github/hooks/hooks.json                               [POST-IMPLEMENT]
+.github/hooks/stop.cjs
+.github/hooks/post-tool-use.cjs
+.github/hooks/user-prompt-submit.cjs
 .github/solar.config.json
 
 # Skills
@@ -245,6 +249,8 @@ AGENTS.md
 .github/commands/solar-setup-scan-repo.prompt.md
 .github/commands/solar-setup-core-config.prompt.md
 .github/commands/solar-setup-agent-config.prompt.md
+.github/commands/solar-enter-bootstrap.prompt.md
+.github/commands/solar-exit-bootstrap.prompt.md
 
 # Setup config (fill this first, then run /solar-setup-core-config)
 .github/solar-setup.md                                 [POST-IMPLEMENT]
@@ -275,6 +281,7 @@ verification-artifacts/.gitkeep
 .github/guides/solar-ralph-workflow.md                [POST-IMPLEMENT]
 .github/guides/agent-operations-guide.md
 .github/guides/memory-governance-guide.md
+.github/guides/bootstrap-mode-guide.md
 .github/guides/mcp-operations-guide.md
 
 # Knowledge base
@@ -286,6 +293,6 @@ docs/knowledge-base/connected-agent-topologies.md
 docs/knowledge-base/mcp-integration-patterns.md
 ```
 
-**Total files: 50**
-**Universal (copy as-is): 28**
+**Total files: 57**
+**Universal (copy as-is): 35**
 **Post-implement (must customize): 21**

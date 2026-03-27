@@ -43,6 +43,9 @@ $FILES = @(
     ".github/agents/docs-curator.agent.md",
     ".github/agents/cache-external-integration-specialist.agent.md",
 
+    # Agents - bootstrap (setup utilities only)
+    ".github/agents/solar-bootstrap.agent.md",
+
     # Hooks
     ".github/hooks/hooks.json",
     ".github/solar.config.json",
@@ -56,6 +59,8 @@ $FILES = @(
     ".github/commands/solar-setup-scan-repo.prompt.md",
     ".github/commands/solar-setup-core-config.prompt.md",
     ".github/commands/solar-setup-agent-config.prompt.md",
+    ".github/commands/solar-enter-bootstrap.prompt.md",
+    ".github/commands/solar-exit-bootstrap.prompt.md",
 
     # Skills - universal
     ".github/skills/frontend-review/SKILL.md",
@@ -78,6 +83,7 @@ $FILES = @(
     # Operator guides
     ".github/guides/agent-operations-guide.md",
     ".github/guides/memory-governance-guide.md",
+    ".github/guides/bootstrap-mode-guide.md",
     ".github/guides/mcp-operations-guide.md",
     ".github/guides/solar-ralph-workflow.md",
 
@@ -160,21 +166,24 @@ Write-Host ""
 Write-Host "=== Next Steps ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  1. Fill in .github/solar-setup.md with your project details"
-Write-Host "     Option A (auto): run /solar-setup-scan-repo in Copilot chat to detect your"
-Write-Host "       stack, commands, and paths automatically, then review the output."
-Write-Host "     Option B (manual): open .github/solar-setup.md and fill in every field."
+Write-Host "     Option A (auto): @solar-bootstrap /solar-setup-scan-repo"
+Write-Host "       Detects your stack, commands, and paths, then review the output."
+Write-Host "     Option B (manual): open .github/solar-setup.md and fill every field."
 Write-Host ""
-Write-Host "  2. Run /solar-setup-core-config in Copilot chat to distribute values"
-Write-Host "     to all [POST-IMPLEMENT] sections automatically"
+Write-Host "  2. Run @solar-bootstrap /solar-setup-core-config in Copilot chat"
+Write-Host "     to distribute values to all [POST-IMPLEMENT] sections"
 Write-Host ""
-Write-Host "  3. Populate repo memory - run in Copilot chat:"
+Write-Host "  3. Run @solar-bootstrap /solar-setup-agent-config in Copilot chat"
+Write-Host "     to apply values to all agent, skill, and path instruction files"
+Write-Host ""
+Write-Host "  4. Populate repo memory - run in Copilot chat:"
 Write-Host "     @Orchestration-Governor explore the codebase and populate"
 Write-Host "     /memories/repo/ using the memory templates"
 Write-Host ""
-Write-Host "  4. Activate SOLAR in .ai_ledger.md:"
-Write-Host "     Set SOLAR_ACTIVE: true and Completion Promise: pending"
+Write-Host "  5. Activate SOLAR in .github/solar.config.json:"
+Write-Host "     Set 'enabled': true (currently disabled by default)"
 Write-Host ""
-Write-Host "  5. Smoke test - run in Copilot chat:"
+Write-Host "  6. Smoke test - run in Copilot chat:"
 Write-Host "     /ralph-loop  (pick a trivial task to verify the full pipeline)"
 Write-Host ""
 Write-Host "  Optional: configure .vscode/mcp.json (Playwright, GitHub, Fetch MCP)"
