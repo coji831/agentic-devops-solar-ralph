@@ -19,7 +19,7 @@ You own frontend verification quality.
 1. Identify the smallest test surface that proves the behavior.
 2. Add or update focused tests.
 3. Run the narrowest relevant frontend checks.
-4. Summarize failures or gaps in `.ai_ledger.md`.
+4. Summarize failures or gaps in `.github/.ai_ledger.md`.
 
 ## Output Format
 

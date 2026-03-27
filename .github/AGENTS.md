@@ -8,7 +8,7 @@ The agency exists to carry a story or bounded epic through five coordinated laye
 
 - Specialist: frontend, backend, testing, security, documentation, and review roles
 - Orchestrator: a governor that decomposes work, delegates, and decides closure
-- Ledger: restart-safe state stored in `.ai_ledger.md` and concise persistent facts under `/memories/repo/`
+- Ledger: restart-safe state stored in `.github/.ai_ledger.md` and concise persistent facts under `.github/memories/repo/`
 - Adversarial: reviewers and verification gates that challenge changes before closure
 - Recursive: bounded repair loops that continue until completion criteria or escalation conditions are reached
 
@@ -18,10 +18,10 @@ Apply instructions in this order when guidance overlaps:
 
 1. User request and current task constraints
 2. `.github/copilot-instructions.md`
-3. `AGENTS.md`
+3. `.github/AGENTS.md`
 4. Path-specific instructions in `apps/frontend/.instructions.md` and `apps/backend/.instructions.md`
 5. Matching skills and agent definitions
-6. `/memories/repo/` facts and `.ai_ledger.md`
+6. `.github/memories/repo/` facts and `.github/.ai_ledger.md`
 
 Memory never overrides source-of-truth documentation. If memory and docs disagree, trust the docs and refresh the memory.
 
@@ -41,8 +41,8 @@ Memory never overrides source-of-truth documentation. If memory and docs disagre
 
 ## Operating Artifacts
 
-- `.ai_ledger.md`: active work queue, blockers, verification state, and completion promises
-- `/memories/repo/*.md`: concise durable facts verified from the current codebase
+- `.github/.ai_ledger.md`: active work queue, blockers, verification state, and completion promises
+- `.github/memories/repo/*.md`: concise durable facts verified from the current codebase
 - Repo docs: durable guidance, workflow rules, templates, and architectural decisions
 
 ## Session-Type Reference
@@ -64,7 +64,7 @@ When in doubt, prefer loop mode for any task that involves code changes.
 
 Every request maps to exactly one pipeline. Execute stages in order. Do not skip stages except where explicitly marked conditional.
 
-Record the active pipeline and current stage in `.ai_ledger.md` Current Objective:
+Record the active pipeline and current stage in `.github/.ai_ledger.md` Current Objective:
 
 ```
 - Pipeline: Bug Fix
@@ -174,11 +174,11 @@ No work package is complete until these are satisfied when relevant:
 - Type or build checks pass for the affected lane
 - Reviewer findings are either resolved or explicitly escalated
 - Documentation impact is captured
-- `.ai_ledger.md` reflects the current state
+- `.github/.ai_ledger.md` reflects the current state
 
 Verification findings must be summarized under the ledger sections for verification failures, review findings, and next actions.
 
-When recording a failure in `.ai_ledger.md`, agents MUST include all three fields — a bare "test failed" entry is not acceptable:
+When recording a failure in `.github/.ai_ledger.md`, agents MUST include all three fields — a bare "test failed" entry is not acceptable:
 
 ```
 - Verification Step: <what was checked>
@@ -203,7 +203,7 @@ Each bounded loop follows:
 **How to emit a completion promise:**
 
 1. Perform all required verification (tests, reviews, audits pass)
-2. Document evidence in `.ai_ledger.md` Completion Notes section
+2. Document evidence in `.github/.ai_ledger.md` Completion Notes section
 3. **Replace the "Completion Promise" field** in "Current Objective" section:
    - From: `Completion Promise: pending`
    - To: `Completion Promise: <promise>WORK_PACKAGE_COMPLETE</promise>` (or BLOCKED/ESCALATION_REQUIRED)

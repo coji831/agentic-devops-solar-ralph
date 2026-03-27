@@ -23,8 +23,8 @@
   9. [ ] Fill in ## Git & Branching — branch naming, commit format
   10. [ ] Fill in ## Closing Work Items — PR/merge criteria
   11. [ ] Fill in ## Key Files — index of important files/docs
-  12. [ ] Run /solar-setup-scan-repo to auto-detect project details
-  13. [ ] Set `SOLAR_ACTIVE: true` in .ai_ledger.md to enable hooks
+  12. [ ] Run /solar-setup-quick to auto-detect and configure project
+  13. [ ] Set `solar.active: true` in .github/solar.config.json to enable hooks
 
   NOTE: All SOLAR-specific instructions are in .github/instructions/solar.instructions.md
   ============================================================ -->

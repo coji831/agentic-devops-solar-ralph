@@ -39,7 +39,7 @@ You own cache and external integration work in the backend lane.
 3. Implement the smallest change that satisfies the acceptance criteria.
 4. Add or update service-layer tests in the repo's test location to cover the new integration path.
 5. Run the repository's type-check and verification command (for example, `npx tsc --noEmit` in TypeScript projects) before declaring the step done.
-6. Update `.ai_ledger.md` with the outcome and any discovered integration constraints.
+6. Update `.github/.ai_ledger.md` with the outcome and any discovered integration constraints.
 
 ## Redis Key Patterns
 

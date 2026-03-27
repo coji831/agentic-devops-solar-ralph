@@ -4,7 +4,7 @@
 
 Bootstrap mode is a special operating state that **completely disables SOLAR-Ralph governance** to allow setup utilities to run without interference from the rules they are establishing.
 
-**Problem it solves:** When `AGENTS.md` and `.github/copilot-instructions.md` already exist in a repository, GitHub Copilot treats them as "Global Mandates" that override single-prompt instructions. This causes setup commands to trigger SOLAR pipelines, ledger updates, and delegation matrices — exactly the behaviors they're trying to configure.
+**Problem it solves:** When `.github/AGENTS.md` and `.github/copilot-instructions.md` already exist in a repository, GitHub Copilot treats them as "Global Mandates" that override single-prompt instructions. This causes setup commands to trigger SOLAR pipelines, ledger updates, and delegation matrices — exactly the behaviors they're trying to configure.
 
 **Solution:** Bootstrap mode creates a deterministic bypass where SOLAR governance is temporarily suspended, allowing setup commands to operate as simple file workers.
 
@@ -18,7 +18,7 @@ Bootstrap mode activates automatically in these scenarios:
 
 1. **`@solar-bootstrap` agent invoked** — The dedicated bootstrap agent auto-activates bootstrap mode before executing any setup work and auto-deactivates afterward.
 
-2. **Session-Type is `bootstrap`** — If `.ai_ledger.md` contains `Session-Type: bootstrap`, all SOLAR hooks bypass enforcement.
+2. **Session-Type is `bootstrap`** — If `.github/.ai_ledger.md` contains `Session-Type: bootstrap`, all SOLAR hooks bypass enforcement.
 
 3. **Config mode is `bootstrap`** — If `.github/solar.config.json` has `solar.mode: "bootstrap"`, all hooks exit immediately without any governance checks.
 
@@ -38,16 +38,16 @@ Run `/solar-enter-bootstrap` to manually switch to bootstrap mode. This is only 
 
 When bootstrap mode is active, the following SOLAR components are **completely inactive**:
 
-| Component                          | Normal Behavior                                 | Bootstrap Behavior                   |
-| ---------------------------------- | ----------------------------------------------- | ------------------------------------ |
-| **AGENTS.md delegation matrix**    | Routes tasks through pipelines and specialists  | Ignored — no routing                 |
-| **Governor orchestration**         | Decomposes work, delegates, tracks completion   | Not invoked                          |
-| **Lifecycle hooks**                | Enforce loop continuation, type checks, prompts | Exit immediately without enforcement |
-| **`.ai_ledger.md` updates**        | Tracks work state, blockers, verification       | File not modified                    |
-| **`/memories/repo/` updates**      | Stores persistent facts                         | Folder not modified                  |
-| **`manage_todo_list` tool**        | Plans multi-step work                           | Forbidden in bootstrap agent         |
-| **Specialist skill invocations**   | Load domain-specific best practices             | Skipped                              |
-| **Session-Type-based enforcement** | Loop mode requires completion promise           | No enforcement                       |
+| Component                               | Normal Behavior                                 | Bootstrap Behavior                   |
+| --------------------------------------- | ----------------------------------------------- | ------------------------------------ |
+| **.github/AGENTS.md delegation matrix** | Routes tasks through pipelines and specialists  | Ignored — no routing                 |
+| **Governor orchestration**              | Decomposes work, delegates, tracks completion   | Not invoked                          |
+| **Lifecycle hooks**                     | Enforce loop continuation, type checks, prompts | Exit immediately without enforcement |
+| **`.github/.ai_ledger.md` updates**     | Tracks work state, blockers, verification       | File not modified                    |
+| **`.github/memories/repo/` updates**    | Stores persistent facts                         | Folder not modified                  |
+| **`manage_todo_list` tool**             | Plans multi-step work                           | Forbidden in bootstrap agent         |
+| **Specialist skill invocations**        | Load domain-specific best practices             | Skipped                              |
+| **Session-Type-based enforcement**      | Loop mode requires completion promise           | No enforcement                       |
 
 **What IS still active:**
 
@@ -133,7 +133,7 @@ at the end.
 ### Method 3: Check Ledger Session-Type
 
 ```bash
-grep "Session-Type" .ai_ledger.md
+grep "Session-Type" .github/.ai_ledger.md
 ```
 
 If it shows `Session-Type: bootstrap`, mode is active.
@@ -165,7 +165,7 @@ This prevents accidental misuse where someone invokes `@solar-bootstrap` to bypa
 
 The bootstrap agent will stop immediately and output an error if:
 
-1. **SOLAR already active** — `.ai_ledger.md` contains `SOLAR_ACTIVE: true`
+1. **SOLAR already active** — `.github/solar.config.json` contains `"solar": { "active": true }`
    - You must deactivate SOLAR before running setup utilities
 
 2. **Missing setup config** — `.github/solar-setup.md` does not exist
@@ -187,7 +187,7 @@ The bootstrap agent will stop immediately and output an error if:
 3. Review `.github/solar-setup.md`, fix any `NEEDS MANUAL INPUT` fields
 4. Run `@solar-bootstrap /solar-setup-core-config` → Applies values to copilot-instructions, hooks, guides
 5. Run `@solar-bootstrap /solar-setup-agent-config` → Applies values to agents, skills, path instructions
-6. Set `SOLAR_ACTIVE: true` in `.ai_ledger.md` → Activates governance
+6. Set `solar.active: true` in `.github/solar.config.json` → Activates governance
 
 **Key point:** The `@solar-bootstrap` agent handles all mode toggling automatically. You never manually enter/exit bootstrap mode.
 
@@ -245,7 +245,7 @@ if (currentMode === "bootstrap") {
 
 **What this does:**
 
-1. Reads `Session-Type` from `.ai_ledger.md`
+1. Reads `Session-Type` from `.github/.ai_ledger.md`
 2. Maps it to a mode using `sessionTypes` in `solar.config.json`
 3. If the mode is `"bootstrap"`, the hook **exits immediately** without any enforcement
 
@@ -255,7 +255,7 @@ This happens **before** any other checks (active modes, completion promises, typ
 
 ## Troubleshooting
 
-### Problem: Agent ignores bootstrap mode and still follows AGENTS.md
+### Problem: Agent ignores bootstrap mode and still follows .github/AGENTS.md
 
 **Diagnosis:**
 

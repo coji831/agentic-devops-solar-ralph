@@ -28,7 +28,7 @@ The governor invokes you when Pipeline 3 or Pipeline 4 reaches the final close s
 
 - Active epic and story identifiers
 - Path to the story/epic implementation doc
-- Path to `.ai_ledger.md`
+- Path to `.github/.ai_ledger.md`
 - Whether security-sensitive paths were changed (auth/JWT/cookies/CORS/secrets)
 
 ---

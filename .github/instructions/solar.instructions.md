@@ -10,16 +10,16 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 
 **Core SOLAR Files:**
 
-- Orchestration contract: `AGENTS.md`
-- Restart-safe ledger: `.ai_ledger.md`
+- Orchestration contract: `.github/AGENTS.md`
+- Restart-safe ledger: `.github/.ai_ledger.md`
 - Lifecycle hooks: `.github/hooks/hooks.json`
 - Path-specific instructions: `.github/instructions/solar.instructions.md`
 - Operator guides: `.github/guides/solar-ralph-workflow.md`, `.github/guides/agent-operations-guide.md`, `.github/guides/memory-governance-guide.md`
 
 **Working Rules:**
 
-- Keep active execution state in `.ai_ledger.md`
-- Keep concise persistent facts in `/memories/repo/`
+- Keep active execution state in `.github/.ai_ledger.md`
+- Keep concise persistent facts in `.github/memories/repo/`
 - Keep durable guidance in `docs/`
 - Use bounded recursive repair loops with explicit completion promises instead of open-ended retry
 - Route frontend, backend, security, review, and documentation work through their matching specialist roles when the SOLAR overlay is active
@@ -39,7 +39,7 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 7. **Pre-Commit Gate** — Tests pass; type check & lint clean
 8. **Commit** — `<type>(<scope>): <summary>`; include doc updates in same commit
 
-**If blocked:** Pause and record the blocker with a concrete escalation reason in `.ai_ledger.md`.
+**If blocked:** Pause and record the blocker with a concrete escalation reason in `.github/.ai_ledger.md`.
 
 ---
 
@@ -66,7 +66,7 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 - `/solar-setup-scaffold` — Create ledger, solar.instructions.md, and memory templates
 
 **Activation:**
-All governance and memory files are created only after setup is complete. SOLAR remains disabled until `SOLAR_ACTIVE: true` is set in `.ai_ledger.md`.
+All governance and memory files are created only after setup is complete. SOLAR remains disabled until `solar.active: true` is set in `.github/solar.config.json`.
 
 ---
 

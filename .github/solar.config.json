@@ -1,6 +1,6 @@
 {
   "solar": {
-    "enabled": false,
+    "active": false,
     "mode": "simple",
     "description": "SOLAR-Ralph system configuration"
   },

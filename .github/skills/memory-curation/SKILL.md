@@ -15,7 +15,7 @@ user-invocable: true
 
 ## Procedure
 
-1. Put active execution state in `.ai_ledger.md`.
+1. Put active execution state in `.github/.ai_ledger.md`.
 2. Put concise verified operational facts in `/memories/repo/`.
 3. Put enduring guidance and rationale in `docs/`.
 4. Avoid duplicating the same long-form content across all three layers.

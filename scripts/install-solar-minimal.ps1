@@ -3,7 +3,7 @@
 
 $repoUrl = "https://raw.githubusercontent.com/[YOUR-REPO]/main"
 $files = @(
-  "AGENTS.md",
+  ".github/AGENTS.md",
   ".github/agents/",
   ".github/hooks/",
   ".github/skills/",

@@ -85,7 +85,7 @@ Investigation → Design → Implementation → Test → Review → Security →
 
 - Strict linear handoff, each agent receives the previous agent's output as input
 - No parallel execution — each stage must complete before the next begins
-- This is the current Phase 1 Pipeline Contract in `AGENTS.md`
+- This is the current Phase 1 Pipeline Contract in `.github/AGENTS.md`
 
 **When to upgrade:** When stages are truly independent (e.g., frontend tests and backend tests have no shared files) — fan-out to parallel reduces wall time.
 
@@ -128,7 +128,7 @@ Frontend Test    Backend Test
 
 ## Related
 
-- `AGENTS.md` — current Phase 1 hub-and-spoke contract and pipeline definitions
+- `.github/AGENTS.md` — current Phase 1 hub-and-spoke contract and pipeline definitions
 - `.github/guides/agent-operations-guide.md` — how to invoke and delegate to agents
 - `docs/knowledge-base/agent-orchestration-patterns.md` — hub-and-spoke rationale
 

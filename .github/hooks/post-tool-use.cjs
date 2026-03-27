@@ -33,14 +33,14 @@ process.stdin.on("end", () => {
 
     // Global kill switches
     if (
-      !config.solar?.enabled ||
+      !config.solar?.active ||
       !config.hooks?.enabled ||
       !config.hooks?.postToolUse?.enabled
     ) {
       process.exit(0);
     }
 
-    const ledgerPath = path.resolve(__dirname, "../../.ai_ledger.md");
+    const ledgerPath = path.resolve(__dirname, "../.ai_ledger.md");
     const ledger = fs.existsSync(ledgerPath)
       ? fs.readFileSync(ledgerPath, "utf8")
       : "";

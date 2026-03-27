@@ -16,4 +16,4 @@ Unbounded loops hide drift and can waste requests without improving quality. Pha
 
 ## Phase 1 Tooling
 
-Phase 1 uses `AGENTS.md`, `.ai_ledger.md`, and `.github/hooks/hooks.json` to support the loop. A wider slash-command surface is intentionally deferred.
+Phase 1 uses `.github/AGENTS.md`, `.github/.ai_ledger.md`, and `.github/hooks/hooks.json` to support the loop. A wider slash-command surface is intentionally deferred.

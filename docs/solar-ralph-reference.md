@@ -57,14 +57,14 @@ All skills live in `.github/skills/<name>/SKILL.md`. Load with `#<skill-name>` o
 
 ### Process & Governance Skills
 
-| Skill Folder             | Purpose                                                      |
-| ------------------------ | ------------------------------------------------------------ |
-| `story-execution/`       | End-to-end: plan → implement → test → docs → review → ledger |
-| `doc-sync/`              | Keeps BR, implementation docs, and KB synchronized           |
-| `memory-curation/`       | Decides what belongs in repo memory vs ledger vs docs        |
-| `memory-verification/`   | Validates stale `/memories/repo/` facts before applying      |
-| `recursive-remediation/` | Bounded repair loops without scope creep                     |
-| `release-governance/`    | 5-gate Go/No-Go check before pipeline closure                |
+| Skill Folder             | Purpose                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| `story-execution/`       | End-to-end: plan → implement → test → docs → review → ledger   |
+| `doc-sync/`              | Keeps BR, implementation docs, and KB synchronized             |
+| `memory-curation/`       | Decides what belongs in repo memory vs ledger vs docs          |
+| `memory-verification/`   | Validates stale `.github/memories/repo/` facts before applying |
+| `recursive-remediation/` | Bounded repair loops without scope creep                       |
+| `release-governance/`    | 5-gate Go/No-Go check before pipeline closure                  |
 
 ### Debug & Browser Skills
 
@@ -102,7 +102,7 @@ These scoped instruction files enforce lang/framework rules only within their di
 
 ## Layer 5: Persistent Repo Memory
 
-All memory files live in `/memories/repo/`. These are concise fact sheets reused across sessions by Copilot, which stores them internally. The template ships pre-structured files you copy as scaffolding; the agent fills in the content from your codebase, Copilot ingests them, and the git-tracked files can be deleted afterward.
+All memory files live in `.github/memories/repo/`. These are concise fact sheets reused across sessions by Copilot, which stores them internally. The template ships pre-structured files you copy as scaffolding; the agent fills in the content from your codebase, Copilot ingests them, and the git-tracked files can be deleted afterward.
 
 | File                    | What to Put Here                                                | Tag                  |
 | ----------------------- | --------------------------------------------------------------- | -------------------- |
@@ -191,9 +191,9 @@ Files written here at runtime (e.g., `target-<slug>.json` from Design Planning A
 
 ## Layer 11: Ledger State File
 
-| File            | Purpose                                                                               | Tag                  |
-| --------------- | ------------------------------------------------------------------------------------- | -------------------- |
-| `.ai_ledger.md` | Active work queue, session type, blockers, verification failures, completion evidence | **[POST-IMPLEMENT]** |
+| File                    | Purpose                                                                               | Tag                  |
+| ----------------------- | ------------------------------------------------------------------------------------- | -------------------- |
+| `.github/.ai_ledger.md` | Active work queue, session type, blockers, verification failures, completion evidence | **[POST-IMPLEMENT]** |
 
 Start with the template structure below. Do not copy content from another project's ledger.
 
@@ -231,7 +231,7 @@ Start with the template structure below. Do not copy content from another projec
 
 | File                              | Purpose                                                                                               | Tag                  |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------- |
-| `AGENTS.md`                       | Full orchestration contract: pipelines, delegation matrix, verification contract, completion promises |                      |
+| `.github/AGENTS.md`               | Full orchestration contract: pipelines, delegation matrix, verification contract, completion promises |                      |
 | `.github/copilot-instructions.md` | Instruction precedence, SOLAR operating references, loop guidance                                     | **[POST-IMPLEMENT]** |
 
 **[POST-IMPLEMENT]** for `copilot-instructions.md`: Keep the SOLAR operating overlay section universal, but update the "Architecture Overview" and "Key Files & Directories" sections to match your repo structure.
@@ -242,21 +242,21 @@ Start with the template structure below. Do not copy content from another projec
 
 These add quality, cost efficiency, and debug capability on top of the core SOLAR system.
 
-| ID  | Item                                                          | Status                      | Notes                                                                                     |
-| --- | ------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
-| A5  | Step-Level Process Supervision                                | ✅ In governor              | Universal — no customization needed                                                       |
-| A6  | ARA 2.0 — Hacker-Auditor Pairs                                | ⏭️ Phase 3                  | Add "Proxy Sovereignty" section to both review auditors                                   |
-| A7  | Semantic Gradient Refinement                                  | ✅ In ledger + AGENTS.md    | Universal                                                                                 |
-| A8  | Exploration SKILL.md for Bug Investigation                    | ⏭️ Phase 3                  | Create `.github/skills/exploration/SKILL.md`                                              |
-| B5  | Bypass Approvals / Autopilot                                  | ✅ `.vscode/settings.json`  | **[POST-IMPLEMENT]** — uncomment `terminal.allowAutoExecute` per developer preference     |
-| B6  | Parallel Execution via Isolated Worktrees                     | ⏭️ Phase 3                  | Requires Copilot parallel agent fan-out                                                   |
-| B7  | Heuristic Context Rotation (Stream Parser)                    | ⏭️ Phase 3                  | Requires token-count hook API                                                             |
-| B8  | JIT Skill Loading via Argument-Hint                           | ~Partial                    | `argumentHint` on skills; governor doesn't yet enforce stage-specific loading             |
-| C5  | MCP Server Integration (Playwright, Puppeteer, Fetch, GitHub) | ✅ `.vscode/mcp.json`       | **[POST-IMPLEMENT]** — add GitHub token                                                   |
-| C6  | Verification-as-Code (VaC) Artifacts                          | ~Partial                    | `verification-artifacts/` + spec-first mode; per-stage signed artifact automation pending |
-| C7  | Gutter Detection and Escalation                               | ⏭️ Phase 3                  | Add same-error-3x hash tracking to Stop hook                                              |
-| C8  | Path-Specific Instruction Globbing                            | ✅ `.instructions.md` files | **[POST-IMPLEMENT]** — update `applyTo` glob                                              |
-| C9  | GitHub-hosted Copilot Memory                                  | non-file                    | Manual admin toggle: org/repo Settings → GitHub Copilot → Memory                          |
+| ID  | Item                                                          | Status                           | Notes                                                                                     |
+| --- | ------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| A5  | Step-Level Process Supervision                                | ✅ In governor                   | Universal — no customization needed                                                       |
+| A6  | ARA 2.0 — Hacker-Auditor Pairs                                | ⏭️ Phase 3                       | Add "Proxy Sovereignty" section to both review auditors                                   |
+| A7  | Semantic Gradient Refinement                                  | ✅ In ledger + .github/AGENTS.md | Universal                                                                                 |
+| A8  | Exploration SKILL.md for Bug Investigation                    | ⏭️ Phase 3                       | Create `.github/skills/exploration/SKILL.md`                                              |
+| B5  | Bypass Approvals / Autopilot                                  | ✅ `.vscode/settings.json`       | **[POST-IMPLEMENT]** — uncomment `terminal.allowAutoExecute` per developer preference     |
+| B6  | Parallel Execution via Isolated Worktrees                     | ⏭️ Phase 3                       | Requires Copilot parallel agent fan-out                                                   |
+| B7  | Heuristic Context Rotation (Stream Parser)                    | ⏭️ Phase 3                       | Requires token-count hook API                                                             |
+| B8  | JIT Skill Loading via Argument-Hint                           | ~Partial                         | `argumentHint` on skills; governor doesn't yet enforce stage-specific loading             |
+| C5  | MCP Server Integration (Playwright, Puppeteer, Fetch, GitHub) | ✅ `.vscode/mcp.json`            | **[POST-IMPLEMENT]** — add GitHub token                                                   |
+| C6  | Verification-as-Code (VaC) Artifacts                          | ~Partial                         | `verification-artifacts/` + spec-first mode; per-stage signed artifact automation pending |
+| C7  | Gutter Detection and Escalation                               | ⏭️ Phase 3                       | Add same-error-3x hash tracking to Stop hook                                              |
+| C8  | Path-Specific Instruction Globbing                            | ✅ `.instructions.md` files      | **[POST-IMPLEMENT]** — update `applyTo` glob                                              |
+| C9  | GitHub-hosted Copilot Memory                                  | non-file                         | Manual admin toggle: org/repo Settings → GitHub Copilot → Memory                          |
 
 ---
 
@@ -284,7 +284,7 @@ Model assignment is based on **invocation frequency** to minimize cost.
 | `loop`        | Blocks until `WORK_PACKAGE_COMPLETE` promise written | `/ralph-loop` autonomous execution           |
 | `manual-test` | Exits silently; no message                           | Human drives app; agent observes and reports |
 
-Set the active session type in `.ai_ledger.md`:
+Set the active session type in `.github/.ai_ledger.md`:
 
 ```
 Session-Type: loop
@@ -294,7 +294,7 @@ Session-Type: loop
 
 ## Quick Reference: Completion Promise
 
-To close a work package, the governor writes one of these into `.ai_ledger.md → Completion Promise`:
+To close a work package, the governor writes one of these into `.github/.ai_ledger.md → Completion Promise`:
 
 | Promise                                    | Meaning                                    |
 | ------------------------------------------ | ------------------------------------------ |

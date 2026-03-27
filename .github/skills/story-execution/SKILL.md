@@ -15,7 +15,7 @@ user-invocable: true
 ## Procedure
 
 1. Read the story BR, implementation doc, `.github/copilot-instructions.md`, and `AGENTS.md`.
-2. Decompose the story into work packages and record them in `.ai_ledger.md`.
+2. Decompose the story into work packages and record them in `.github/.ai_ledger.md`.
 3. Delegate frontend, backend, testing, review, or docs work as needed.
 4. Run focused verification after each meaningful step.
 5. Close only when the ledger contains a non-pending completion promise.

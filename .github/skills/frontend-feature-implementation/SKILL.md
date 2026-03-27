@@ -25,7 +25,7 @@ user-invocable: false
    - Does it break any existing interface contracts?
 5. **Revisor** — Apply corrections from the Evaluator step. Do not skip even if the draft looks correct.
 6. Update focused tests for reducers, hooks, components, or pages.
-7. Record blockers or contract assumptions in `.ai_ledger.md`.
+7. Record blockers or contract assumptions in `.github/.ai_ledger.md`.
 
 ## Output
 

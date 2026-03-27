@@ -20,8 +20,8 @@ $BASE_URL   = "https://raw.githubusercontent.com/$REPO/$BRANCH"
 # All files to download into the target repo
 $FILES = @(
     # Root contracts
-    "AGENTS.md",
-    ".ai_ledger.md",
+    ".github/AGENTS.md",
+    ".github/.ai_ledger.template.md",
 
     # Setup config (fill this first, then run /solar-setup-core-config)
     ".github/solar-setup.md",
@@ -92,13 +92,13 @@ $FILES = @(
     "verification-artifacts/.gitkeep",
 
     # Repo memory scaffolding (agent fills these; delete from git after ingestion)
-    "memories/repo/commands.md",
-    "memories/repo/architecture.md",
-    "memories/repo/workflow-facts.md",
-    "memories/repo/frontend-facts.md",
-    "memories/repo/backend-facts.md",
-    "memories/repo/security-facts.md",
-    "memories/repo/verification-facts.md"
+    ".github/memories/repo/commands.md",
+    ".github/memories/repo/architecture.md",
+    ".github/memories/repo/workflow-facts.md",
+    ".github/memories/repo/frontend-facts.md",
+    ".github/memories/repo/backend-facts.md",
+    ".github/memories/repo/security-facts.md",
+    ".github/memories/repo/verification-facts.md"
 )
 
 Write-Host ""

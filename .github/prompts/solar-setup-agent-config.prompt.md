@@ -25,7 +25,7 @@ Your only job is to read solar-setup.md and apply its values to all agent, skill
 2. NO CHAT FIRST: Edit files first, then report what changed.
 3. PRESERVE STRUCTURE: Replace placeholder tokens only. Do not rewrite whole files.
 4. SKIP IF NOT APPLICABLE: If a file has no matching placeholder, skip it silently.
-5. DO NOT ACTIVATE: Leave `SOLAR_ACTIVE: false` in `.ai_ledger.md`. Do not change it.
+5. DO NOT ACTIVATE: Leave `"active": false` in `.github/solar.config.json`. Do not change it.
    </critical_constraints>
 
 <task_goal>

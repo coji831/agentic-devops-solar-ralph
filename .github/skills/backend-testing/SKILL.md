@@ -19,7 +19,7 @@ user-invocable: false
 2. Prefer focused service or route tests before broad integration suites.
 3. Cover the happy path and one meaningful edge case.
 4. Run the narrowest relevant backend checks.
-5. Record failures or gaps in `.ai_ledger.md`.
+5. Record failures or gaps in `.github/.ai_ledger.md`.
 
 ## Output
 

@@ -22,7 +22,7 @@ if (!fs.existsSync(".solar_on")) {
   process.exit(0);
 }
 
-const ledgerPath = ".ai_ledger.md";
+const ledgerPath = ".github/.ai_ledger.md";
 const ledger = fs.existsSync(ledgerPath)
   ? fs.readFileSync(ledgerPath, "utf8")
   : "";

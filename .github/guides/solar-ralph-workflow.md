@@ -8,13 +8,13 @@ Use the SOLAR pillars without replacing the repository's current operating rules
 
 ## Mapping To Existing Workflow
 
-| SOLAR Pillar | Repo Workflow Stage       | Primary Output                                         |
-| ------------ | ------------------------- | ------------------------------------------------------ |
-| Specialist   | Implement, Test, Docs     | Focused code, tests, and documentation changes         |
-| Orchestrator | Review, Plan, Gates       | Work packages, delegation, escalation decisions        |
-| Ledger       | Throughout                | `.ai_ledger.md` and `/memories/repo/` updates          |
-| Adversarial  | Test, Review, Gates       | Findings, failed checks, residual risk                 |
-| Recursive    | Implement, Verify, Repair | Bounded loops until a completion promise or escalation |
+| SOLAR Pillar | Repo Workflow Stage       | Primary Output                                               |
+| ------------ | ------------------------- | ------------------------------------------------------------ |
+| Specialist   | Implement, Test, Docs     | Focused code, tests, and documentation changes               |
+| Orchestrator | Review, Plan, Gates       | Work packages, delegation, escalation decisions              |
+| Ledger       | Throughout                | `.github/.ai_ledger.md` and `.github/memories/repo/` updates |
+| Adversarial  | Test, Review, Gates       | Findings, failed checks, residual risk                       |
+| Recursive    | Implement, Verify, Repair | Bounded loops until a completion promise or escalation       |
 
 ## Standard Flow
 
@@ -23,7 +23,7 @@ Use the SOLAR pillars without replacing the repository's current operating rules
 3. Implement: assign the work to the relevant specialist.
 4. Verify: run focused tests and adversarial review.
 5. Repair: if verification fails, run a bounded recursive loop.
-6. Close: write a non-pending completion promise to `.ai_ledger.md` and synchronize affected docs.
+6. Close: write a non-pending completion promise to `.github/.ai_ledger.md` and synchronize affected docs.
 
 ## Phase 1 Simplifications
 

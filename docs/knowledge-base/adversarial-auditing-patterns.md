@@ -11,7 +11,7 @@ The adversarial layer exists to challenge work before it is declared complete.
 
 ## Phase 1 Shape
 
-Phase 1 does not implement a large artifact pipeline. Instead, adversarial outputs are concise auditable summaries recorded in review results and `.ai_ledger.md`.
+Phase 1 does not implement a large artifact pipeline. Instead, adversarial outputs are concise auditable summaries recorded in review results and `.github/.ai_ledger.md`.
 
 ## Closure Rule
 

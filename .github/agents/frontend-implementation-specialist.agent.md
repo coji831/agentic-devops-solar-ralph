@@ -19,7 +19,7 @@ You own frontend implementation work in the repository's frontend area (check fo
 1. Confirm the impacted feature area and route or state boundary.
 2. Implement the smallest coherent frontend change.
 3. Update or add the narrowest relevant frontend tests.
-4. Record integration assumptions or blockers in `.ai_ledger.md`.
+4. Record integration assumptions or blockers in `.github/.ai_ledger.md`.
 
 ## Output Format
 

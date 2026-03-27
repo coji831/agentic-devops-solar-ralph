@@ -25,7 +25,7 @@ user-invocable: false
    - Does it introduce any unsafe validation, auth, or secret handling?
 5. **Revisor** — Apply corrections from the Evaluator step before writing the final code.
 6. Update focused tests.
-7. Record schema, contract, or rollout risks in `.ai_ledger.md`.
+7. Record schema, contract, or rollout risks in `.github/.ai_ledger.md`.
 
 ## Output
 

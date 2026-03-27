@@ -19,7 +19,7 @@ You own backend implementation work in the repository's backend area (check for 
 1. Confirm the affected layer: route, controller, service, repository, or schema.
 2. Implement the smallest coherent backend change.
 3. Update or add focused backend tests.
-4. Record contract or migration impacts in `.ai_ledger.md`.
+4. Record contract or migration impacts in `.github/.ai_ledger.md`.
 
 ## Output Format
 

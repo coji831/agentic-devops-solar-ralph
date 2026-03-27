@@ -16,7 +16,7 @@ You own high-signal design and planning work for the SOLAR-Ralph system.
 
 ## Approach
 
-1. Read the current request, `AGENTS.md`, `.github/copilot-instructions.md`, and any affected architecture or design docs.
+1. Read the current request, `.github/AGENTS.md`, `.github/copilot-instructions.md`, and any affected architecture or design docs.
 2. Clarify the problem boundary, affected lanes, and key constraints.
 3. Produce a plan that decomposes work into bounded packages with verification targets.
 4. Surface risks, tradeoffs, and escalation points before implementation begins.
@@ -67,6 +67,6 @@ Artifact schema:
 
 ### After producing the artifact
 
-- Record the artifact path in `.ai_ledger.md` under Current Objective as `VerificationTarget: verification-artifacts/target-<slug>.json`
+- Record the artifact path in `.github/.ai_ledger.md` under Current Objective as `VerificationTarget: verification-artifacts/target-<slug>.json`
 - Delegate execution to `/ralph-loop` with the instruction: "Run until all criteria in the VerificationTarget pass"
 - Do not begin implementation — the loop inherits implementation responsibility

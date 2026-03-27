@@ -20,7 +20,7 @@ You are activating SOLAR-Ralph bootstrap mode. This disables all governance hook
 
 <constraints>
 - Do NOT modify any other fields in solar.config.json
-- Do NOT update .ai_ledger.md
+- Do NOT update .github/.ai_ledger.md
 - Do NOT use manage_todo_list or manage_memory
 - This is a utility command, not a SOLAR pipeline task
 </constraints>

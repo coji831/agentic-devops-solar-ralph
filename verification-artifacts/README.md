@@ -42,6 +42,6 @@ Examples:
 - **Artifacts are not canon**: They supplement `.ai_ledger.md` but do not replace it. The ledger remains the source of truth for pipeline state.
 - **Retention**: Artifacts older than 30 days for standard stories (90 days for security) may be deleted. The `.gitkeep` placeholder keeps the directory tracked.
 
-## Integration with AGENTS.md
+## Integration with .github/AGENTS.md
 
-The **Verification Contract** in `AGENTS.md` requires all verification evidence to be present before a `WORK_PACKAGE_COMPLETE` promise is written. Referencing the artifact path in the ledger Completion Notes section satisfies this requirement.
+The **Verification Contract** in `.github/AGENTS.md` requires all verification evidence to be present before a `WORK_PACKAGE_COMPLETE` promise is written. Referencing the artifact path in the ledger Completion Notes section satisfies this requirement.

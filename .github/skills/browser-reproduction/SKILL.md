@@ -1,3 +1,7 @@
+---
+name: browser-reproduction
+---
+
 # Browser Reproduction Skill
 
 ## Purpose
@@ -100,7 +104,7 @@ Include this in the Behaviour Report as visual reference.
 
 ## Behaviour Report Format
 
-After completing Steps 1–6, produce a Behaviour Report in this format and attach it to the `.ai_ledger.md` under **Verification Failures**:
+After completing Steps 1–6, produce a Behaviour Report in this format and attach it to the `.github/.ai_ledger.md` under **Verification Failures**:
 
 ```markdown
 ### Behaviour Report — <Bug Title>

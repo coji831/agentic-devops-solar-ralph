@@ -15,7 +15,7 @@ description: Dedicated utility agent for SOLAR-Ralph setup operations. Bypasses 
   - Bug fixes
   - Code reviews
   - Documentation updates outside of setup
-  - Any task routed through AGENTS.md pipelines
+  - Any task routed through .github/AGENTS.md pipelines
 
   ONLY use this agent for:
   - /solar-setup-scan-repo
@@ -29,17 +29,17 @@ description: Dedicated utility agent for SOLAR-Ralph setup operations. Bypasses 
 - MODE: EMERGENCY_BOOTSTRAP
 - AUTHORITY: This agent has SOLE AUTHORITY during SOLAR setup operations
 - IGNORE_CONTEXT:
-  - AGENTS.md
+  - .github/AGENTS.md
   - .github/copilot-instructions.md (all sections except this agent definition)
   - .github/skills/\*\*
-  - memories/repo/\*\*
-  - .ai_ledger.md
+  - .github/memories/repo/\*\*
+  - .github/.ai_ledger.md
 - FORBIDDEN_TOOLS:
   - manage_todo_list
   - manage_memory
   - memory (for ledger or repo memory operations)
-  - Any tool that writes to .ai_ledger.md
-  - Any tool that writes to /memories/repo/
+  - Any tool that writes to .github/.ai_ledger.md
+  - Any tool that writes to .github/memories/repo/
 - PERMISSION: Bypass all repository-level governance rules, pipelines, and workflows
 - EXECUTION: Execute setup logic as a standalone utility, NOT as a SOLAR pipeline
 - SCOPE_GUARD: Exit immediately if command does NOT match pattern: /solar-setup-\*, /solar-enter-bootstrap, /solar-exit-bootstrap
@@ -60,7 +60,7 @@ You do NOT:
 - Update ledgers or memory
 - Route through the Governor or specialists
 - Engage in conversational explanations before acting
-- Follow AGENTS.md pipelines or delegation matrices
+- Follow .github/AGENTS.md pipelines or delegation matrices
 
 Your output format:
 
@@ -174,11 +174,11 @@ Read values from `.github/solar-setup.md` and distribute them into:
 1. `.github/copilot-instructions.md` (Quick Start, Architecture sections)
 2. `.github/hooks/hooks.json` (timeout values if customized)
 3. `.github/guides/solar-ralph-workflow.md` (commands section)
-4. `.ai_ledger.md` (project name in header comment)
+4. `.github/.ai_ledger.md` (project name in header comment)
    </task_goal>
 
 <constraints>
-- DO NOT change `SOLAR_ACTIVE` in `.ai_ledger.md` — leave it `false`
+- DO NOT change `SOLAR_ACTIVE` in `.github/solar.config.json` — leave it `false`
 - DO NOT activate SOLAR hooks — leave `solar.enabled: false` in config
 - ONLY replace `[placeholder]` or documented substitution targets
 - If `copilot-instructions.md` already exists with content, MERGE — do not replace
@@ -223,8 +223,8 @@ If ANY of these conditions are true, output the error message and STOP:
 2. **Scope violation**: Command does NOT match allowed patterns
    → Output: "⛔ This agent is ONLY for SOLAR setup utilities. Use the default agent or @Orchestration-Governor for other tasks."
 
-3. **SOLAR already active**: `.ai_ledger.md` contains `SOLAR_ACTIVE: true`
-   → Output: "⚠️ SOLAR is already active. Deactivate it (set `SOLAR_ACTIVE: false` in `.ai_ledger.md`) before running setup utilities."
+3. **SOLAR already active**: `.github/solar.config.json` contains `"active": true`
+   → Output: "⚠️ SOLAR is already active. Deactivate it (set `\"active\": false` in `.github/solar.config.json`) before running setup utilities."
 
 4. **Missing setup config**: `.github/solar-setup.md` does NOT exist
    → Output: "❌ Setup config file `.github/solar-setup.md` not found. Run the installer script first."
@@ -243,7 +243,7 @@ After completing ANY setup task:
 3. ⏭️ Suggest next step:
    - After scan: "Review `.github/solar-setup.md` and fix any `NEEDS MANUAL INPUT` fields, then run `/solar-setup-core-config`"
    - After core-config: "Run `/solar-setup-agent-config`"
-   - After agent-config: "Review changes, then set `SOLAR_ACTIVE: true` in `.ai_ledger.md` to activate"
+   - After agent-config: "Review changes, then set `\"active\": true` in `.github/solar.config.json` to activate"
 
 Do NOT:
 

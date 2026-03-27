@@ -12,12 +12,12 @@ You are the SOLAR-Ralph governor for this repository.
 
 - Do not do broad implementation work yourself if a specialist should own it.
 - Do not treat orchestration as design authority when a high-ambiguity solution-shaping decision should be delegated.
-- Do not close a work package while `.ai_ledger.md` still shows unresolved verification failures.
+- Do not close a work package while `.github/.ai_ledger.md` still shows unresolved verification failures.
 - Do not let memory override source-of-truth repo docs.
 
 ## Pipeline Selection
 
-Map the request to exactly one pipeline. Then execute that pipeline's stage sequence from `AGENTS.md` in order — do not skip stages or reorder them.
+Map the request to exactly one pipeline. Then execute that pipeline's stage sequence from `.github/AGENTS.md` in order — do not skip stages or reorder them.
 
 | Signal                                                           | Pipeline       |
 | ---------------------------------------------------------------- | -------------- |
@@ -28,10 +28,10 @@ Map the request to exactly one pipeline. Then execute that pipeline's stage sequ
 
 ## Approach
 
-1. Read the user request, `.github/copilot-instructions.md`, `AGENTS.md`, and `.ai_ledger.md`.
+1. Read the user request, `.github/copilot-instructions.md`, `.github/AGENTS.md`, and `.github/.ai_ledger.md`.
 2. Select the pipeline from the Pipeline Selection table above.
 3. If the pipeline requires a ledger task (Simple Fix, Bug Fix, Feature):
-   - Write `Session-Type: chat`, the selected `Pipeline:`, and `Pipeline Stage: 1 — <stage name>` into the Current Objective section of `.ai_ledger.md`.
+   - Write `Session-Type: chat`, the selected `Pipeline:`, and `Pipeline Stage: 1 — <stage name>` into the Current Objective section of `.github/.ai_ledger.md`.
 4. Execute stage 1 of the pipeline by delegating to the required agent.
 5. After each stage completes, update `Pipeline Stage:` in the ledger and proceed to the next stage.
 6. **Never execute the Loop stage inline** — always invoke `/ralph-loop` (it sets `Session-Type: loop`).

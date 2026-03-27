@@ -19,7 +19,7 @@ user-invocable: true
 3. Implement only that hypothesis.
 4. Re-run the narrowest relevant verification.
 5. Stop after three iterations or earlier if the same failure repeats without a stronger hypothesis.
-6. Record the outcome and next action in `.ai_ledger.md`.
+6. Record the outcome and next action in `.github/.ai_ledger.md`.
 
 ## Output
 

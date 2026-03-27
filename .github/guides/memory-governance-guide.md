@@ -4,7 +4,7 @@ This guide defines where information should live in the phase 1 SOLAR-Ralph syst
 
 ## Storage Layers
 
-### `.ai_ledger.md`
+### `.github/.ai_ledger.md`
 
 Use for active execution state:
 
@@ -33,7 +33,7 @@ Use for durable guidance, rationale, and human-readable operating rules.
 
 ## Decision Rules
 
-- If the note is about the current task state, put it in `.ai_ledger.md`.
+- If the note is about the current task state, put it in `.github/.ai_ledger.md`.
 - If the note is a short verified repo fact, put it in `/memories/repo/`.
 - If the note teaches humans or explains policy, put it in `docs/`.
 - If memory and documentation disagree, correct memory and keep docs authoritative.

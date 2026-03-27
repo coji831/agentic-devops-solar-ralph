@@ -17,7 +17,7 @@ user-invocable: true
 
 1. Identify the source-of-truth docs for the task.
 2. Update only the required docs and preserve template structure.
-3. Align `.ai_ledger.md`, `/memories/repo/`, and permanent docs without duplicating content.
+3. Align `.github/.ai_ledger.md`, `.github/memories/repo/`, and permanent docs without duplicating content.
 4. Summarize any remaining documentation gaps.
 
 ## Output

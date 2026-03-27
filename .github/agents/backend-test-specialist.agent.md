@@ -19,7 +19,7 @@ You own backend verification quality.
 1. Map the behavior to the smallest meaningful backend test surface.
 2. Add or update focused tests.
 3. Run the narrowest relevant backend checks.
-4. Summarize failures or gaps in `.ai_ledger.md`.
+4. Summarize failures or gaps in `.github/.ai_ledger.md`.
 
 ## Output Format
 

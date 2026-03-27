@@ -18,7 +18,7 @@ user-invocable: false
 2. Prefer semantic RTL queries over brittle selectors.
 3. Cover the happy path and one meaningful edge case.
 4. Run the narrowest relevant frontend tests.
-5. Record failures or gaps in `.ai_ledger.md`.
+5. Record failures or gaps in `.github/.ai_ledger.md`.
 
 ## Output
 

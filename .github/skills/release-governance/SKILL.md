@@ -21,7 +21,7 @@ This skill does NOT write the completion promise. It produces a Go / No-Go repor
 
 ### Step 1 — Test Verification
 
-1. Read the `.ai_ledger.md` "Verification Failures" section.
+1. Read the `.github/.ai_ledger.md` "Verification Failures" section.
 2. If any failures are listed without a resolution note, flag as **No-Go — open test failures**.
 3. Search for the most recent test run evidence in `verification-artifacts/`. Verify file name matches the active epic/story.
 4. Confirm the artifact contains zero failing tests.
@@ -44,7 +44,7 @@ This skill does NOT write the completion promise. It produces a Go / No-Go repor
 
 ### Step 4 — Ledger Verification
 
-1. Read `.ai_ledger.md` "Next Actions" and "Blockers" sections.
+1. Read `.github/.ai_ledger.md` "Next Actions" and "Blockers" sections.
 2. If any item is listed without a resolution note, flag as **No-Go — open ledger items**.
 3. Confirm `Completion Promise:` field is still `pending` (not yet written — the governor writes it, not this skill).
 
@@ -82,7 +82,7 @@ Date: <today's date>
 
 - Return the formatted report to the governor.
 - Do NOT write `WORK_PACKAGE_COMPLETE`.
-- Do NOT modify `.ai_ledger.md`.
+- Do NOT modify `.github/.ai_ledger.md`.
 - Do NOT perform any code changes.
 
 ---

@@ -10,7 +10,7 @@ model: "GPT-5 mini (copilot)"
 
 ## Specification-First Check
 
-Before starting the loop, check `.ai_ledger.md` Current Objective for a `VerificationTarget:` field.
+Before starting the loop, check `.github/.ai_ledger.md` Current Objective for a `VerificationTarget:` field.
 
 - **If present**: Read the JSON file at that path. All loop iterations must drive toward the `successCriteria` defined there. The loop exits only when every criterion's `verificationCommand` produces output matching `expectedOutput`. Use this file as the authoritative definition of done — do not accept partial completion.
 - **If absent**: Proceed with the standard loop contract below.
@@ -19,17 +19,17 @@ Before starting the loop, check `.ai_ledger.md` Current Objective for a `Verific
 
 You are running a bounded SOLAR-Ralph autonomous loop. Follow this cycle until the completion promise is satisfied or max iterations is reached:
 
-1. **Set Session-Type** — Before anything else, write `Session-Type: loop` in the `.ai_ledger.md` Current Objective section. This tells the Stop hook to enforce continuation.
+1. **Set Session-Type** — Before anything else, write `Session-Type: loop` in the `.github/.ai_ledger.md` Current Objective section. This tells the Stop hook to enforce continuation.
 2. **Plan** — Take one meaningful step toward the task. Keep scope to the smallest verifiable unit.
 3. **Implement** — Make only the change needed for this step. Do not batch multiple steps.
 4. **Verify** — Run the narrowest relevant check (targeted test, `tsc --noEmit`, lint) against the changed files only.
-5. **Update Ledger** — Record the step outcome and any blockers in `.ai_ledger.md`.
+5. **Update Ledger** — Record the step outcome and any blockers in `.github/.ai_ledger.md`.
 6. **Check Promise** — If the work is fully complete and verification passes, write the completion promise and set `Session-Type: chat` to release the Stop hook.
 7. **Continue or Escalate** — If not done and iterations remain, proceed to the next step. If blocked without a new hypothesis, escalate instead of retrying the same action.
 
 ## Completion Promises
 
-Write exactly one of these to `.ai_ledger.md` when the loop exits:
+Write exactly one of these to `.github/.ai_ledger.md` when the loop exits:
 
 - `<promise>WORK_PACKAGE_COMPLETE</promise>` — All acceptance criteria met and verification passes.
 - `<promise>WORK_PACKAGE_BLOCKED</promise>` — Blocked with no new approach available.

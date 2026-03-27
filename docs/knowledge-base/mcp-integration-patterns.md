@@ -119,7 +119,7 @@ puppeteer_evaluate({
 1. Identify the issue number from the story BR or ledger
 2. Call the GitHub MCP `get_issue` or equivalent tool to retrieve title, body, and labels
 3. Extract acceptance criteria from the issue body
-4. Record in `.ai_ledger.md` as the authoritative AC source for the current pipeline run
+4. Record in `.github/.ai_ledger.md` as the authoritative AC source for the current pipeline run
 
 **When to prefer GitHub MCP over reading BR docs:**
 

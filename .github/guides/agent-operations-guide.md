@@ -10,11 +10,11 @@ This guide explains how to use the phase 1 SOLAR-Ralph files safely.
 
 ## Operating Sequence
 
-1. Read the request, `AGENTS.md`, and `.ai_ledger.md`.
+1. Read the request, `.github/AGENTS.md`, and `.github/.ai_ledger.md`.
 2. Identify the smallest next work package.
 3. Pick the specialist or skill that owns the work.
 4. Run focused verification immediately after implementation.
-5. Record outcomes in `.ai_ledger.md`.
+5. Record outcomes in `.github/.ai_ledger.md`.
 6. Stop only when the ledger contains a non-pending completion promise.
 
 ## Review And Adversarial Use

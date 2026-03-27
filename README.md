@@ -14,13 +14,13 @@ The SOLAR-Ralph Harness is a professional-grade template for implementing the **
 
 Unlike flat multi-agent systems, SOLAR-Ralph uses a **Hierarchical Multi-Agent System (HMAS)** to manage complexity and prevent "Context Rot."
 
-| Layer | Component        | Implementation        | Purpose                                                 |
-| :---- | :--------------- | :-------------------- | :------------------------------------------------------ |
-| **S** | **Specialist**   | `.github/agents/*.md` | High-fidelity domain experts (Frontend, Security, DB).  |
-| **O** | **Orchestrator** | `AGENTS.md`           | The Governor. Decomposes tasks and routes via `/skill`. |
-| **L** | **Ledger**       | `.ai_ledger.md`       | Amnesia-free persistent state and "Mistake Records".    |
-| **A** | **Adversarial**  | `Audit-Story.md`      | Reward Auditing (ARA) to prevent "Code Gaming".         |
-| **R** | **Recursive**    | `/ralph-loop`         | Deterministic iteration via the Ralph Wiggum Technique. |
+| Layer | Component        | Implementation          | Purpose                                                 |
+| :---- | :--------------- | :---------------------- | :------------------------------------------------------ |
+| **S** | **Specialist**   | `.github/agents/*.md`   | High-fidelity domain experts (Frontend, Security, DB).  |
+| **O** | **Orchestrator** | `.github/AGENTS.md`     | The Governor. Decomposes tasks and routes via `/skill`. |
+| **L** | **Ledger**       | `.github/.ai_ledger.md` | Amnesia-free persistent state and "Mistake Records".    |
+| **A** | **Adversarial**  | `Audit-Story.md`        | Reward Auditing (ARA) to prevent "Code Gaming".         |
+| **R** | **Recursive**    | `/ralph-loop`           | Deterministic iteration via the Ralph Wiggum Technique. |
 
 ---
 
@@ -82,7 +82,7 @@ Combines local `/memories/repo/` fact files with GitHub-hosted **Copilot Memory*
 - `.github/skills/` - Procedural knowledge (TDD, migrations, security scans).
 - `.github/hooks/` - Lifecycle automation (Stop hooks, Post-tool lints).
 - `/verification-artifacts/` - Evidence backbone for release readiness.
-- `AGENTS.md` - The global pipeline contract and delegation rules.
+- `.github/AGENTS.md` - The global pipeline contract and delegation rules.
 
 ---
 

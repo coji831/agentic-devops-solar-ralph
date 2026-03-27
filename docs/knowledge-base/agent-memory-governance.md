@@ -4,8 +4,8 @@ Memory is useful only when it stays concise, verifiable, and subordinate to sour
 
 ## Phase 1 Layers
 
-- `.ai_ledger.md` for active execution state
-- `/memories/repo/` for concise verified repo facts
+- `.github/.ai_ledger.md` for active execution state
+- `.github/memories/repo/` for concise verified repo facts
 - `docs/` for durable guidance and rationale
 
 ## Governance Rules
