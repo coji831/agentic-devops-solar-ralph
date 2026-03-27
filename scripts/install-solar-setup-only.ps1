@@ -68,5 +68,5 @@ if ($failed -gt 0) {
     Write-Host "Failed: $failed files" -ForegroundColor Red
 }
 Write-Host ""
-Write-Host "Next step: Run /solar-setup-scan-repo"
+Write-Host "Next step: Run /solar-setup-quick to configure and activate SOLAR"
 Write-Host ""

@@ -64,5 +64,5 @@ if [ $failed -gt 0 ]; then
     echo "✗ Failed: $failed files"
 fi
 echo ""
-echo "Next step: Run /solar-setup-scan-repo to detect project details"
+echo "Next step: Run /solar-setup-quick to configure and activate SOLAR"
 echo ""

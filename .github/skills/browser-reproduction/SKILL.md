@@ -1,5 +1,8 @@
 ---
 name: browser-reproduction
+description: "Use when a bug investigation requires confirming behaviour in a live browser before classifying the root cause. Produces a Behaviour Report that the Bug Investigation Specialist attaches to the ledger before classification."
+argument-hint: "Bug title or description to reproduce"
+user-invocable: true
 ---
 
 # Browser Reproduction Skill
