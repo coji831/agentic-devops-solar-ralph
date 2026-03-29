@@ -4,6 +4,8 @@ description: Create ledger, instructions, and memory scaffolding after setup
 agent: Solar Bootstrap
 ---
 
+SOLAR_BOOTSTRAP_COMMAND: /solar-setup-scaffold
+
 # SOLAR-Ralph Phase 2 Scaffolding
 
 <identity>

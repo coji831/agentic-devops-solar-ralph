@@ -4,6 +4,8 @@ description: Quick SOLAR setup - scan + config + scaffold + activate (all-in-one
 agent: Solar Bootstrap
 ---
 
+SOLAR_BOOTSTRAP_COMMAND: /solar-setup-quick
+
 # SOLAR-Ralph Quick Setup
 
 <identity>

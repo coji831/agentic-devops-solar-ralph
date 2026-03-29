@@ -4,6 +4,8 @@ description: Full SOLAR setup - 5-pass scan + adaptive config + memory seeding +
 agent: Solar Bootstrap
 ---
 
+SOLAR_BOOTSTRAP_COMMAND: /solar-setup-full
+
 # SOLAR-Ralph Full Setup
 
 <identity>

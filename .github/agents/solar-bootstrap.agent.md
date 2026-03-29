@@ -12,8 +12,9 @@ user-invocable: true
 
 Read the user's message:
 
-- If it begins with `/solar-setup-`, `/solar-enter-bootstrap`, or `/solar-exit-bootstrap` → continue to `<preamble_sequence>`
-- If it does **NOT** match → output exactly:
+- If it begins with `/solar-setup-` or `/solar-enter-bootstrap` or `/solar-exit-bootstrap` → continue to `<preamble_sequence>`
+- If it contains the line `SOLAR_BOOTSTRAP_COMMAND:` → extract the command value and continue to `<preamble_sequence>`
+- If it does **NOT** match either condition → output exactly:
 
   `⛔ Bootstrap agent is ONLY for /solar-setup-* commands. Use the default agent or @Orchestration-Governor for other tasks.`
 
