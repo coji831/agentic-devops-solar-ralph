@@ -104,7 +104,6 @@ FILES=(
     # Operator guides
     ".github/guides/agent-operations-guide.md"
     ".github/guides/memory-governance-guide.md"
-    ".github/guides/bootstrap-mode-guide.md"
     ".github/guides/mcp-operations-guide.md"
     ".github/guides/solar-ralph-workflow.md"
 
