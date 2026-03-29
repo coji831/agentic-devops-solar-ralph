@@ -2,8 +2,6 @@
 applyTo: "**"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Code Conventions
 
 > Populated by Pass 2 of the 5-pass scan (/solar-setup-scan-repo or /solar-setup-full).

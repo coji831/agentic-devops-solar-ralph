@@ -2,8 +2,6 @@
 applyTo: "**"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Verification Context
 
 - No work package is complete without relevant verification

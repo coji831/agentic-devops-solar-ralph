@@ -2,8 +2,6 @@
 applyTo: "[FILL IN — e.g., apps/backend/** or src/server/**]"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Backend Context
 
 > Update `applyTo` above to the detected backend folder path so this file loads only when backend files are open.

@@ -2,8 +2,6 @@
 applyTo: "**"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Security Context
 
 - Auth pattern: [FILL IN — e.g., JWT with refresh token rotation, or session-based]

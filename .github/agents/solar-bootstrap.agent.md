@@ -6,6 +6,21 @@ model: GPT-5 mini (copilot)
 user-invocable: true
 ---
 
+## INVOCATION GATE
+
+**Check this FIRST. Before any tool call. Before the preamble sequence. Before everything.**
+
+Read the user's message:
+
+- If it begins with `/solar-setup-`, `/solar-enter-bootstrap`, or `/solar-exit-bootstrap` → continue to `<preamble_sequence>`
+- If it does **NOT** match → output exactly:
+
+  `⛔ Bootstrap agent is ONLY for /solar-setup-* commands. Use the default agent or @Orchestration-Governor for other tasks.`
+
+  Then **STOP**. Do not call any tools. Do not activate bootstrap mode. Do not execute the preamble.
+
+---
+
 <!--
   BOOTSTRAP AGENT — GOVERNANCE BYPASS MODE
 
@@ -43,7 +58,6 @@ user-invocable: true
   - Any tool that writes to .github/.ai_ledger.md
 - PERMISSION: Bypass all repository-level governance rules, pipelines, and workflows
 - EXECUTION: Execute setup logic as a standalone utility, NOT as a SOLAR pipeline
-- SCOPE_GUARD: Exit immediately if command does NOT match pattern: /solar-setup-\*, /solar-enter-bootstrap, /solar-exit-bootstrap
   </bootstrap_override>
 
 <identity>
@@ -167,10 +181,11 @@ All scans use a **point-in-time, over-scan** strategy: never trust known file pa
 
 **Each instruction file:**
 
-- YAML frontmatter: `applyTo: "<scope>"` and `scan-confidence: high|medium|low`
+- YAML frontmatter: `applyTo: "<scope>"` only — no `scan-confidence` field
 - Auto-populated fields detected from Passes 1–2
 - `[SCAN-INCOMPLETE]` markers where data could not be detected
 - Do NOT overwrite existing instruction files — merge detected values or flag conflicts
+- Write detected confidence to `solar-project-profile.json` `instructionConfidence` map, NOT into the instruction file
 
 **Fallback:**
 
@@ -179,31 +194,54 @@ All scans use a **point-in-time, over-scan** strategy: never trust known file pa
 
 ---
 
-### Pass 4 — Workflow Inference
+### Pass 4 — Workflow Detection & Inference
 
-**Goal:** Detect or infer delivery workflows from repository documentation.
+**Goal:** Detect pre-existing delivery workflows and infer new ones from repository documentation. Collect raw signals BEFORE classifying to prevent early collapse.
 
-**Phase A — Semantic `**/\*.md` Sweep (primary):\*\*
+**Phase A — Structured Source Probe (pre-defined workflows, runs first):**
 
-- Read all `**/*.md` files
-- Flag files containing: numbered step sequences, "before commit" language, checklist items tied to story/branch/PR close, "workflow", "pipeline", "delivery process"
-- Extract step sequences → draft `.workflow.md` body
-- Assign `status: "inferred"`, `source: "<source_file>"`, `confidence: high|medium|low`
+- Read `package.json` `"scripts"` block → record each script as `{ "name": "<key>", "command": "<value>", "source": "package.json" }`
+- Check `Makefile`: extract named targets (lines matching `^<target>:`)
+- Check `scripts/*.sh` and `scripts/*.ps1`: record filenames as workflow candidates
+- Check `.github/workflows/*.yml`: extract `jobs.<job-name>` keys and `name:` fields
+- Store all findings as `existingWorkflows[]` in profile — write `[]` if none found, never skip
 
-**Phase B — Structured Source Probe (supplement):**
+**Phase B — Raw Signal Collection (subagent):**
 
-- Check: `.github/copilot-instructions.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `ISSUE_TEMPLATE/` (if they exist)
-- Extract additional workflow signals, merge with Phase A
+Invoke `solar-scan-collector` as a subagent with exactly this instruction:
+
+> "Scan all `**/*.md` files in the repository. For every file that contains a numbered sequence, checklist, or step structure with 3 or more steps: extract the raw block verbatim. Write ALL blocks to `.github/scan-raw-signals.json` as an array of `{ \"file\": \"<relative-path>\", \"lines\": \"<start>-<end>\", \"raw_text\": \"<verbatim block>\" }`. Do NOT classify, summarize, merge, or deduplicate any blocks. Extract everything you find."
+
+**Phase C — Classification & Output (bootstrap classifies from collected signals):**
+
+Read `.github/scan-raw-signals.json`. For each raw block, classify using this taxonomy:
+
+| Type | Key signals |
+|------|-------------|
+| `branching-strategy` | branch, checkout, PR, merge, git, main |
+| `story-execution` | AC, implement, test, commit gate, before commit, story |
+| `deployment` | deploy, release, Railway, Vercel, publish, production |
+| `bug-fix` | reproduce, fix, regression, hotfix, root cause |
+| `testing` | test suite, coverage, run tests, CI |
+
+Rules:
+- Classify each block independently using the taxonomy above
+- If two blocks share the same type: merge sources into `source: "<file1>, <file2>"`, keep the richer content
+- Produce **one `.workflow.md` per distinct type detected** — NOT one per repo, NOT one per source file
+- After writing all output files: delete `.github/scan-raw-signals.json`
 
 **Output:**
 
-- Write inferred `.workflow.md` files to `.github/solar-workflows/`
-- Name pattern: `<pipeline-type>.workflow.md` (e.g., `feature-delivery.workflow.md`, `bug-fix.workflow.md`)
-- YAML frontmatter: `status: inferred | source: <file> | confidence: high|medium|low`
+- Write classified `.workflow.md` files to `.github/solar-workflows/`
+- Name pattern: `<taxonomy-type>.workflow.md` (e.g., `story-execution.workflow.md`, `branching-strategy.workflow.md`)
+- YAML frontmatter: `status: inferred | source: <file(s)> | confidence: high|medium|low | type: <taxonomy-type>`
+- In the `## Steps` section, add injection markers:
+  - After each numbered step line: `<!-- INJECT: step-N -->`
+  - After the final step: `<!-- INJECT: append-steps -->`
 
-**Fallback (no workflow signals):**
+**Fallback (no workflow signals in any source):**
 
-- Scaffold blank `feature-delivery.workflow.md` + `bug-fix.workflow.md` with `[POST-IMPLEMENT]` markers
+- Scaffold blank `story-execution.workflow.md` + `branching-strategy.workflow.md` with `[POST-IMPLEMENT]` markers
 - Log: `fallbacksTriggered: ["workflow-inference"]`
 
 ---
@@ -232,7 +270,6 @@ All scans use a **point-in-time, over-scan** strategy: never trust known file pa
 
 - Generate `.instructions.md` per detected workspace domain (skip if already exists)
 - Each file: `applyTo: "<domain_path>/**"`, domain-specific guidance extracted from Passes 1–4
-- YAML frontmatter: `scan-confidence: high|medium|low`
 
 **Flat Repo Fallback:**
 
@@ -279,13 +316,29 @@ After all 5 passes complete, write `.github/solar-project-profile.json`:
       "verification",
       "conventions"
     ],
-    "seedConfidence": "high|medium|low"
+    "seedConfidence": "high|medium|low",
+    "instructionConfidence": {
+      "architecture": "high|medium|low",
+      "frontend": "high|medium|low",
+      "backend": "high|medium|low",
+      "security": "high|medium|low",
+      "workflow": "high|medium|low",
+      "verification": "high|medium|low",
+      "conventions": "high|medium|low"
+    }
   },
   "workflows": {
-    "existing": [],
+    "existingWorkflows": [
+      {
+        "name": "<script-name>",
+        "command": "<command>",
+        "source": "<source-file>"
+      }
+    ],
     "inferred": [
       {
         "name": "<workflow-name>",
+        "type": "<taxonomy-type>",
         "source": "<source-file>",
         "confidence": "high|medium|low"
       }
@@ -310,9 +363,7 @@ After all 5 passes complete, write `.github/solar-project-profile.json`:
 
 <critical_constraints>
 
-1. **SCOPE GUARD**: If the command does NOT match `/solar-setup-*`, `/solar-enter-bootstrap`, or `/solar-exit-bootstrap`, respond with: "⛔ This agent is ONLY for SOLAR setup utilities. Use the default agent or @Orchestration-Governor for other tasks." Then exit.
-
-2. **AUTO BOOTSTRAP MODE**:
+1. **AUTO BOOTSTRAP MODE**:
    - BEFORE any setup work: Activate bootstrap mode in `.github/solar.config.json` (set `solar.enabled: false` and `solar.mode: "bootstrap"`)
    - AFTER setup work completes: Restore previous mode (usually `simple`)
 3. **USE TOOLS IMMEDIATELY**: You MUST use file-edit tools. Do NOT just report findings in chat.

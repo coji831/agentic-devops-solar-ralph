@@ -2,8 +2,6 @@
 applyTo: "**"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Workflow Context
 
 - Primary workflow authority: .github/copilot-instructions.md

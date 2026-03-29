@@ -2,8 +2,6 @@
 applyTo: "**"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Architecture & Commands Context
 
 ## Repository Structure

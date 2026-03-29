@@ -2,8 +2,6 @@
 applyTo: "[FILL IN — e.g., apps/frontend/** or src/**]"
 ---
 
-<!-- scan-confidence: [FILL IN: high|medium|low] -->
-
 # Frontend Context
 
 > Update `applyTo` above to the detected frontend folder path so this file loads only when frontend files are open.
