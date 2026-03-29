@@ -19,7 +19,7 @@ user-invocable: false
 2. Identify the affected backend layer and contract surface.
 3. **Responder** — Implement the smallest coherent backend change as a first draft.
 4. **Evaluator** — Self-critique the draft before finalizing:
-   - Does it follow conventions in `docs/guides/code-conventions.md`?
+   - Does it follow conventions in `.github/instructions/conventions.instructions.md` (seeded from the project scan; fall back to `CONTRIBUTING.md` or any detected convention file if not present)?
    - Does it preserve all existing API contracts (no breaking changes without an explicit flag)?
    - Are all new service or repository functions covered by a targeted test?
    - Does it introduce any unsafe validation, auth, or secret handling?

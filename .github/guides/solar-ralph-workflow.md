@@ -8,13 +8,13 @@ Use the SOLAR pillars without replacing the repository's current operating rules
 
 ## Mapping To Existing Workflow
 
-| SOLAR Pillar | Repo Workflow Stage       | Primary Output                                               |
-| ------------ | ------------------------- | ------------------------------------------------------------ |
-| Specialist   | Implement, Test, Docs     | Focused code, tests, and documentation changes               |
-| Orchestrator | Review, Plan, Gates       | Work packages, delegation, escalation decisions              |
-| Ledger       | Throughout                | `.github/.ai_ledger.md` and `.github/memories/repo/` updates |
-| Adversarial  | Test, Review, Gates       | Findings, failed checks, residual risk                       |
-| Recursive    | Implement, Verify, Repair | Bounded loops until a completion promise or escalation       |
+| SOLAR Pillar | Repo Workflow Stage       | Primary Output                                              |
+| ------------ | ------------------------- | ----------------------------------------------------------- |
+| Specialist   | Implement, Test, Docs     | Focused code, tests, and documentation changes              |
+| Orchestrator | Review, Plan, Gates       | Work packages, delegation, escalation decisions             |
+| Ledger       | Throughout                | `.github/.ai_ledger.md` and `.github/instructions/` updates |
+| Adversarial  | Test, Review, Gates       | Findings, failed checks, residual risk                      |
+| Recursive    | Implement, Verify, Repair | Bounded loops until a completion promise or escalation      |
 
 ## Standard Flow
 

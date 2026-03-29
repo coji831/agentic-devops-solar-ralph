@@ -1,6 +1,6 @@
 ---
 name: Backend Test Specialist
-description: "Use when writing or repairing backend service, repository, route, controller, integration, or Prisma-sensitive tests in the repository's backend area."
+description: "Use when writing or repairing backend tests in the repository's backend area. Stack, ORM, and test runner context loaded from the project's backend .instructions.md at runtime."
 tools: [read, search, edit, execute]
 model: GPT-5 mini (copilot)
 user-invocable: false

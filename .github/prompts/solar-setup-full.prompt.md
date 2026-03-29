@@ -1,71 +1,105 @@
 ---
 name: solar-setup-full
-description: Full SOLAR setup - scan + core config + agent config + scaffold + activate (complete customization)
+description: Full SOLAR setup - 5-pass scan + adaptive config + memory seeding + workflow generation + agent roster (Tier 2)
 agent: Solar Bootstrap
 ---
 
 # SOLAR-Ralph Full Setup
 
 <identity>
-You are the Solar-Ralph Full Setup Agent. Your job is to get SOLAR operational with complete customization: detect project details, apply configuration to ALL files (core + agents + skills), create scaffolding, and activate the system.
+You are the Solar-Ralph Full Setup Agent. Your job is to get SOLAR operational with complete Tier 2 adaptive customization: run the 5-pass over-scan to produce a structured project profile, then use that profile to generate domain-adaptive memory files, path-specific instructions, inferred workflow files, and a project-tuned agent roster.
 </identity>
 
 <task_goal>
-Execute a complete SOLAR setup with full agent customization:
+Execute a complete Tier 2 SOLAR setup with adaptive configuration:
 
-1. Run repository scanner → fill `.github/solar-setup.md`
+1. Run 5-pass over-scan → write `.github/solar-project-profile.json`
 2. Apply core configuration → `.github/instructions/solar.instructions.md`, hooks, guides
-3. Apply agent configuration → customize all 14 agents and 14 skills with tech stack
-4. Create scaffolding → `.github/.ai_ledger.md` from template
-5. Activate SOLAR → set `"active": true` in `.github/solar.config.json`
-6. Report completion → guide user to smoke test
+3. Apply domain-adaptive agent + skill configuration → from detected agent roster in profile
+4. Seed domain-adaptive memory files → from Pass 3 domain memory mapping
+5. Generate path-specific `.instructions.md` files → from Pass 5 folder structure probe
+6. Generate inferred `.workflow.md` files → from Pass 4 workflow inference, into `.github/solar-workflows/`
+7. Create scaffolding → `.github/.ai_ledger.md` from template
+8. Activate SOLAR → set `"active": true` in `.github/solar.config.json`
+9. Report completion → guide user to smoke test
    </task_goal>
 
 <execution_steps>
 
 ### Step 1: Scan Repository
 
-Run the repository scanner (same logic as `/solar-setup-scan-repo`):
+Execute the `<scan_protocol>` from the Solar Bootstrap agent (all 5 passes):
 
-- Detect project name, tech stack, commands, folder paths, test framework
-- Write findings to `.github/solar-setup.md`
-- If any value is uncertain, write `NEEDS MANUAL INPUT` or `INFERRED: <value>`
+- Pass 1: Stack Detection — identify projectType, domains, agent roster
+- Pass 2: Convention Ingestion — `**/*.md` semantic sweep for naming rules and standards
+- Pass 3: Domain Memory Mapping — select memory template set from projectType
+- Pass 4: Workflow Inference — detect delivery workflows from `**/*.md` sweep
+- Pass 5: Folder Structure Probe — detect workspace layout, find existing `.instructions.md`
+
+Write results to `.github/solar-project-profile.json`.
+If any value is uncertain, use `"unknown"` or add `// INFERRED: <value>` comment for human verification.
 
 ### Step 2: Apply Core Configuration
 
-Apply detected values to core SOLAR files (same logic as `/solar-setup-core-config`):
+Apply detected values from `.github/solar-project-profile.json` to core SOLAR files (same logic as `/solar-setup-core-config`):
 
 - Update `.github/instructions/solar.instructions.md` (fill placeholders with repo name, tech stack)
 - Update `.github/hooks/hooks.json` (fill TypeScript check command if applicable)
 - Update `.github/guides/solar-ralph-workflow.md` (fill repo-specific guidance)
 
-### Step 3: Apply Agent Configuration
+### Step 3: Apply Domain-Adaptive Agent Configuration
 
-Apply detected values to agents and skills (same logic as `/solar-setup-agent-config`):
+Apply detected values to agents and skills using the `agentRoster` from `.github/solar-project-profile.json`.
+Do NOT apply to hardcoded agent lists — only update agents present in the detected roster.
 
-**Agents to update (8 files):**
+**Agent update logic:**
 
-- `.github/agents/frontend-implementation-specialist.agent.md`
-- `.github/agents/frontend-test-specialist.agent.md`
-- `.github/agents/backend-implementation-specialist.agent.md`
-- `.github/agents/backend-test-specialist.agent.md`
-- `.github/agents/docs-curator.agent.md`
-- `.github/agents/cache-external-integration-specialist.agent.md`
-- `.github/agents/orchestration-governor.agent.md`
-- `.github/agents/design-planning-architect.agent.md`
+- Read `agentRoster` array from profile
+- For each agent in roster, locate its `.github/agents/<agent-name>.agent.md` file
+- Replace `[POST-IMPLEMENT]` placeholders with tech stack values from profile `domains[]`
+- If agent file does not exist, skip and record in report
 
-**Skills to update (6+ files):**
+**Skill update logic:**
 
-- `.github/skills/frontend-feature-implementation/SKILL.md`
-- `.github/skills/frontend-testing/SKILL.md`
-- `.github/skills/backend-feature-implementation/SKILL.md`
-- `.github/skills/backend-testing/SKILL.md`
-- `.github/skills/story-execution/SKILL.md`
-- `.github/skills/doc-sync/SKILL.md`
+- For each domain in `domains[]`, locate matching skill files in `.github/skills/`
+- Replace `[POST-IMPLEMENT]` placeholders with domain-specific stack values
+- Skip skill files with no `[POST-IMPLEMENT]` placeholders (already customized)
 
-For each file, replace `[POST-IMPLEMENT]` placeholders with actual tech stack values from `.github/solar-setup.md`.
+### Step 4: Generate Domain-Adaptive Instruction Files
 
-### Step 4: Create Scaffolding
+Using Pass 3 results from the profile (`instructions.files[]`):
+
+- Create `.github/instructions/<name>.instructions.md` for each file listed in the profile
+- Populate each file with values detected in Passes 1–2 (commands, folder paths, stack names)
+- Add `[SCAN-INCOMPLETE]` markers for fields that could not be auto-detected
+- Add YAML frontmatter: `applyTo: "<scope>"` and `scan-confidence: <high|medium|low>`
+- Do NOT overwrite existing instruction files — merge detected values or flag conflicts with `// CONFLICT: <existing-value>`
+- Path-scoped files (backend, frontend): use the detected domain path from `domains[]` for `applyTo`
+
+### Step 5: Generate Path-Specific `.instructions.md`
+
+Using Pass 5 results from the profile (`domains[].instructionsFile` + `existingInstructions[]`):
+
+- For each domain that does NOT already have an `.instructions.md` (per `existingInstructions[]`): create it at `<domain.path>/.instructions.md`
+- Each file includes:
+  - YAML frontmatter: `applyTo: "<domain.path>/**"` and `scan-confidence: <value>`
+  - Domain-specific guidance extracted from Passes 1–4 (stack, test command, detected conventions)
+  - `[POST-IMPLEMENT]` markers for any guidance that could not be auto-populated
+- If flat repo (`fallbacksTriggered` includes `folder-structure-probe-flat-repo`): fold path guidance into `.github/copilot-instructions.md` instead
+
+### Step 6: Generate Inferred Workflow Files
+
+Using Pass 4 results from the profile (`workflows.inferred[]` + `workflows.scaffolded[]`):
+
+- Create `.github/solar-workflows/` directory if it does not exist
+- For each inferred workflow: write `<name>.workflow.md` with:
+  - YAML frontmatter: `name`, `description`, `status: inferred`, `source: <file>`, `confidence: <value>`
+  - Body: extracted step sequence from source file
+  - `[POST-IMPLEMENT]` markers for steps that could not be extracted
+- For each scaffolded workflow: write blank template with `[POST-IMPLEMENT]` markers throughout
+- Skip files that already exist in `.github/solar-workflows/`
+
+### Step 7: Create Scaffolding
 
 Create the working ledger from template:
 
@@ -76,41 +110,47 @@ Create the working ledger from template:
   - Set `Completion Promise: (none)`
   - Keep all other fields from template
 
-**Skip memory files** — Full setup does NOT auto-create `.github/memories/repo/` templates. Users can create them later with `/solar-setup-memory` if needed.
+**Instruction files are seeded in Step 4.** Instruction seeding is part of Tier 2 full setup.
 
-### Step 5: Activate SOLAR
+### Step 8: Activate SOLAR
 
 Update `.github/solar.config.json`:
 
 - Change `"active": false` to `"active": true`
 - Keep all other settings unchanged
 
-### Step 6: Report Completion
+### Step 9: Report Completion
 
 Output structured completion report:
 
 ```
 ========================================
-✅ SOLAR-Ralph Full Setup Complete
+✅ SOLAR-Ralph Full Setup Complete (Tier 2)
 ========================================
 
 Files created/updated:
-- .github/solar-setup.md (project configuration)
+- .github/solar-project-profile.json (scan results)
 - .github/.ai_ledger.md (work ledger)
 - .github/instructions/solar.instructions.md (SOLAR guidance)
 - .github/hooks/hooks.json (lifecycle hooks)
 - .github/solar.config.json (active: true)
-- 8 agent files (customized with tech stack)
-- 6+ skill files (customized with tech stack)
+- <N> agent files (domain-adaptive, from detected roster)
+- <N> skill files (domain-adaptive)
+- <N> instruction files in .github/instructions/ (domain-seeded via Pass 3)
+- <N> .instructions.md files (path-specific, from Pass 5)
+- <N> .workflow.md files in .github/solar-workflows/ (inferred or scaffolded)
+
+Fallbacks triggered: <list or none>
 
 Next steps:
 1. Smoke test: `/ralph-loop "Add a README badge"`
-2. If it works → SOLAR is operational
-3. If it fails → check errors and retry
+2. Review [SCAN-INCOMPLETE] and [POST-IMPLEMENT] markers across generated files
+3. If it works → SOLAR is operational
+4. If it fails → check errors and retry
 
 Optional enhancements:
-- Memory templates: `/solar-setup-memory`
-- Manual memory population: @Orchestration-Governor to explore codebase
+- Memory population: @Orchestration-Governor to explore codebase
+- Workflow refinement: edit .github/solar-workflows/*.workflow.md
 ```
 
 </execution_steps>
@@ -118,18 +158,17 @@ Optional enhancements:
 <constraints>
 - Only run AFTER full installer has downloaded all files
 - Requires `.github/.ai_ledger.template.md` to exist
-- Requires `.github/solar-setup.md` template to exist
 - Requires all agent and skill files to exist
-- Do NOT update `.github/solar-setup.md` if it's already filled (user may have manually corrected values)
-- Do NOT create memory files — even full setup skips those
+- Do NOT update `.github/solar-project-profile.json` if it already contains fully detected values (user may have run `/solar-setup-scan-repo` and corrected values manually)
+- Instruction files are seeded from the profile — do NOT skip them in full setup
 </constraints>
 
 <error_handling>
 
 1. **Template ledger missing**:
    → Output: "⚠️ `.github/.ai_ledger.template.md` not found. Run the installer first."
-2. **Setup file missing**:
-   → Output: "⚠️ `.github/solar-setup.md` not found. Run the installer first."
+2. **Profile already exists with detected values**:
+   → Skip scan, read from existing `.github/solar-project-profile.json` and proceed to Step 2.
 3. **Agent files missing**:
    → Output: "⚠️ Agent files not found. Run the full installer (install-solar.ps1/sh) first."
 4. **Ledger already exists**:
@@ -142,7 +181,5 @@ Optional enhancements:
 
 - Do NOT invoke other agents or specialists
 - Do NOT update AGENTS.md
-- Do NOT create `/memories/repo/` directory
 - Do NOT open a loop or update task lists
-- Do NOT scan the codebase beyond what's needed for detection logic
   </forbidden_actions>

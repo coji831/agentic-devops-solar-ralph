@@ -1,17 +1,17 @@
 ---
 name: memory-verification
-description: "Use when applying facts from /memories/repo/ to confirm those facts still match the current codebase before acting on them. Prevents errors from stale architecture memories."
+description: "Use when applying facts from .github/instructions/ to confirm those facts still match the current codebase before acting on them. Prevents errors from stale architecture instructions."
 user-invocable: false
 ---
 
-Validate that facts from `/memories/repo/` still match the codebase before applying them. Prevents amnesia-related errors from outdated patterns.
+Validate that facts from `.github/instructions/` still match the codebase before applying them. Prevents errors from outdated instruction content.
 
 ## When to Use
 
 Load this skill at the start of any task where you:
 
-- Apply a pattern or architecture fact from `/memories/repo/`
-- Reference a specific file, function, or component from memory
+- Apply a pattern or architecture fact from `.github/instructions/`
+- Reference a specific file, function, or component from an instruction file
 - Use a previously recorded API contract, state shape, or service boundary
 
 ## Constraints
@@ -32,7 +32,7 @@ For each memory claim being applied:
    - ✅ **Valid** — Still accurate. Apply it.
    - ⚠️ **Stale** — No longer matches the current code. Do not apply. Record the discrepancy.
    - ❓ **Uncertain** — Partial match or ambiguous. Verify manually before applying.
-6. **Update if stale** — Write a correction to the relevant `/memories/repo/` file with current facts before proceeding.
+6. **Update if stale** — Write a correction to the relevant `.github/instructions/*.instructions.md` file with current facts before proceeding.
 
 ## Output Format
 

@@ -19,7 +19,7 @@ user-invocable: false
 2. Identify the affected feature folder, route, and state boundary.
 3. **Responder** — Implement the smallest coherent frontend change as a first draft.
 4. **Evaluator** — Self-critique the draft before finalizing:
-   - Does it follow conventions in `docs/guides/code-conventions.md`?
+   - Does it follow conventions in `.github/instructions/conventions.instructions.md` (seeded from the project scan; fall back to `CONTRIBUTING.md` or any detected convention file if not present)?
    - Does it touch only the files in scope (no unrelated changes)?
    - Are all new exported functions, hooks, or components covered by a test?
    - Does it break any existing interface contracts?

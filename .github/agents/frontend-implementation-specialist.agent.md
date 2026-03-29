@@ -1,6 +1,6 @@
 ---
 name: Frontend Implementation Specialist
-description: "Use when implementing React, TypeScript, Vite, routing, context, reducers, selectors, components, pages, or frontend service-client changes."
+description: "Use when implementing frontend domain changes — components, state, routing, client integration, and pages. Actual stack context is loaded from the project's frontend .instructions.md at runtime."
 tools: [read, search, edit, execute, todo]
 model: GPT-5 mini (copilot)
 user-invocable: false

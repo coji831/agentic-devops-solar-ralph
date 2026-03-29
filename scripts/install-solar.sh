@@ -37,7 +37,7 @@ FILES=(
     ".github/.ai_ledger.template.md"
 
     # Setup config (fill this first, then run /solar-setup-core-config)
-    ".github/solar-setup.md"
+    ".github/solar.config.json"
 
     # Agents - universal (governance, auditors, architect)
     ".github/agents/orchestration-governor.agent.md"
@@ -59,9 +59,11 @@ FILES=(
     # Agents - bootstrap (setup utilities only)
     ".github/agents/solar-bootstrap.agent.md"
 
+    # Agents - generic (Tier 1 fallback; no stack assumptions)
+    ".github/agents/implementation-specialist.agent.md"
+
     # Hooks
     ".github/hooks/hooks.json"
-    ".github/solar.config.json"
     ".github/hooks/user-prompt-submit.cjs"
     ".github/hooks/post-tool-use.cjs"
     ".github/hooks/stop.cjs"
@@ -77,7 +79,7 @@ FILES=(
     ".github/prompts/solar-setup-core-config.prompt.md"
     ".github/prompts/solar-setup-agent-config.prompt.md"
     ".github/prompts/solar-setup-scaffold.prompt.md"
-    ".github/prompts/solar-setup-memory.prompt.md"
+    ".github/prompts/solar-setup-instructions.prompt.md"
     ".github/prompts/solar-enter-bootstrap.prompt.md"
     ".github/prompts/solar-exit-bootstrap.prompt.md"
 
@@ -110,14 +112,14 @@ FILES=(
     "verification-artifacts/README.md"
     "verification-artifacts/.gitkeep"
 
-    # Repo memory scaffolding (agent fills these; delete from git after ingestion)
-    ".github/memories/repo/commands.md"
-    ".github/memories/repo/architecture.md"
-    ".github/memories/repo/workflow-facts.md"
-    ".github/memories/repo/frontend-facts.md"
-    ".github/memories/repo/backend-facts.md"
-    ".github/memories/repo/security-facts.md"
-    ".github/memories/repo/verification-facts.md"
+    # Instruction scaffolding (templates; update applyTo glob after creation)
+    ".github/instructions/architecture.instructions.md"
+    ".github/instructions/backend.instructions.md"
+    ".github/instructions/workflow.instructions.md"
+    ".github/instructions/frontend.instructions.md"
+    ".github/instructions/security.instructions.md"
+    ".github/instructions/verification.instructions.md"
+    ".github/instructions/conventions.instructions.md"
 )
 
 # Colors

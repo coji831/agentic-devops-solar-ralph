@@ -1,6 +1,6 @@
 ---
 name: Frontend Review Auditor
-description: "Use when reviewing frontend React or TypeScript changes for regressions, accessibility, state correctness, rendering risks, or missing tests."
+description: "Use when reviewing frontend changes for regressions, accessibility, state correctness, rendering risks, or missing tests. Stack context loaded from the project's frontend .instructions.md."
 tools: [read, search, execute]
 model: GPT-4o (copilot)
 user-invocable: false

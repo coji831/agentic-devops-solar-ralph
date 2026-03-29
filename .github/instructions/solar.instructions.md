@@ -19,7 +19,7 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 **Working Rules:**
 
 - Keep active execution state in `.github/.ai_ledger.md`
-- Keep concise persistent facts in `.github/memories/repo/`
+- Keep concise persistent facts in `.github/instructions/*.instructions.md` (scoped by `applyTo` glob patterns)
 - Keep durable guidance in `docs/`
 - Use bounded recursive repair loops with explicit completion promises instead of open-ended retry
 - Route frontend, backend, security, review, and documentation work through their matching specialist roles when the SOLAR overlay is active
@@ -65,7 +65,7 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 - `/solar-setup-core-config` — Manual: Apply config to core SOLAR files
 - `/solar-setup-agent-config` — Manual: Apply config to agents, skills, and path instructions
 - `/solar-setup-scaffold` — Manual: Create ledger and memory templates
-- `/solar-setup-memory` — Advanced: Create memory templates on demand
+- `/solar-setup-instructions` — Advanced: Scaffold domain instruction templates on demand
 
 **Activation:**
 All governance and memory files are created only after setup is complete. SOLAR remains disabled until `solar.active: true` is set in `.github/solar.config.json` (automatically set by `/solar-setup-quick`).

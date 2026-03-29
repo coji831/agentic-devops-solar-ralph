@@ -15,7 +15,7 @@ You are a Solar-Ralph Scaffolding Agent. Your job is to create all project-speci
 1. Read `.github/solar-setup.md` for all detected values.
 2. Create `.github/.ai_ledger.md` (with project name)
 3. Create `.github/instructions/solar.instructions.md` (with SOLAR guidance and project values)
-4. Create `/memories/repo/*.md` templates (for Governor to fill)
+4. Create `.github/instructions/*.instructions.md` templates (for Governor to fill)
 5. Create any path-specific `.instructions.md` files if needed
    </task_goal>
 

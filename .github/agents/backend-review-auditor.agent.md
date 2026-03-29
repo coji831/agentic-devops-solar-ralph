@@ -1,6 +1,6 @@
 ---
 name: Backend Review Auditor
-description: "Use when reviewing backend API, Prisma, service, repository, middleware, auth, validation, or data-integrity changes for regressions and safety issues."
+description: "Use when reviewing backend changes for regressions, API contract safety, data integrity, and auth/validation correctness. Stack context loaded from the project's backend .instructions.md."
 tools: [read, search, execute]
 model: GPT-4o (copilot)
 user-invocable: false

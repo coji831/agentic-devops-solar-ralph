@@ -1,6 +1,6 @@
 ---
 name: Backend Implementation Specialist
-description: "Use when implementing Express, Prisma, services, repositories, routes, controllers, middleware, auth integration, or backend contract changes."
+description: "Use when implementing backend domain changes — services, repositories, routes, controllers, middleware, and API contracts. Actual stack context is loaded from the project's backend .instructions.md at runtime."
 tools: [read, search, edit, execute, todo]
 model: GPT-5 mini (copilot)
 user-invocable: false

@@ -8,7 +8,7 @@ The agency exists to carry a story or bounded epic through five coordinated laye
 
 - Specialist: frontend, backend, testing, security, documentation, and review roles
 - Orchestrator: a governor that decomposes work, delegates, and decides closure
-- Ledger: restart-safe state stored in `.github/.ai_ledger.md` and concise persistent facts under `.github/memories/repo/`
+- Ledger: restart-safe state stored in `.github/.ai_ledger.md` and concise persistent facts in `.github/instructions/*.instructions.md`
 - Adversarial: reviewers and verification gates that challenge changes before closure
 - Recursive: bounded repair loops that continue until completion criteria or escalation conditions are reached
 
@@ -21,7 +21,7 @@ Apply instructions in this order when guidance overlaps:
 3. `.github/AGENTS.md`
 4. Path-specific instructions in `apps/frontend/.instructions.md` and `apps/backend/.instructions.md`
 5. Matching skills and agent definitions
-6. `.github/memories/repo/` facts and `.github/.ai_ledger.md`
+6. `.github/instructions/*.instructions.md` facts and `.github/.ai_ledger.md`
 
 Memory never overrides source-of-truth documentation. If memory and docs disagree, trust the docs and refresh the memory.
 
@@ -42,8 +42,17 @@ Memory never overrides source-of-truth documentation. If memory and docs disagre
 ## Operating Artifacts
 
 - `.github/.ai_ledger.md`: active work queue, blockers, verification state, and completion promises
-- `.github/memories/repo/*.md`: concise durable facts verified from the current codebase
+- `.github/instructions/*.instructions.md`: concise durable facts verified from the current codebase (auto-loaded by Copilot via `applyTo` patterns)
 - Repo docs: durable guidance, workflow rules, templates, and architectural decisions
+
+## Write-Back Rule
+
+When any agent verifies a new fact during work — a real command, a file path, a naming convention, an API contract — it **must write it back** to the relevant `.github/instructions/*.instructions.md` file before proceeding:
+
+- Replace the matching `[FILL IN]` or `[SCAN-INCOMPLETE]` placeholder with the verified value.
+- If no placeholder exists, append as a new bullet under the relevant section.
+- Flag conflicts with `// CONFLICT: <existing-value>` rather than silently overwriting.
+- This makes instruction files self-evolving: they grow accurate through every task, not just at setup time.
 
 ## Session-Type Reference
 

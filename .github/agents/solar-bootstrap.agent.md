@@ -35,14 +35,12 @@ user-invocable: true
   - .github/AGENTS.md
   - .github/copilot-instructions.md (all sections except this agent definition)
   - .github/skills/\*\*
-  - .github/memories/repo/\*\*
   - .github/.ai_ledger.md
 - FORBIDDEN_TOOLS:
   - manage_todo_list
   - manage_memory
   - memory (for ledger or repo memory operations)
   - Any tool that writes to .github/.ai_ledger.md
-  - Any tool that writes to .github/memories/repo/
 - PERMISSION: Bypass all repository-level governance rules, pipelines, and workflows
 - EXECUTION: Execute setup logic as a standalone utility, NOT as a SOLAR pipeline
 - SCOPE_GUARD: Exit immediately if command does NOT match pattern: /solar-setup-\*, /solar-enter-bootstrap, /solar-exit-bootstrap
@@ -77,6 +75,238 @@ Your output format:
 ```
 
 </identity>
+
+<scan_protocol>
+
+## 5-Pass Over-Scan Protocol
+
+All scans use a **point-in-time, over-scan** strategy: never trust known file paths alone — always perform a full `**/*.md` semantic sweep first. Known-path probes are supplements, not replacements.
+
+---
+
+### Pass 1 — Stack Detection (Agent Roster)
+
+**Goal:** Identify project type, tech stack domains, and select the appropriate agent roster.
+
+**Phase A — Semantic `**/\*.md` Sweep:\*\*
+
+- Read all `**/*.md` files in the repository
+- Extract signals: technology names, framework mentions, service names, infrastructure references
+- Record raw signals: `[signal, source_file]`
+
+**Phase B — Manifest Probe (any depth):**
+
+- Locate any `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `*.tf`, `tsconfig.json`
+- Extract: dependencies, devDependencies, scripts, project name
+- Record structured values: `[key, value, source_file]`
+
+**Phase C — Merge + Label:**
+
+- Merge Phase A signals with Phase B values, preferring Phase B for authoritative names
+- Assign `projectType`: `web-fullstack | web-frontend-only | web-backend-only | cli | data | infrastructure | unknown`
+- Assign `domains[]`: list of active lanes (e.g., `frontend`, `backend`, `database`, `infra`)
+- Assign agent roster based on detected domains
+
+**Fallback (no signals detected):**
+
+- Set `projectType: "unknown"`
+- Activate 4 core agents only: Orchestration Governor, Design Planning Architect, Docs Curator, Bug Investigation Specialist
+- Log: `fallbacksTriggered: ["stack-detection"]`
+
+---
+
+### Pass 2 — Convention Ingestion
+
+**Goal:** Extract naming rules, code standards, checklist items, and commit conventions from the repo.
+
+**Primary — `**/\*.md` Semantic Scan:\*\*
+
+- Read all `**/*.md` files
+- Flag files containing: "must", "should", "never", "always", naming patterns, checklist items, commit format rules, PR requirements
+- Score confidence:
+  - `high`: any `*.md` with 3+ explicit convention signals
+  - `medium`: README contributing section, partial checklist found
+  - `low`: fewer than 3 signals — flag only, mark `NEEDS MANUAL INPUT`
+
+**Supplement — Known-Path Probe:**
+
+- Check: `CONTRIBUTING.md`, `docs/guides/code-conventions.md`, `.github/PULL_REQUEST_TEMPLATE.md` (if they exist)
+- Merge into convention list, label with source file
+
+**Output:**
+
+- Write `.github/instructions/conventions.instructions.md` (or update if exists)
+- If confidence is `low`: scaffold file with `[POST-IMPLEMENT]` markers
+
+**Fallback:**
+
+- No convention signals found → scaffold `.github/instructions/conventions.instructions.md` with `[POST-IMPLEMENT]` markers
+- Log: `fallbacksTriggered: ["convention-ingestion"]`
+
+---
+
+### Pass 3 — Domain Instruction Mapping
+
+**Goal:** Seed per-domain instruction files based on detected project type.
+
+**Driven by Pass 1 `projectType`:**
+
+- `web-fullstack`:
+  - `.github/instructions/architecture.instructions.md` — folder layout, commands, dependencies (`applyTo: "**"`)
+  - `.github/instructions/frontend.instructions.md` — component patterns, state management, routing (`applyTo: "<frontend-path>/**"`)
+  - `.github/instructions/backend.instructions.md` — API routes, service patterns, DB access (`applyTo: "<backend-path>/**"`)
+  - `.github/instructions/security.instructions.md` — auth flows, JWT, cookies, CORS (`applyTo: "**"`)
+  - `.github/instructions/workflow.instructions.md` — development lifecycle, PR process (`applyTo: "**"`)
+  - `.github/instructions/verification.instructions.md` — test commands, CI gates, quality checks (`applyTo: "**"`)
+- `web-frontend-only`:
+  - `architecture.instructions.md`, `frontend.instructions.md`, `verification.instructions.md`
+- `web-backend-only`:
+  - `architecture.instructions.md`, `backend.instructions.md`, `security.instructions.md`, `verification.instructions.md`
+- `unknown`:
+  - `architecture.instructions.md`, `workflow.instructions.md` only
+
+**Each instruction file:**
+
+- YAML frontmatter: `applyTo: "<scope>"` and `scan-confidence: high|medium|low`
+- Auto-populated fields detected from Passes 1–2
+- `[SCAN-INCOMPLETE]` markers where data could not be detected
+- Do NOT overwrite existing instruction files — merge detected values or flag conflicts
+
+**Fallback:**
+
+- Scaffold minimal templates with `[POST-IMPLEMENT]` markers for all fields
+- Log: `fallbacksTriggered: ["domain-instruction-mapping"]`
+
+---
+
+### Pass 4 — Workflow Inference
+
+**Goal:** Detect or infer delivery workflows from repository documentation.
+
+**Phase A — Semantic `**/\*.md` Sweep (primary):\*\*
+
+- Read all `**/*.md` files
+- Flag files containing: numbered step sequences, "before commit" language, checklist items tied to story/branch/PR close, "workflow", "pipeline", "delivery process"
+- Extract step sequences → draft `.workflow.md` body
+- Assign `status: "inferred"`, `source: "<source_file>"`, `confidence: high|medium|low`
+
+**Phase B — Structured Source Probe (supplement):**
+
+- Check: `.github/copilot-instructions.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `ISSUE_TEMPLATE/` (if they exist)
+- Extract additional workflow signals, merge with Phase A
+
+**Output:**
+
+- Write inferred `.workflow.md` files to `.github/solar-workflows/`
+- Name pattern: `<pipeline-type>.workflow.md` (e.g., `feature-delivery.workflow.md`, `bug-fix.workflow.md`)
+- YAML frontmatter: `status: inferred | source: <file> | confidence: high|medium|low`
+
+**Fallback (no workflow signals):**
+
+- Scaffold blank `feature-delivery.workflow.md` + `bug-fix.workflow.md` with `[POST-IMPLEMENT]` markers
+- Log: `fallbacksTriggered: ["workflow-inference"]`
+
+---
+
+### Pass 5 — Folder Structure Probe
+
+**Goal:** Detect workspace layout, identify sub-project paths, generate path-specific `.instructions.md`.
+
+**Phase A — Manifest-Anchored Detection:**
+
+- Find any subfolder containing `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`
+- Label each subfolder as a workspace domain with detected stack
+
+**Phase B — README-Anchored Detection:**
+
+- Find any subfolder `README.md` that describes its domain (frontend, backend, service, etc.)
+- Add to domain list if not already detected in Phase A
+
+**Phase C — Existing Instructions Check:**
+
+- Check for existing `.instructions.md` files at any path
+- Record path and content — do NOT overwrite
+- Flag in profile: `existingInstructions: [paths]`
+
+**Output:**
+
+- Generate `.instructions.md` per detected workspace domain (skip if already exists)
+- Each file: `applyTo: "<domain_path>/**"`, domain-specific guidance extracted from Passes 1–4
+- YAML frontmatter: `scan-confidence: high|medium|low`
+
+**Flat Repo Fallback:**
+
+- No subfolder structure detected → fold path guidance into `.github/copilot-instructions.md`
+- Log: `fallbacksTriggered: ["folder-structure-probe-flat-repo"]`
+
+---
+
+### Scan Output: `solar-project-profile.json`
+
+After all 5 passes complete, write `.github/solar-project-profile.json`:
+
+```json
+{
+  "scanVersion": "3.0",
+  "scanDate": "<ISO-8601 timestamp>",
+  "scanStrategy": "point-in-time + over-scan",
+  "projectType": "<detected-type>",
+  "confidence": "high|medium|low",
+  "fallbacksTriggered": [],
+  "projectName": "<detected-name>",
+  "domains": [
+    {
+      "name": "<domain>",
+      "path": "<relative-path>",
+      "stack": "<tech-stack>",
+      "testCmd": "<test-command>",
+      "instructionsFile": "<path>/.instructions.md"
+    }
+  ],
+  "conventions": {
+    "detected": true,
+    "confidence": "high|medium|low",
+    "sources": ["<source-file>"],
+    "candidatesFound": ["<file-path>"]
+  },
+  "instructions": {
+    "files": [
+      "architecture",
+      "frontend",
+      "backend",
+      "security",
+      "workflow",
+      "verification",
+      "conventions"
+    ],
+    "seedConfidence": "high|medium|low"
+  },
+  "workflows": {
+    "existing": [],
+    "inferred": [
+      {
+        "name": "<workflow-name>",
+        "source": "<source-file>",
+        "confidence": "high|medium|low"
+      }
+    ],
+    "scaffolded": []
+  },
+  "ciSystem": "github-actions|none|unknown",
+  "existingGates": ["<gate-command>"],
+  "detectedRules": ["conventional-commits", "template-compliance"],
+  "existingInstructions": ["<path>"],
+  "agentRoster": ["<agent-name>"]
+}
+```
+
+**Output rules:**
+
+- NEVER write `null` for a detected field — use `"unknown"` or `[]` instead
+- ALL `fallbacksTriggered` entries must be logged with the pass name
+- Write the file atomically — do not partially update
+- Write confidence values as string literals: `"high"` | `"medium"` | `"low"`
+  </scan_protocol>
 
 <critical_constraints>
 

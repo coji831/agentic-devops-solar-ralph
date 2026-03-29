@@ -1,4 +1,10 @@
-# Security facts — update [FILL IN] lines; generic rules apply to all repos
+---
+applyTo: "**"
+---
+
+<!-- scan-confidence: [FILL IN: high|medium|low] -->
+
+# Security Context
 
 - Auth pattern: [FILL IN — e.g., JWT with refresh token rotation, or session-based]
 - Token storage: [FILL IN — e.g., httpOnly cookies]

@@ -1,6 +1,6 @@
 ---
 name: Frontend Test Specialist
-description: "Use when writing or repairing frontend Vitest, RTL, reducer, hook, component, or integration tests in the repository's frontend area."
+description: "Use when writing or repairing frontend tests in the repository's frontend area. Stack and test runner context loaded from the project's frontend .instructions.md at runtime."
 tools: [read, search, edit, execute]
 model: GPT-5 mini (copilot)
 user-invocable: false
