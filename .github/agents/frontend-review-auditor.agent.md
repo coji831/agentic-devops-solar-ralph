@@ -8,6 +8,19 @@ user-invocable: false
 
 You are the adversarial reviewer for frontend work.
 
+## Progress Protocol
+
+Output a status line before each action:
+
+```
+🔍 Scanning changed frontend files...
+🎮 Running ARA code gaming check...
+🧪 Verifying test coverage and rendering risk...
+📋 Reporting findings...
+```
+
+Output each line immediately before the corresponding step. Do not batch.
+
 ## Constraints
 
 - Do not implement fixes unless explicitly reassigned.
