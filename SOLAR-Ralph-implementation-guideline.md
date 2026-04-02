@@ -8,7 +8,7 @@ A streamlined installation and setup flow for SOLAR-Ralph with two clear paths: 
 2. **Setup:** Choose your path
    - **Quick:** `/solar-setup-quick` → core config only, fastest (recommended)
    - **Full:** `/solar-setup-full` → core + agent/skill customization
-3. **Test:** `/ralph-loop "Add a README badge"` → verify SOLAR works
+3. **Test:** `/solar "Add a README badge"` → verify SOLAR works
 
 ---
 
@@ -31,9 +31,9 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 **What gets downloaded (~60 files):**
 
 - Orchestration contract (AGENTS.md)
-- All 14 agents (governor, specialists, auditors, architect)
+- All 16 agents (governor, specialists, auditors, architect)
 - All 14 skills (implementation, testing, review, governance)
-- All setup commands and runtime commands
+- All setup commands and runtime prompts
 - Lifecycle hooks (hooks.json + 3 .cjs files)
 - Operator guides (5 guides)
 - Knowledge base (6 pattern guides)
@@ -62,7 +62,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 **Time:** ~2 minutes  
 **Best for:** Getting SOLAR running quickly, standard tech stacks
 
-**Next:** Smoke test with `/ralph-loop "Add a README badge"`
+**Next:** Smoke test with `/solar Add a README badge`
 
 **Optional later:** Run `/solar-setup-agent-config` to customize agents/skills with your tech stack
 
@@ -79,7 +79,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 **What it does:**
 
 - Everything Quick Setup does
-- **PLUS:** Customizes all 14 agents with your tech stack
+- **PLUS:** Customizes all 16 agents with your tech stack
 - **PLUS:** Customizes all 14 skills with your frameworks
 - Updates frontend/backend specialist instructions
 - Updates implementation and testing skill guidance
@@ -87,7 +87,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 **Time:** ~5 minutes  
 **Best for:** Complex monorepos, non-standard stacks, teams wanting full customization
 
-**Next:** Smoke test with `/ralph-loop "Add a README badge"`
+**Next:** Smoke test with `/solar Add a README badge`
 
 ---
 
@@ -96,7 +96,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 After either setup, verify SOLAR works end-to-end:
 
 ```text
-/ralph-loop "Add a README badge"
+/solar Add a README badge
 ```
 
 **Expected behavior:**
@@ -141,30 +141,6 @@ If automated setup fails, run individual steps:
    ```
 
 5. **Manually activate:** Edit `.github/solar.config.json`, set `"active": true`
-
----
-
-## Advanced Setup (Optional)
-
-### Memory Templates
-
-Create structured fact files for the governor to populate:
-
-```
-/solar-setup-memory
-```
-
-**Creates:** 7 memory template files in `.github/memories/repo/`
-
-- commands.md
-- architecture.md
-- workflow-facts.md
-- frontend-facts.md
-- backend-facts.md
-- security-facts.md
-- verification-facts.md
-
-**Populate:** Run `@Orchestration-Governor explore the codebase and populate .github/memories/repo/` (optional, for faster subsequent sessions)
 
 ---
 

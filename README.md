@@ -28,11 +28,15 @@ Unlike flat multi-agent systems, SOLAR-Ralph uses a **Hierarchical Multi-Agent S
 
 **1. Install:**
 
-```bash
-# Windows (PowerShell)
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
+_Windows (PowerShell):_
 
-# macOS/Linux (Bash)
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
+```
+
+_macOS / Linux (Bash):_
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
 ```
 
@@ -58,9 +62,9 @@ Solves the "malloc/free problem" of context windows. Our Stop Hooks automaticall
 
 Included specialized auditors that hunt for "Proxy Sovereignty"—detecting when implementation agents modify unit tests to pass rather than fixing underlying bugs.
 
-### 4. Hybrid Persistent Memory
+### 4. Persistent State via Ledger
 
-Combines local `.github/memories/repo/` fact files with GitHub-hosted **Copilot Memory** for cross-session intelligence that survives amnesia.
+Uses `.github/.ai_ledger.md` as the restart-safe state anchor. Combined with `.github/instructions/*.instructions.md` always-on context files, the governor retains project facts across sessions without a separate memory layer.
 
 ---
 
@@ -68,13 +72,11 @@ Combines local `.github/memories/repo/` fact files with GitHub-hosted **Copilot 
 
 - `.github/AGENTS.md` - Orchestration contract and pipeline definitions
 - `.github/.ai_ledger.md` - Persistent work state and mistake ledger
-- `.github/agents/` - 14 specialist personas (Governor, Architects, Specialists, Auditors)
+- `.github/agents/` - 16 specialist personas (Governor, Architects, Specialists, Auditors)
 - `.github/skills/` - 14 reusable workflows (Implementation, Testing, Review, Governance)
-- `.github/prompts/` - Setup commands and runtime prompts
-- `.github/commands/` - Core runtime commands (`ralph-loop`, `audit-story`)
+- `.github/prompts/` - Setup commands and runtime prompts (`/solar`, `/solar-audit-story`, setup prompts)
 - `.github/hooks/` - Lifecycle automation (Stop hooks, Post-tool-use validation)
 - `.github/guides/` - Operator documentation and workflow guides
-- `.github/memories/repo/` - Persistent fact templates (optional)
 - `verification-artifacts/` - Evidence backbone for release readiness
 - `docs/knowledge-base/` - Pattern guides and architectural references
 
