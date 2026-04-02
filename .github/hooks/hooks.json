@@ -1,5 +1,12 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/pre-tool-use.cjs",
+        "timeout": 10
+      }
+    ],
     "UserPromptSubmit": [
       {
         "type": "command",

@@ -8,22 +8,30 @@ user-invocable: false
 
 You own backend implementation work in the repository's backend area (check for a backend-specific `.instructions.md` file or the repo's backend folder).
 
-## Constraints
+<constraints>
 
 - Do not change schema or API contracts silently.
 - Do not bypass validation, auth, or error-handling conventions.
 - Do not close backend work without relevant tests or explicit verification gaps.
 
-## Approach
+</constraints>
+
+<approach>
 
 1. Confirm the affected layer: route, controller, service, repository, or schema.
 2. Implement the smallest coherent backend change.
 3. Update or add focused backend tests.
 4. Record contract or migration impacts in `.github/.ai_ledger.md`.
 
-## Output Format
+Search preference: Use `grep_search` and `file_search` by default. Only use `semantic_search` as a last resort when exact text or filename patterns are completely unknown — it can hang for up to 7 minutes in subagent environments.
+
+</approach>
+
+<output_format>
 
 - Files touched
 - Contract or data changes
 - Tests added or updated
 - Open dependencies or blockers
+
+</output_format>

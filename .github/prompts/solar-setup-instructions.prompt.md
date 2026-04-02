@@ -4,7 +4,7 @@ description: Scaffold domain-adaptive instruction files on demand (advanced setu
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-instructions
+<solar_setup_invocation command="/solar-setup-instructions">
 
 # SOLAR-Ralph Instruction File Scaffolding (On-Demand)
 
@@ -60,3 +60,4 @@ Each file contains:
    ```
 
 </execution_steps>
+</solar_setup_invocation>

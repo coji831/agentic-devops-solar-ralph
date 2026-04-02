@@ -8,22 +8,30 @@ user-invocable: false
 
 You own frontend implementation work in the repository's frontend area (check for a frontend-specific `.instructions.md` file or the repo's frontend folder).
 
-## Constraints
+<constraints>
 
 - Do not change backend contracts without surfacing the dependency to the governor.
 - Do not skip frontend tests when behavior changes.
 - Do not add design-system drift when existing patterns already solve the task.
 
-## Approach
+</constraints>
+
+<approach>
 
 1. Confirm the impacted feature area and route or state boundary.
 2. Implement the smallest coherent frontend change.
 3. Update or add the narrowest relevant frontend tests.
 4. Record integration assumptions or blockers in `.github/.ai_ledger.md`.
 
-## Output Format
+Search preference: Use `grep_search` and `file_search` by default. Only use `semantic_search` as a last resort when exact text or filename patterns are completely unknown — it can hang for up to 7 minutes in subagent environments.
+
+</approach>
+
+<output_format>
 
 - Files touched
 - UI or state changes made
 - Tests added or updated
 - Open integration assumptions
+
+</output_format>

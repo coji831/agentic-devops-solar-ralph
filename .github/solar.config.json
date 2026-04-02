@@ -52,6 +52,10 @@
       "enabled": true,
       "activeModes": ["loop"],
       "enforceLoopContinuation": true
+    },
+    "subagentAnnounce": {
+      "enabled": true,
+      "activeModes": ["simple", "loop", "plan"]
     }
   },
   "sessionTypes": {

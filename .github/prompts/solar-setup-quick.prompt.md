@@ -4,7 +4,7 @@ description: Quick SOLAR setup - scan + config + scaffold + activate (all-in-one
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-quick
+<solar_setup_invocation command="/solar-setup-quick">
 
 # SOLAR-Ralph Quick Setup
 
@@ -129,3 +129,4 @@ This command runs in bootstrap mode — all SOLAR governance is bypassed. The ag
 - Ignores memory files
 - Works as a simple file-editing utility
   </bootstrap_mode>
+</solar_setup_invocation>

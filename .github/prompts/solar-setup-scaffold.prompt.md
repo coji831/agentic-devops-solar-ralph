@@ -4,7 +4,7 @@ description: Create ledger, instructions, and memory scaffolding after setup
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-scaffold
+<solar_setup_invocation command="/solar-setup-scaffold">
 
 # SOLAR-Ralph Phase 2 Scaffolding
 
@@ -27,3 +27,4 @@ You are a Solar-Ralph Scaffolding Agent. Your job is to create all project-speci
 - Do NOT overwrite user files unless they are templates
 - Report all created files and their locations
 </constraints>
+</solar_setup_invocation>

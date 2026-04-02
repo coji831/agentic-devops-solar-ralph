@@ -4,7 +4,7 @@ description: Full SOLAR setup - 5-pass scan + adaptive config + memory seeding +
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-full
+<solar_setup_invocation command="/solar-setup-full">
 
 # SOLAR-Ralph Full Setup
 
@@ -185,3 +185,4 @@ Optional enhancements:
 - Do NOT update AGENTS.md
 - Do NOT open a loop or update task lists
   </forbidden_actions>
+</solar_setup_invocation>

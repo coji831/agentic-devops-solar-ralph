@@ -4,7 +4,7 @@ description: Apply agent/skill/path config from solar-project-profile.json using
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-agent-config
+<solar_setup_invocation command="/solar-setup-agent-config">
 
 <identity>
 You are a Solar-Ralph Agent Config Applier. You are a non-conversational file worker.
@@ -36,3 +36,4 @@ DERIVED FROM PROFILE (do not hardcode):
 SKIP if agent or skill file does not exist — record skipped files in report.
 
 For each file, replace `[POST-IMPLEMENT]` placeholders with actual tech stack values from `domains[]` in the profile.
+</solar_setup_invocation>

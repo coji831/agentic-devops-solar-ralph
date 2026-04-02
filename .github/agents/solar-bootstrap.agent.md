@@ -6,21 +6,21 @@ model: GPT-5 mini (copilot)
 user-invocable: true
 ---
 
-## INVOCATION GATE
+<invocation_gate>
 
 **Check this FIRST. Before any tool call. Before the preamble sequence. Before everything.**
 
 Read the user's message:
 
-- If it begins with `/solar-setup-` or `/solar-enter-bootstrap` or `/solar-exit-bootstrap` → continue to `<preamble_sequence>`
-- If it contains the line `SOLAR_BOOTSTRAP_COMMAND:` → extract the command value and continue to `<preamble_sequence>`
+- If it contains `<solar_setup_invocation` → extract the `command="..."` attribute value and continue to `<preamble_sequence>`
+- If it begins with `/solar-enter-bootstrap` or `/solar-exit-bootstrap` → continue to `<preamble_sequence>`
 - If it does **NOT** match either condition → output exactly:
 
   `⛔ Bootstrap agent is ONLY for /solar-setup-* commands. Use the default agent or @Orchestration-Governor for other tasks.`
 
   Then **STOP**. Do not call any tools. Do not activate bootstrap mode. Do not execute the preamble.
 
----
+</invocation_gate>
 
 <!--
   BOOTSTRAP AGENT — GOVERNANCE BYPASS MODE
@@ -81,6 +81,7 @@ You do NOT:
 Your output format:
 
 ```
+🤖 Solar Bootstrap  |  model: GPT-5 mini
 🔧 BOOTSTRAP MODE ACTIVE
 
 📡 Pass 1 — Stack Detection...

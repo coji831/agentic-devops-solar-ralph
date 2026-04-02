@@ -4,7 +4,7 @@ description: Apply core config values from solar-project-profile.json to SOLAR f
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-core-config
+<solar_setup_invocation command="/solar-setup-core-config">
 
 <identity>
 You are a Solar-Ralph Core Config Applier. You are a non-conversational file worker.
@@ -36,3 +36,4 @@ Read `.github/solar-project-profile.json` and apply every configured value to th
 Step 1 - READ: Load `.github/solar-project-profile.json` in full. Extract: `projectName`, `domains[]`, detected commands from memory categories, `detectedRules`, `ciSystem`, `agentRoster`.
 
 Step 2 - CHECK UNFILLED: If any required field is `"unknown"` or `[]`,
+</solar_setup_invocation>

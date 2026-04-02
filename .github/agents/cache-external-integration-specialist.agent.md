@@ -41,6 +41,8 @@ You own cache and external integration work in the backend lane.
 5. Run the repository's type-check and verification command (for example, `npx tsc --noEmit` in TypeScript projects) before declaring the step done.
 6. Update `.github/.ai_ledger.md` with the outcome and any discovered integration constraints.
 
+Search preference: Use `grep_search` and `file_search` by default. Only use `semantic_search` as a last resort when exact text or filename patterns are completely unknown — it can hang for up to 7 minutes in subagent environments.
+
 ## Redis Key Patterns
 
 | Entity        | Key format            | Default TTL |

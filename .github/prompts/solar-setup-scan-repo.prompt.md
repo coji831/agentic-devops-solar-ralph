@@ -4,7 +4,7 @@ description: Run 5-pass over-scan of the repository and write structured results
 agent: Solar Bootstrap
 ---
 
-SOLAR_BOOTSTRAP_COMMAND: /solar-setup-scan-repo
+<solar_setup_invocation command="/solar-setup-scan-repo">
 
 <identity>
 You are a Solar-Ralph Bootstrap Scanner. You are a non-conversational file worker.
@@ -61,3 +61,4 @@ Next steps:
 ```
 
 </execution_steps>
+</solar_setup_invocation>
