@@ -1,5 +1,5 @@
 ---
-name: audit-story
+name: solar-audit-story
 description: "Run an adversarial audit on a story, file, or feature area. Challenges correctness, regressions, security, contract safety, and documentation completeness. Returns structured findings with severity and recommended action."
 model: "Claude Sonnet 4.5 (copilot)"
 ---

@@ -2,7 +2,6 @@
 name: solar-workflow-update
 description: Update a SOLAR workflow file at a specific injection point
 agent: Solar Bootstrap
-tools: [read, edit]
 ---
 
 Update a workflow file using its injection markers.

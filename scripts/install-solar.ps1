@@ -17,96 +17,18 @@ $REPO       = "coji831/agentic-devops-solar-ralph"
 $BRANCH     = "main"
 $BASE_URL   = "https://raw.githubusercontent.com/$REPO/$BRANCH"
 
-# All files to download into the target repo
-$FILES = @(
-    # Root contracts
-    ".github/AGENTS.md",
-    ".github/.ai_ledger.template.md",
-
-    # Setup config (fill this first, then run /solar-setup-core-config)
-    ".github/solar.config.json",
-
-    # Agents - universal (governance, auditors, architect)
-    ".github/agents/orchestration-governor.agent.md",
-    ".github/agents/design-planning-architect.agent.md",
-    ".github/agents/bug-investigation-specialist.agent.md",
-    ".github/agents/frontend-review-auditor.agent.md",
-    ".github/agents/backend-review-auditor.agent.md",
-    ".github/agents/release-readiness-specialist.agent.md",
-    ".github/agents/security-auditor.agent.md",
-
-    # Agents - [POST-IMPLEMENT] (update Tech Stack section per repo)
-    ".github/agents/frontend-implementation-specialist.agent.md",
-    ".github/agents/frontend-test-specialist.agent.md",
-    ".github/agents/backend-implementation-specialist.agent.md",
-    ".github/agents/backend-test-specialist.agent.md",
-    ".github/agents/docs-curator.agent.md",
-    ".github/agents/cache-external-integration-specialist.agent.md",
-
-    # Agents - bootstrap (setup utilities only)
-    ".github/agents/solar-bootstrap.agent.md",
-
-    # Agents - generic (Tier 1 fallback; no stack assumptions)
-    ".github/agents/implementation-specialist.agent.md",
-
-    # Hooks
-    ".github/hooks/hooks.json",
-    ".github/hooks/user-prompt-submit.cjs",
-    ".github/hooks/post-tool-use.cjs",
-    ".github/hooks/stop.cjs",
-
-    # Commands
-    ".github/commands/ralph-loop.prompt.md",
-    ".github/commands/audit-story.prompt.md",
-
-    # Setup prompts
-    ".github/prompts/solar-setup-quick.prompt.md",
-    ".github/prompts/solar-setup-full.prompt.md",
-    ".github/prompts/solar-setup-scan-repo.prompt.md",
-    ".github/prompts/solar-setup-core-config.prompt.md",
-    ".github/prompts/solar-setup-agent-config.prompt.md",
-    ".github/prompts/solar-setup-scaffold.prompt.md",
-    ".github/prompts/solar-setup-instructions.prompt.md",
-    ".github/prompts/solar-enter-bootstrap.prompt.md",
-    ".github/prompts/solar-exit-bootstrap.prompt.md",
-
-    # Skills - universal
-    ".github/skills/frontend-review/SKILL.md",
-    ".github/skills/backend-review/SKILL.md",
-    ".github/skills/story-execution/SKILL.md",
-    ".github/skills/doc-sync/SKILL.md",
-    ".github/skills/memory-curation/SKILL.md",
-    ".github/skills/memory-verification/SKILL.md",
-    ".github/skills/recursive-remediation/SKILL.md",
-    ".github/skills/release-governance/SKILL.md",
-    ".github/skills/browser-reproduction/SKILL.md",
-    ".github/skills/external-integration-operations/SKILL.md",
-
-    # Skills - [POST-IMPLEMENT] (update Tech Stack section per repo)
-    ".github/skills/frontend-feature-implementation/SKILL.md",
-    ".github/skills/frontend-testing/SKILL.md",
-    ".github/skills/backend-feature-implementation/SKILL.md",
-    ".github/skills/backend-testing/SKILL.md",
-
-    # Operator guides
-    ".github/guides/agent-operations-guide.md",
-    ".github/guides/memory-governance-guide.md",
-    ".github/guides/mcp-operations-guide.md",
-    ".github/guides/solar-ralph-workflow.md",
-
-    # Verification artifacts
-    "verification-artifacts/README.md",
-    "verification-artifacts/.gitkeep",
-
-    # Instruction scaffolding (templates; update applyTo glob after creation)
-    ".github/instructions/architecture.instructions.md",
-    ".github/instructions/backend.instructions.md",
-    ".github/instructions/workflow.instructions.md",
-    ".github/instructions/frontend.instructions.md",
-    ".github/instructions/security.instructions.md",
-    ".github/instructions/verification.instructions.md",
-    ".github/instructions/conventions.instructions.md"
-)
+# Fetch file list from manifest (single source of truth)
+$MANIFEST_URL = "$BASE_URL/scripts/solar-manifest.txt"
+try {
+    $manifestContent = (Invoke-WebRequest -Uri $MANIFEST_URL -UseBasicParsing -ErrorAction Stop).Content
+    $FILES = $manifestContent -split "`n" |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -ne "" -and -not $_.StartsWith("#") }
+} catch {
+    Write-Host "ERROR: Failed to fetch manifest from $MANIFEST_URL" -ForegroundColor Red
+    Write-Host "       $($_.Exception.Message)" -ForegroundColor DarkRed
+    exit 1
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan

@@ -48,19 +48,25 @@ const shouldEnforce =
   modeConfig.enforceCompletion && config.hooks.stop.enforceLoopContinuation;
 
 const isPending = /Completion Promise:\s*pending/i.test(ledger);
+const isVerificationFailed = /Verification:\s*FAIL/i.test(ledger);
 
-if (shouldEnforce && isPending) {
-  console.log(
-    JSON.stringify({
-      continue: true,
-      systemMessage:
-        "SOLAR loop still in progress. Continue working — do NOT write a completion promise just to exit. " +
-        "Only write it when genuinely true: " +
-        "<promise>WORK_PACKAGE_COMPLETE</promise> (all work verified done), " +
-        "<promise>WORK_PACKAGE_BLOCKED</promise> (blocked, no new hypothesis, documented), " +
-        "<promise>ESCALATION_REQUIRED</promise> (needs human decision).",
-    }),
-  );
-} else {
+if (!shouldEnforce || (!isPending && !isVerificationFailed)) {
   console.log(JSON.stringify({ continue: false }));
+  process.exit(0);
 }
+
+const reason = isVerificationFailed
+  ? "Verification shows FAIL — run `npm test` and fix failures before writing a completion promise."
+  : "Continue working — do NOT write a completion promise just to exit.";
+
+const completionOptions =
+  "<promise>WORK_PACKAGE_COMPLETE</promise> (all work verified done), " +
+  "<promise>WORK_PACKAGE_BLOCKED</promise> (blocked, no new hypothesis, documented), " +
+  "<promise>ESCALATION_REQUIRED</promise> (needs human decision).";
+
+console.log(
+  JSON.stringify({
+    continue: true,
+    systemMessage: `SOLAR loop still in progress. ${reason} Only write it when genuinely true: ${completionOptions}`,
+  }),
+);
