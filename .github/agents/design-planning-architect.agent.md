@@ -28,6 +28,7 @@ This agent reads everything. It writes ONLY to `verification-artifacts/` and `.g
 ```
 
 Then output:
+
 ```
 📍 Starting design analysis...
 ```
@@ -96,3 +97,42 @@ Artifact schema:
 - Record the artifact path in `.github/.ai_ledger.md` under Current Objective as `VerificationTarget: verification-artifacts/target-<slug>.json`
 - Delegate execution to `/ralph-loop` with the instruction: "Run until all criteria in the VerificationTarget pass"
 - Do not begin implementation — the loop inherits implementation responsibility
+
+---
+
+## Inquiry Checklist Output Format
+
+Every plan produced by this agent **must** include the following checklist block before the plan body. This is a required output — not optional for any pipeline type.
+
+```
+### Inquiry Checklist
+- Files examined: [list each file path read during codebase research]
+- Ambiguities resolved: [list each ambiguity and its resolution, or "none"]
+- Plan approved: false  ← governor or user sets this to true on acknowledgement
+```
+
+Minimum `filesExamined` count is defined by `inquiry.minimumFilesExamined` in `solar.config.json` (default: 3). Only files read for substantive understanding count — README orientation reads do not count.
+
+The governor will not delegate to any implementation agent until all three items are satisfied and `Plan approved` is set to `true` in the active ledger's Inquiry Gate section.
+
+---
+
+## Output Contract (Schema Conformance)
+
+Every plan must include all fields required by `.github/solar-system/schemas/designer-output.schema.json`. Compliance is instruction-enforced (not constrained decoding).
+
+**Required fields:**
+
+| Field                       | Requirement                                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `workPackage`               | Short identifier for this design unit (string, min 3 chars)                                                          |
+| `createdBy`                 | Must be exactly `"Design Planning Architect"`                                                                        |
+| `createdAt`                 | ISO date (YYYY-MM-DD)                                                                                                |
+| `inquiryChecklist`          | Object with `filesExamined` (array), `ambiguitiesResolved` (array), `planApproved` (must be `true` to be approvable) |
+| `problemFraming`            | Clear problem statement and scope boundary (string, min 10 chars)                                                    |
+| `constraintsAndAssumptions` | Array of `{ type: "constraint" \| "assumption", statement }` objects                                                 |
+| `proposedWorkPackages`      | Array of work package objects with `id`, `title`, `description`, `targetFiles`, `testStrategy`                       |
+| `risksAndTradeoffs`         | Array of `{ risk, impact, mitigation }` objects                                                                      |
+| `recommendedNextDelegation` | Name of the specialist agent to delegate to next                                                                     |
+
+A plan that omits any required field is not considered approved and must not be used as the basis for implementation delegation.

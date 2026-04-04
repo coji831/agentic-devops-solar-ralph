@@ -165,3 +165,77 @@ Run `/solar-compound-review` at the end of a multi-session work package to batch
 validated error corrections into LEARNINGS.md and update AGENTS.md governance rules.
 Do not write directly to LEARNINGS.md during normal task execution unless the fact is
 immediately validated — defer to compound review for pattern promotion.
+
+---
+
+## 🔍 Inquiry Gate
+
+Before any implementation agent is delegated to, the Inquiry Gate in the active
+`.github/.ai_ledger.md` must be fully checked. An unchecked gate is a hard block
+on implementation delegation — not a warning.
+
+Full criteria are defined in: `.github/solar-system/protocols/inquiry-first.md`
+
+### Gate Conditions Summary
+
+**Files Examined:** At least `inquiry.minimumFilesExamined` files (default: 3) must
+have been read as part of codebase research. Only files read for substantive
+understanding count — orientation reads of README files do not count.
+
+**Ambiguities Resolved:** All AC ambiguities that would cause a design branch during
+implementation must be resolved before the plan is approved. Trivial naming and
+style choices do not count as blocking ambiguities.
+
+**Plan Approved:** A written implementation plan (or spec-first VerificationTarget)
+must be present in the ledger or linked artifact, and the governor or user must have
+explicitly acknowledged it. A plan that has not been acknowledged is not approved.
+
+### Inquiry Gate Enforcement
+
+The Design Planning Architect produces the inquiry checklist as a required output
+block. The governor checks the ledger Inquiry Gate section before delegating to
+any implementation agent. If any gate condition is unchecked, the governor must
+return to the Design Planning Architect to complete the inquiry, not proceed.
+
+### Revert-Not-Patch Rule
+
+When an implementation agent produces output that diverges from the approved plan
+in a significant way (new files modified, structural decisions not in the plan,
+data contract changes):
+
+1. **Do not patch forward.** Record the divergence in `Verification Failures`.
+2. **Revert** the affected files: `git restore <files>` or `git checkout HEAD -- <files>`.
+3. **Return to Design Planning Architect** to update the plan before re-delegating.
+
+Minor divergences (cosmetic changes, equivalent naming) may be accepted by the
+governor with a rationale note in the ledger. Significant divergences always
+trigger revert-and-replan.
+
+---
+
+## 📐 Designer Output Contract (S2)
+
+Before any implementation agent is invoked, the Design Planning Architect must
+produce output that conforms to `.github/solar-system/schemas/designer-output.schema.json`.
+
+### Enforcement Rule
+
+The governor must verify that the Design Planning Architect's plan includes all
+required schema fields before delegating to any implementation agent. If required
+fields are missing, the governor returns to the Design Planning Architect — it does
+not proceed with a partial or informal plan.
+
+### Schema Enforcement Policy (OD-2 Option A)
+
+Enforcement is **instruction-level only** — VS Code Copilot does not support
+constrained decoding. Route to Security Auditor only when:
+
+- A required field is absent from the plan output, OR
+- `solar.config.json` has `hooks.preToolUse.requireDesignBeforeImpl: true` and the
+  ledger has no approved design entry, OR
+- The change touches a security-sensitive area (auth, cookies, JWT, CORS, secrets,
+  permission boundaries)
+
+For standard feature work with a schema-conformant plan, trust the Design Planning
+Architect output and proceed to implementation delegation without an additional
+Security Auditor review pass.

@@ -60,7 +60,20 @@
     "subagentAnnounce": {
       "enabled": true,
       "activeModes": ["simple", "loop", "plan"]
+    },
+    "preToolUse": {
+      "watchModeEnabled": false,
+      "watchModeToolPatterns": [
+        "run_in_terminal",
+        "delete",
+        "bulk_replace",
+        "migrate"
+      ],
+      "requireDesignBeforeImpl": false
     }
+  },
+  "inquiry": {
+    "minimumFilesExamined": 3
   },
   "selfImprovement": {
     "enabled": true,

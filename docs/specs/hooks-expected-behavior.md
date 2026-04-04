@@ -11,13 +11,13 @@ Use this as the verification spec when modifying hook scripts.
 
 ## Summary Table
 
-| Hook script              | VS Code event      | Active modes          | Phase introduced | Script                                        |
-| ------------------------ | ------------------ | --------------------- | ---------------- | --------------------------------------------- |
-| `session-start.cjs`      | `SessionStart`     | always (config-gated) | v4 Phase 1       | [↓](#sessionstart--session-startcjs)          |
-| `user-prompt-submit.cjs` | `UserPromptSubmit` | `loop`                | v3               | [↓](#userpromptsubmit--user-prompt-submitcjs) |
-| `pre-tool-use.cjs`       | `PreToolUse`       | `loop` (agent calls)  | v3               | [↓](#pretooluse--pre-tool-usecjs)             |
-| `post-tool-use.cjs`      | `PostToolUse`      | `loop`                | v3               | [↓](#posttooluse--post-tool-usecjs)           |
-| `stop.cjs`               | `Stop`             | `loop`                | v3               | [↓](#stop--stopcjs)                           |
+| Hook script              | VS Code event      | Active modes                       | Phase introduced | Script                                        |
+| ------------------------ | ------------------ | ---------------------------------- | ---------------- | --------------------------------------------- |
+| `session-start.cjs`      | `SessionStart`     | always (config-gated)              | v4 Phase 1       | [↓](#sessionstart--session-startcjs)          |
+| `user-prompt-submit.cjs` | `UserPromptSubmit` | `loop`                             | v3               | [↓](#userpromptsubmit--user-prompt-submitcjs) |
+| `pre-tool-use.cjs`       | `PreToolUse`       | `loop` (agent calls + Watch Mode)  | v3 / v4 Phase 2  | [↓](#pretooluse--pre-tool-usecjs)             |
+| `post-tool-use.cjs`      | `PostToolUse`      | `loop`                             | v3               | [↓](#posttooluse--post-tool-usecjs)           |
+| `stop.cjs`               | `Stop`             | `loop`                             | v3               | [↓](#stop--stopcjs)                           |
 
 **Output shapes used below:**
 
@@ -86,27 +86,28 @@ Use this as the verification spec when modifying hook scripts.
 **Fires on:** every tool call before execution  
 **Input:** stdin JSON with `toolName` / `tool` / `name` field  
 **Kill switches:** `solar.active: false` · `hooks.enabled: false` · `hooks.preToolUse.enabled: false` · bootstrap mode  
-**Active by default:** fires on `agent` tool calls only (other tool names short-circuit to `PASS`)
+**Active by default:** fires on `agent` tool calls (delegation gate) and on any tool call matching `watchModeToolPatterns` in loop mode (Watch Mode gate)
 
 ### Scenarios
 
-| #                                              | Condition                                                                                          | Expected output                                   |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| P1                                             | Tool is not `agent`                                                                                | `PASS` — early return, no delegation gate         |
-| P2                                             | Tool is `agent` · target is a bypass agent (design, architect, bug investigation, solar bootstrap) | `PASS` — bypass list match                        |
-| P3                                             | Tool is `agent` · not bypass · loop mode · Stage 1 complete in ledger                              | `PASS` — delegation allowed                       |
-| P4                                             | Tool is `agent` · not bypass · loop mode · Stage 1 NOT complete                                    | `PASS+MSG` — "Complete Stage 1 before delegating" |
-| S1                                             | Bootstrap mode                                                                                     | `SILENT`                                          |
-| S2                                             | `solar.active: false`                                                                              | `SILENT` (fail open)                              |
-| **Phase 2 (Watch Mode — not yet implemented)** |                                                                                                    |                                                   |
-| W1                                             | Loop mode · tool name matches `watchModeToolPatterns`                                              | `ASK` — `permissionDecision: "ask"`               |
-| W2                                             | Loop mode · tool name does NOT match patterns                                                      | `PASS` — Watch Mode not triggered                 |
-| W3                                             | Non-loop mode · tool matches patterns                                                              | `PASS` — Watch Mode scope is loop-only (OD-6)     |
+| #  | Condition                                                                                          | Expected output                                                   |
+| -- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| W1 | Loop mode · `watchModeEnabled: true` · tool name matches `watchModeToolPatterns`                   | `ASK` — `permissionDecision: "ask"` (evaluated before P1)         |
+| W2 | Loop mode · tool name does NOT match patterns                                                      | `PASS` — Watch Mode not triggered; falls through to P1–P4         |
+| W3 | Non-loop mode · tool matches patterns                                                              | `PASS` — Watch Mode scope is loop-only (OD-6 Option B)            |
+| W4 | `watchModeEnabled: false` or `solar.active: false`                                                 | `PASS` — Watch Mode disabled; falls through to P1–P4              |
+| P1 | Tool is not `agent` (and Watch Mode did not fire)                                                  | `PASS` — early return, no delegation gate                         |
+| P2 | Tool is `agent` · target is a bypass agent (design, architect, bug investigation, solar bootstrap) | `PASS` — bypass list match                                        |
+| P3 | Tool is `agent` · not bypass · loop mode · Stage 1 complete in ledger                             | `PASS` — delegation allowed                                       |
+| P4 | Tool is `agent` · not bypass · loop mode · Stage 1 NOT complete                                   | `BLOCK` — "Complete Stage 1 before delegating"                    |
+| S1 | Bootstrap mode                                                                                     | `SILENT`                                                          |
+| S2 | `solar.active: false`                                                                              | `SILENT` (fail open)                                              |
 
 ### Notes
 
+- **Evaluation order:** Watch Mode (W1–W4) runs first using the shared config/ledger reads. If Watch Mode fires (`ASK`), the delegation gate (P1–P4) is not reached.
 - Bypass list patterns (v3): `design`, `architect`, `bug investigation`, `solar bootstrap`, `solar scan` — matched case-insensitively against agent name.
-- Watch Mode (W1–W3) is a Phase 2 addition to this script. Not yet live.
+- Config/ledger are read once at the top of the handler and shared by both gates; no duplicate I/O.
 - `SILENT` here uses `process.exit(0)` (fail-open), not `{ continue: true }` — pre-tool-use fail-open means the tool call proceeds unblocked.
 
 ---
