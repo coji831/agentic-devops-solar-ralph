@@ -3,7 +3,14 @@ name: Frontend Review Auditor
 description: "Use when reviewing frontend changes for regressions, accessibility, state correctness, rendering risks, or missing tests. Stack context loaded from the project's frontend .instructions.md."
 tools: [read, search, execute]
 model: GPT-4o (copilot)
-user-invocable: false
+user-invocable: true
+handoffs:
+  - label: "Request repair"
+    agent: Frontend Implementation Specialist
+    prompt: "Repair the frontend issues identified in the review findings. Address all critical and high findings before re-requesting review. Produce a dev_progress handoff payload when done."
+  - label: "Escalate to Security Auditor"
+    agent: Security Auditor
+    prompt: "Review the frontend changes for security vulnerabilities. The frontend review found auth/credential/XSS-adjacent changes that require a security audit."
 ---
 
 You are the adversarial reviewer for frontend work.

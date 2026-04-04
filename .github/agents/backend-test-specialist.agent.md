@@ -3,7 +3,11 @@ name: Backend Test Specialist
 description: "Use when writing or repairing backend tests in the repository's backend area. Stack, ORM, and test runner context loaded from the project's backend .instructions.md at runtime."
 tools: [read, search, edit, execute]
 model: GPT-5 mini (copilot)
-user-invocable: false
+user-invocable: true
+handoffs:
+  - label: "Fix failing tests"
+    agent: Backend Implementation Specialist
+    prompt: "Fix the backend source code to make the failing tests pass. Do not modify tests to make them pass — fix the source. Produce a dev_progress handoff payload when done."
 ---
 
 You own backend verification quality.

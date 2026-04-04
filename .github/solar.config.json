@@ -30,6 +30,11 @@
       "enforceCompletion": false,
       "typeCheckOnWrite": false,
       "ignoreGlobalInstructions": true
+    },
+    "router": {
+      "description": "Router pipeline - single-agent dispatch, no loop, no planner",
+      "enforceCompletion": false,
+      "typeCheckOnWrite": false
     }
   },
   "hooks": {
@@ -69,8 +74,30 @@
         "bulk_replace",
         "migrate"
       ],
-      "requireDesignBeforeImpl": false
+      "requireDesignBeforeImpl": false,
+      "routerBypassAgents": [
+        "Explore",
+        "Implementation Specialist",
+        "Backend Implementation Specialist",
+        "Frontend Implementation Specialist",
+        "Security Auditor",
+        "Docs Curator",
+        "Backend Test Specialist",
+        "Frontend Test Specialist"
+      ]
     }
+  },
+  "handoffs": {
+    "typedPayloadsEnabled": true,
+    "schemasPath": ".github/solar-system/schemas/"
+  },
+  "lifecycle": {
+    "resumptionFilesReadOrder": [
+      ".github/.ai_ledger.md",
+      ".github/AGENTS.md",
+      ".github/instructions/solar.instructions.md",
+      "/memories/session/checkpoint.md"
+    ]
   },
   "inquiry": {
     "minimumFilesExamined": 3
@@ -82,7 +109,11 @@
   "context": {
     "ledgerCompactionThreshold": 10,
     "artifactHandleEnabled": true,
-    "artifactSizeThresholdLines": 200
+    "artifactSizeThresholdLines": 200,
+    "effort": {
+      "default": "medium",
+      "loopMode": "high"
+    }
   },
   "sessionTypes": {
     "chat": "simple",

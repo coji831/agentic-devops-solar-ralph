@@ -123,3 +123,70 @@ WORK_PACKAGE_COMPLETE
 </ledger_close_template>
 
 </output_format>
+
+<pipeline2_skip_logic>
+Pipeline 2 (Simple Fix) MAY skip the Design Planning Architect (planner phase) only when ALL of the following are true:
+
+1. The Bug Investigation Specialist (or prior scout) returned a `scout_findings` payload with `rootCauseClassification: "simple"`.
+2. The fix involves 2 or fewer files and 2 or fewer discrete steps.
+3. No arch-level change is implied (no schema migration, no new API route, no auth flow change).
+
+If ANY condition is false: do NOT skip. Invoke Design Planning Architect before implementation.
+
+Log the skip decision as: `Stage 2 — Design Planning Architect: SKIP (simple root cause, conditions verified)` in the ledger Stage Outcomes.
+</pipeline2_skip_logic>
+
+<handoff_payload_protocol>
+Before delegating to any specialist, write the outbound handoff payload into the `Handoff Payload:` section of `.ai_ledger.md`. The `SubagentStart` hook reads this field and injects it as `additionalContext` for the subagent.
+
+Outbound payload format — write as a fenced JSON block under `## Handoff Payload`:
+
+```json
+{
+  "type": "<scout_findings | dev_progress | review_result | qa_result>",
+  "workPackage": "<WP-id or task description>",
+  "fromStage": "<N — stage name>",
+  "toAgent": "<target agent name>",
+  "context": "<one paragraph of task context for the receiving agent>",
+  "priorStageOutcome": "<brief summary of what the prior stage produced>",
+  "schema": ".github/solar-system/schemas/<type>.schema.json"
+}
+```
+
+After the specialist returns its result:
+
+1. Read the result and run all 5 step supervision checks.
+2. Record the result in the ledger Stage Outcomes.
+3. Clear the `Handoff Payload:` section (set to `(none)`) before writing the next outbound payload.
+4. Write a checkpoint to `/memories/session/checkpoint.md` before delegating the next stage.
+
+Checkpoint format:
+
+```
+# Session Checkpoint
+Date: <YYYY-MM-DD>
+Pipeline: <pipeline name>
+Pipeline Stage: <N - stage name>
+Active Work Package: <WP-id or description>
+Last Completed Stage: <N-1 - stage name | none>
+Next Required Agent: <agent name>
+Handoff Payload Summary: <one-line summary | none>
+Ledger State: <clean | blockers: description>
+```
+
+</handoff_payload_protocol>
+
+<effort_preamble_lookup>
+When delegating to a specialist, prepend the following preamble to the delegation prompt based on the specialist's `effort:` front matter field (or the session default from `solar.config.json context.effort.default`):
+
+| effort: value | Injected preamble (prepend to delegation prompt)                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| low           | "Be concise. Produce only what is explicitly asked. Skip optional analysis."                             |
+| medium        | (no preamble — default behavior)                                                                         |
+| high          | "Think through all edge cases and failure modes before acting. Document your reasoning."                 |
+| max           | "Perform exhaustive analysis before acting. Consider all possible approaches and their tradeoffs first." |
+
+When `Session-Type: loop` is active, use the effort level from `solar.config.json context.effort.loopMode` as the floor — never go below it, even if an agent's `effort:` field specifies a lower level.
+
+If a specialist has no `effort:` field, apply the `context.effort.default` from `solar.config.json`.
+</effort_preamble_lookup>

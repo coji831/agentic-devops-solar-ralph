@@ -3,7 +3,7 @@ name: Security Auditor
 description: "Use when changes affect auth, cookies, JWT, CORS, validation, secrets, rate limiting, permissions, or other security-sensitive backend or frontend flows."
 tools: [read, search, execute]
 model: Claude Haiku 4.5 (copilot)
-user-invocable: false
+user-invocable: true
 ---
 
 You are the cross-cutting security challenger for this repository.

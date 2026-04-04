@@ -11,13 +11,15 @@ Use this as the verification spec when modifying hook scripts.
 
 ## Summary Table
 
-| Hook script              | VS Code event      | Active modes                       | Phase introduced | Script                                        |
-| ------------------------ | ------------------ | ---------------------------------- | ---------------- | --------------------------------------------- |
-| `session-start.cjs`      | `SessionStart`     | always (config-gated)              | v4 Phase 1       | [↓](#sessionstart--session-startcjs)          |
-| `user-prompt-submit.cjs` | `UserPromptSubmit` | `loop`                             | v3               | [↓](#userpromptsubmit--user-prompt-submitcjs) |
-| `pre-tool-use.cjs`       | `PreToolUse`       | `loop` (agent calls + Watch Mode)  | v3 / v4 Phase 2  | [↓](#pretooluse--pre-tool-usecjs)             |
-| `post-tool-use.cjs`      | `PostToolUse`      | `loop`                             | v3               | [↓](#posttooluse--post-tool-usecjs)           |
-| `stop.cjs`               | `Stop`             | `loop`                             | v3               | [↓](#stop--stopcjs)                           |
+| Hook script              | VS Code event      | Active modes                      | Phase introduced | Script                                        |
+| ------------------------ | ------------------ | --------------------------------- | ---------------- | --------------------------------------------- |
+| `session-start.cjs`      | `SessionStart`     | always (config-gated)             | v4 Phase 1       | [↓](#sessionstart--session-startcjs)          |
+| `user-prompt-submit.cjs` | `UserPromptSubmit` | `loop`                            | v3               | [↓](#userpromptsubmit--user-prompt-submitcjs) |
+| `pre-tool-use.cjs`       | `PreToolUse`       | `loop` (agent calls + Watch Mode) | v3 / v4 Phase 2  | [↓](#pretooluse--pre-tool-usecjs)             |
+| `post-tool-use.cjs`      | `PostToolUse`      | `loop`                            | v3               | [↓](#posttooluse--post-tool-usecjs)           |
+| `stop.cjs`               | `Stop`             | `loop`                            | v3               | [↓](#stop--stopcjs)                           |
+| `subagent-start.cjs`     | `SubagentStart`    | always (config-gated)             | v4 Phase 3       | [↓](#subagentstart--subagent-startcjs)        |
+| `subagent-stop.cjs`      | `SubagentStop`     | always (config-gated)             | v4 Phase 3       | [↓](#subagentstopcjs--subagent-stopcjs)       |
 
 **Output shapes used below:**
 
@@ -25,6 +27,9 @@ Use this as the verification spec when modifying hook scripts.
 - `PASS+MSG` — `{ "continue": true, "systemMessage": "..." }`
 - `BLOCK` — `{ "continue": false }` (Stop hook only)
 - `ASK` — `{ "hookSpecificOutput": { "permissionDecision": "ask", ... } }` (Phase 2 — PreToolUse Watch Mode)
+- `INJECT` — `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "..." } }` (SubagentStart)
+- `ALLOW` — `{ "decision": "allow" }` (SubagentStop)
+- `BLOCK-DECISION` — `{ "decision": "block", "reason": "..." }` (SubagentStop)
 - `SILENT` — no output; `process.exit(0)` or early return
 
 ---
@@ -90,18 +95,18 @@ Use this as the verification spec when modifying hook scripts.
 
 ### Scenarios
 
-| #  | Condition                                                                                          | Expected output                                                   |
-| -- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| W1 | Loop mode · `watchModeEnabled: true` · tool name matches `watchModeToolPatterns`                   | `ASK` — `permissionDecision: "ask"` (evaluated before P1)         |
-| W2 | Loop mode · tool name does NOT match patterns                                                      | `PASS` — Watch Mode not triggered; falls through to P1–P4         |
-| W3 | Non-loop mode · tool matches patterns                                                              | `PASS` — Watch Mode scope is loop-only (OD-6 Option B)            |
-| W4 | `watchModeEnabled: false` or `solar.active: false`                                                 | `PASS` — Watch Mode disabled; falls through to P1–P4              |
-| P1 | Tool is not `agent` (and Watch Mode did not fire)                                                  | `PASS` — early return, no delegation gate                         |
-| P2 | Tool is `agent` · target is a bypass agent (design, architect, bug investigation, solar bootstrap) | `PASS` — bypass list match                                        |
-| P3 | Tool is `agent` · not bypass · loop mode · Stage 1 complete in ledger                             | `PASS` — delegation allowed                                       |
-| P4 | Tool is `agent` · not bypass · loop mode · Stage 1 NOT complete                                   | `BLOCK` — "Complete Stage 1 before delegating"                    |
-| S1 | Bootstrap mode                                                                                     | `SILENT`                                                          |
-| S2 | `solar.active: false`                                                                              | `SILENT` (fail open)                                              |
+| #   | Condition                                                                                          | Expected output                                           |
+| --- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| W1  | Loop mode · `watchModeEnabled: true` · tool name matches `watchModeToolPatterns`                   | `ASK` — `permissionDecision: "ask"` (evaluated before P1) |
+| W2  | Loop mode · tool name does NOT match patterns                                                      | `PASS` — Watch Mode not triggered; falls through to P1–P4 |
+| W3  | Non-loop mode · tool matches patterns                                                              | `PASS` — Watch Mode scope is loop-only (OD-6 Option B)    |
+| W4  | `watchModeEnabled: false` or `solar.active: false`                                                 | `PASS` — Watch Mode disabled; falls through to P1–P4      |
+| P1  | Tool is not `agent` (and Watch Mode did not fire)                                                  | `PASS` — early return, no delegation gate                 |
+| P2  | Tool is `agent` · target is a bypass agent (design, architect, bug investigation, solar bootstrap) | `PASS` — bypass list match                                |
+| P3  | Tool is `agent` · not bypass · loop mode · Stage 1 complete in ledger                              | `PASS` — delegation allowed                               |
+| P4  | Tool is `agent` · not bypass · loop mode · Stage 1 NOT complete                                    | `BLOCK` — "Complete Stage 1 before delegating"            |
+| S1  | Bootstrap mode                                                                                     | `SILENT`                                                  |
+| S2  | `solar.active: false`                                                                              | `SILENT` (fail open)                                      |
 
 ### Notes
 
@@ -172,6 +177,63 @@ Use this as the verification spec when modifying hook scripts.
 
 ---
 
+## SubagentStart — `subagent-start.cjs`
+
+**Fires on:** subagent delegation starts (before subagent receives first context)
+**Input:** none (no stdin)
+**Kill switches:** `solar.active: false` · `hooks.enabled: false` · `handoffs.typedPayloadsEnabled: false`
+**Config flags:** `handoffs.schemasPath` (informational reference in output only)
+
+### Scenarios
+
+| #   | Condition                                                                         | Expected output                                                                                                   |
+| --- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| P1  | Kill switches pass · ledger has non-empty `## Handoff Payload` section            | `INJECT` — `additionalContext: "HANDOFF PAYLOAD FROM GOVERNOR (read this before starting):\n\n<payload text>..."` |
+| P2  | Kill switches pass · ledger `## Handoff Payload` section is `(none)` or `(empty)` | `INJECT` — `additionalContext: "No handoff payload in ledger. Proceed with request context only."`                |
+| P3  | Kill switches pass · ledger file missing or unreadable                            | `INJECT` — same as P2; graceful fallback                                                                          |
+| S1  | `solar.active: false`                                                             | `SILENT`                                                                                                          |
+| S2  | `hooks.enabled: false`                                                            | `SILENT`                                                                                                          |
+| S3  | `handoffs.typedPayloadsEnabled: false`                                            | `PASS` — `{ continue: true }` (typed injection disabled, not silent)                                              |
+
+### Notes
+
+- Output shape is `INJECT` (`hookSpecificOutput` with `hookEventName: "SubagentStart"`) — same structure as `SessionStart`.
+- P2 and P3 still produce `INJECT` output (not `PASS`) to signal to the subagent that context injection ran and found nothing — avoids ambiguity between "hook did not fire" and "no payload was set".
+- The payload text is extracted by matching `## Handoff Payload` through the next `##` heading or end of file. Values `(none)` and `(empty)` are treated as absent.
+- Schema reference appended to P1 output: `"Reference schemas in .github/solar-system/schemas/ for the typed format."`
+
+---
+
+## SubagentStop — `subagent-stop.cjs`
+
+**Fires on:** subagent response ends (before the subagent turn closes)
+**Input:** stdin JSON with `response` or `output` field (subagent response text); optional `stop_hook_active: boolean`
+**Kill switches:** `solar.active: false` · `hooks.enabled: false` · `handoffs.typedPayloadsEnabled: false`
+
+### Scenarios
+
+| #   | Condition                                                                                         | Expected output                                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V1  | Kill switches pass · response contains all 3 required fields                                      | `ALLOW` — `{ "decision": "allow" }`                                                                                                                |
+| V2  | Kill switches pass · response missing 1+ required fields (`completedBy`, `status`, `workPackage`) | `BLOCK-DECISION` — `{ "decision": "block", "reason": "missing: <fields>. Produce handoff summary conforming to implementer-handoff.schema.json" }` |
+| G1  | `stop_hook_active: true` in stdin input                                                           | `ALLOW` — infinite loop guard; unconditional allow regardless of response content                                                                  |
+| G2  | No stdin piped (TTY mode) or stdin unparseable                                                    | `ALLOW` — graceful fallback; no response to validate                                                                                               |
+| G3  | Response text field absent from hook input (`response` and `output` both missing)                 | `ALLOW` — no text to validate                                                                                                                      |
+| S1  | `solar.active: false`                                                                             | `SILENT`                                                                                                                                           |
+| S2  | `hooks.enabled: false`                                                                            | `SILENT`                                                                                                                                           |
+| S3  | `handoffs.typedPayloadsEnabled: false`                                                            | `ALLOW` — `{ "decision": "allow" }` (not silent; typed validation disabled)                                                                        |
+| S4  | Config missing or unparseable                                                                     | `SILENT` — fail open; subagent allowed to stop                                                                                                     |
+
+### Notes
+
+- Output shape uses top-level `decision` field (`"allow"` / `"block"`), NOT `hookSpecificOutput` — this is the `SubagentStop`-specific format per VS Code hook spec.
+- Field matching is regex-based against response text (case-insensitive): `/completed[- _]?by/i`, `/status\s*:/i`, `/work[- _]?package/i`. Not JSON schema parsing.
+- `stop_hook_active` guard (G1) is **critical** — without it, a `BLOCK-DECISION` response would re-trigger the hook, causing an infinite block loop. Always check this field first.
+- V2 block message references `implementer-handoff.schema.json` specifically — the minimum contract for any subagent returning to the governor.
+- `SILENT` in this hook means `process.exit(0)` before any output, which VS Code treats as allow-stop (fail-open). Same semantics as `Stop` hook silent behavior.
+
+---
+
 ## Regression Test Commands
 
 Run these from the workspace root against a known ledger/config state:
@@ -194,6 +256,18 @@ echo '{"toolName":"replace_string_in_file","error":"file not found"}' | node .gi
 
 # Stop — no pending task (expect: { continue: false })
 node .github/hooks/stop.cjs
+
+# SubagentStart — no ledger payload (expect: additionalContext with "No handoff payload" message)
+node .github/hooks/subagent-start.cjs
+
+# SubagentStop — valid response (expect: { decision: "allow" })
+echo '{"response":"workPackage: WP-1\nstatus: completed\ncompletedBy: Backend Implementation Specialist"}' | node .github/hooks/subagent-stop.cjs
+
+# SubagentStop — missing fields (expect: { decision: "block", reason: "..." })
+echo '{"response":"Here are the changes I made."}' | node .github/hooks/subagent-stop.cjs
+
+# SubagentStop — stop_hook_active guard (expect: { decision: "allow" }, no blocking loop)
+echo '{"response":"incomplete","stop_hook_active":true}' | node .github/hooks/subagent-stop.cjs
 ```
 
 > **Prerequisite:** `solar.active` must be `true` in `solar.config.json` for guarded hooks to fire.

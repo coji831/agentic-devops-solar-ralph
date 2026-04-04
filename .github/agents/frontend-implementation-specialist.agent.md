@@ -3,7 +3,14 @@ name: Frontend Implementation Specialist
 description: "Use when implementing frontend domain changes — components, state, routing, client integration, and pages. Actual stack context is loaded from the project's frontend .instructions.md at runtime."
 tools: [read, search, edit, execute, todo]
 model: GPT-5 mini (copilot)
-user-invocable: false
+user-invocable: true
+handoffs:
+  - label: "Request frontend review"
+    agent: Frontend Review Auditor
+    prompt: "Review the frontend changes just implemented. Check for regressions, accessibility, state correctness, and rendering risks. Produce a review_result handoff payload."
+  - label: "Run frontend tests"
+    agent: Frontend Test Specialist
+    prompt: "Run frontend tests for the changes just implemented. Produce a qa_result handoff payload with pass/fail verdict and test command used."
 ---
 
 You own frontend implementation work in the repository's frontend area (check for a frontend-specific `.instructions.md` file or the repo's frontend folder).

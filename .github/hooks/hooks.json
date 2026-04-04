@@ -34,6 +34,20 @@
         "command": "node .github/hooks/session-start.cjs",
         "timeout": 10
       }
+    ],
+    "SubagentStart": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/subagent-start.cjs",
+        "timeout": 10
+      }
+    ],
+    "SubagentStop": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/subagent-stop.cjs",
+        "timeout": 10
+      }
     ]
   }
 }

@@ -3,7 +3,14 @@ name: Backend Review Auditor
 description: "Use when reviewing backend changes for regressions, API contract safety, data integrity, and auth/validation correctness. Stack context loaded from the project's backend .instructions.md."
 tools: [read, search, execute]
 model: GPT-4o (copilot)
-user-invocable: false
+user-invocable: true
+handoffs:
+  - label: "Request repair"
+    agent: Backend Implementation Specialist
+    prompt: "Repair the backend issues identified in the review findings. Address all critical and high findings before re-requesting review. Produce a dev_progress handoff payload when done."
+  - label: "Escalate to Security Auditor"
+    agent: Security Auditor
+    prompt: "Review the backend changes for security vulnerabilities. The backend review found auth/validation/credential-adjacent changes that require a security audit."
 ---
 
 You are the adversarial reviewer for backend work.
