@@ -27,6 +27,13 @@
         "command": "node .github/hooks/stop.cjs",
         "timeout": 10
       }
+    ],
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/session-start.cjs",
+        "timeout": 10
+      }
     ]
   }
 }

@@ -42,6 +42,25 @@ if (!activeModes.includes(currentMode)) {
   process.exit(0);
 }
 
+// === Phase 1 addition: returns ERRORS.md review nudge if entries exist ===
+function getErrorsNudge(cfg) {
+  if (!cfg.hooks?.postToolUse?.logErrorsToLearnings) return "";
+
+  const base = cfg.selfImprovement?.learningsPath
+    ? path.resolve(__dirname, "../../", cfg.selfImprovement.learningsPath)
+    : path.resolve(__dirname, "../solar-system/.learnings/");
+
+  try {
+    const content = fs.readFileSync(path.join(base, "ERRORS.md"), "utf8");
+    return /^###\s/m.test(content)
+      ? " Review .github/solar-system/.learnings/ERRORS.md for previously logged failures before retrying."
+      : "";
+  } catch (e) {
+    return "";
+  }
+}
+// === End Phase 1 addition ===
+
 const hasPendingTask = /Completion Promise:\s*pending/i.test(ledger);
 
 if (hasPendingTask) {
@@ -50,7 +69,8 @@ if (hasPendingTask) {
       continue: true,
       systemMessage:
         "SOLAR task active. Follow the Mandatory Delegation Matrix in AGENTS.md. " +
-        "Check .ai_ledger.md for current objective before acting. Do not skip required agents.",
+        "Check .ai_ledger.md for current objective before acting. Do not skip required agents." +
+        getErrorsNudge(config),
     }),
   );
 } else {

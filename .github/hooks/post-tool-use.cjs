@@ -2,9 +2,57 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+// --- helpers ---
+
+function loadConfig() {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, "../solar.config.json"), "utf8"),
+    );
+  } catch (e) {
+    return null;
+  }
+}
+
+function resolveErrorsPath(cfg) {
+  const base = cfg.selfImprovement?.learningsPath
+    ? path.resolve(__dirname, "../../", cfg.selfImprovement.learningsPath)
+    : path.resolve(__dirname, "../solar-system/.learnings/");
+  return path.join(base, "ERRORS.md");
+}
+
+function buildTscMessage(cfg, currentMode) {
+  const modeConfig = cfg.modes?.[currentMode] || {};
+  if (
+    !modeConfig.typeCheckOnWrite ||
+    !cfg.hooks.postToolUse.typeCheck?.enabled
+  ) {
+    return "";
+  }
+  try {
+    const cmd = cfg.hooks.postToolUse.typeCheck.command || "npx tsc --noEmit";
+    const timeout = cfg.hooks.postToolUse.typeCheck.timeout || 10000;
+    execSync(cmd + " 2>&1", { timeout, encoding: "utf8" });
+    return "";
+  } catch (e) {
+    const errors = ((e.stdout || "").match(/error TS\d+[^\n]*/g) || []).slice(
+      0,
+      3,
+    );
+    return errors.length
+      ? "TypeScript errors: " +
+          errors.join(" | ") +
+          ". Fix before claiming progress in .ai_ledger.md."
+      : "";
+  }
+}
+
+// --- main ---
+
 let data = "";
 process.stdin.on("data", (chunk) => (data += chunk));
 process.stdin.on("end", () => {
+  // Outer catch-all: VS Code hook contract requires { continue: true } on any crash
   try {
     const input = JSON.parse(data || "{}");
     const toolName = (
@@ -22,79 +70,73 @@ process.stdin.on("end", () => {
       return;
     }
 
-    const configPath = path.resolve(__dirname, "../solar.config.json");
-    let config = null;
-    try {
-      config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    } catch (e) {
-      // Config missing or invalid - exit silently
-      process.exit(0);
-    }
+    const config = loadConfig();
 
-    // Global kill switches
+    // Kill switches — null config or inactive hooks treated the same as silent exit
     if (
+      !config ||
       !config.solar?.active ||
       !config.hooks?.enabled ||
       !config.hooks?.postToolUse?.enabled
     ) {
-      process.exit(0);
+      console.log(JSON.stringify({ continue: true }));
+      return;
     }
 
-    const ledgerPath = path.resolve(__dirname, "../.ai_ledger.md");
-    const ledger = fs.existsSync(ledgerPath)
-      ? fs.readFileSync(ledgerPath, "utf8")
+    const ledger = fs.existsSync(path.resolve(__dirname, "../.ai_ledger.md"))
+      ? fs.readFileSync(path.resolve(__dirname, "../.ai_ledger.md"), "utf8")
       : "";
 
-    // Determine current mode from Session-Type in ledger
     const sessionTypeMatch = ledger.match(/Session-Type:\s*(\w+)/i);
     const sessionType = sessionTypeMatch
       ? sessionTypeMatch[1].toLowerCase()
       : "chat";
     const currentMode = config.sessionTypes?.[sessionType] || "simple";
 
-    // Bootstrap mode bypass - governance disabled during setup
     if (currentMode === "bootstrap") {
-      process.exit(0);
+      console.log(JSON.stringify({ continue: true }));
+      return;
     }
 
-    // Check if this hook should be active for the current mode
     const activeModes = config.hooks.postToolUse.activeModes || [];
     if (!activeModes.includes(currentMode)) {
-      process.exit(0);
+      console.log(JSON.stringify({ continue: true }));
+      return;
     }
 
-    // Check if type-check is enabled for this mode
-    const modeConfig = config.modes?.[currentMode] || {};
-    const shouldTypeCheck =
-      modeConfig.typeCheckOnWrite &&
-      config.hooks.postToolUse.typeCheck?.enabled;
-
-    if (shouldTypeCheck) {
-      let tscMessage = "";
-      try {
-        const tscCmd =
-          config.hooks.postToolUse.typeCheck.command || "npx tsc --noEmit";
-        const tscTimeout = config.hooks.postToolUse.typeCheck.timeout || 10000;
-        execSync(tscCmd + " 2>&1", { timeout: tscTimeout, encoding: "utf8" });
-      } catch (e) {
-        if (e.stdout) {
-          const errors = (e.stdout.match(/error TS\d+[^\n]*/g) || []).slice(
-            0,
-            3,
-          );
-          if (errors.length) {
-            tscMessage =
-              "TypeScript errors: " +
-              errors.join(" | ") +
-              ". Fix before claiming progress in .ai_ledger.md.";
-          }
-        }
+    // === Phase 1 addition: ERRORS.md write instruction on tool failure ===
+    if (config.hooks.postToolUse.logErrorsToLearnings) {
+      const toolFailed = !!input.error || input.isError === true;
+      if (toolFailed) {
+        console.log(
+          JSON.stringify({
+            continue: true,
+            systemMessage:
+              "Tool failure detected. Record the error, tool name, and root cause in " +
+              resolveErrorsPath(config) +
+              " before continuing.",
+          }),
+        );
+        return;
       }
+    }
+    // === End Phase 1 addition ===
 
-      const message =
-        tscMessage ||
-        "Code modified in loop. Update .ai_ledger.md with step outcome and run narrowest verification.";
-      console.log(JSON.stringify({ continue: true, systemMessage: message }));
+    const tscMessage = buildTscMessage(config, currentMode);
+
+    if (tscMessage) {
+      console.log(
+        JSON.stringify({ continue: true, systemMessage: tscMessage }),
+      );
+    } else if (config.modes?.[currentMode]?.typeCheckOnWrite) {
+      // tsc ran but found no errors — still remind agent to update ledger
+      console.log(
+        JSON.stringify({
+          continue: true,
+          systemMessage:
+            "Code modified in loop. Update .ai_ledger.md with step outcome and run narrowest verification.",
+        }),
+      );
     } else {
       console.log(JSON.stringify({ continue: true }));
     }

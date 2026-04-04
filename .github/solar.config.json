@@ -42,6 +42,7 @@
     "postToolUse": {
       "enabled": true,
       "activeModes": ["loop"],
+      "logErrorsToLearnings": true,
       "typeCheck": {
         "enabled": true,
         "command": "npx tsc --noEmit",
@@ -53,10 +54,22 @@
       "activeModes": ["loop"],
       "enforceLoopContinuation": true
     },
+    "sessionStart": {
+      "injectLearnings": true
+    },
     "subagentAnnounce": {
       "enabled": true,
       "activeModes": ["simple", "loop", "plan"]
     }
+  },
+  "selfImprovement": {
+    "enabled": true,
+    "learningsPath": ".github/solar-system/.learnings/"
+  },
+  "context": {
+    "ledgerCompactionThreshold": 10,
+    "artifactHandleEnabled": true,
+    "artifactSizeThresholdLines": 200
   },
   "sessionTypes": {
     "chat": "simple",
