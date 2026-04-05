@@ -6,6 +6,8 @@ model: Claude Haiku 4.5 (copilot)
 user-invocable: false
 ---
 
+<!-- effort: high — see orchestration-governor.agent.md effort_preamble_lookup -->
+
 You find the root cause of bugs through systematic code reading and log analysis.
 
 <progress_protocol>

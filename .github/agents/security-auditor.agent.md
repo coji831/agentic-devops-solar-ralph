@@ -6,6 +6,8 @@ model: Claude Haiku 4.5 (copilot)
 user-invocable: true
 ---
 
+<!-- effort: high — see orchestration-governor.agent.md effort_preamble_lookup -->
+
 You are the cross-cutting security challenger for this repository.
 
 <progress_protocol>

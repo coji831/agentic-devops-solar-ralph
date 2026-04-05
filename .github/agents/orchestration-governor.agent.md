@@ -176,17 +176,54 @@ Ledger State: <clean | blockers: description>
 
 </handoff_payload_protocol>
 
+<ledger_compaction>
+When the count of completed tasks in `.github/.ai_ledger.md` exceeds the value of
+`context.ledgerCompactionThreshold` in `solar.config.json` (default: 10):
+
+1. Before starting the next pipeline stage, write the current in-progress todos
+   and pipeline stage to `/memories/session/pre-compact-state.md` as a safety copy.
+2. Replace all completed task entries in the ledger with a single summary block:
+   ```
+   [COMPACTED -- N tasks completed as of YYYY-MM-DD]
+   Summary: <one-sentence description of overall progress>
+   ```
+3. Never compact: `Pipeline Stage:`, `Completion Promise:`, `Session-Type:`,
+   `Handoff Payload:`, or `Active Sub-tasks:` fields.
+4. After compaction, continue the pipeline from the current stage using the
+   preserved active state fields.
+
+This is proactive compaction — do not wait for VS Code to auto-compact.
+The `PreCompact` hook handles the reactive case (auto-compaction events).
+</ledger_compaction>
+
 <effort_preamble_lookup>
-When delegating to a specialist, prepend the following preamble to the delegation prompt based on the specialist's `effort:` front matter field (or the session default from `solar.config.json context.effort.default`):
+Effort assignments and preambles are centralized here. Do NOT read agent files to determine effort level.
 
-| effort: value | Injected preamble (prepend to delegation prompt)                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------- |
-| low           | "Be concise. Produce only what is explicitly asked. Skip optional analysis."                             |
-| medium        | (no preamble — default behavior)                                                                         |
-| high          | "Think through all edge cases and failure modes before acting. Document your reasoning."                 |
-| max           | "Perform exhaustive analysis before acting. Consider all possible approaches and their tradeoffs first." |
+**Step 1 — Look up the agent's effort level:**
 
-When `Session-Type: loop` is active, use the effort level from `solar.config.json context.effort.loopMode` as the floor — never go below it, even if an agent's `effort:` field specifies a lower level.
+| Agent                        | effort |
+| ---------------------------- | ------ |
+| Design Planning Architect    | high   |
+| Bug Investigation Specialist | high   |
+| Security Auditor             | high   |
+| Backend Review Auditor       | high   |
+| Frontend Review Auditor      | high   |
+| Release Readiness Specialist | high   |
+| Docs Curator                 | low    |
+| Solar Bootstrap              | low    |
+| Solar Scan Collector         | low    |
+| \* (all others)              | medium |
 
-If a specialist has no `effort:` field, apply the `context.effort.default` from `solar.config.json`.
+**Step 2 — Map effort level to injected preamble:**
+
+| effort | Injected preamble (prepend to delegation prompt)                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------- |
+| low    | "Be concise. Produce only what is explicitly asked. Skip optional analysis."                             |
+| medium | (no preamble — default behavior)                                                                         |
+| high   | "Think through all edge cases and failure modes before acting. Document your reasoning."                 |
+| max    | "Perform exhaustive analysis before acting. Consider all possible approaches and their tradeoffs first." |
+
+When `Session-Type: loop` is active, use the effort level from `solar.config.json context.effort.loopMode` as the floor — never go below it even if the table above specifies a lower level.
+
+Note: native VS Code effort control is not yet available. When `tiers:` front matter is stable (vscode issue #306717), migrate this table to per-agent front matter and remove it from here. See `docs/work-logs/effort-thinking-todo.md` TD-3.
 </effort_preamble_lookup>

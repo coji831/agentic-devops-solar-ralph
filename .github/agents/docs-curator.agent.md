@@ -6,6 +6,8 @@ model: GPT-5 mini (copilot)
 user-invocable: false
 ---
 
+<!-- effort: low — see orchestration-governor.agent.md effort_preamble_lookup -->
+
 You own documentation synchronization and template compliance.
 
 <constraints>

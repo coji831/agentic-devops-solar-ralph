@@ -48,6 +48,13 @@
         "command": "node .github/hooks/subagent-stop.cjs",
         "timeout": 10
       }
+    ],
+    "PreCompact": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/pre-compact.cjs",
+        "timeout": 10
+      }
     ]
   }
 }

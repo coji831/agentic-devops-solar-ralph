@@ -6,6 +6,8 @@ model: GPT-5 mini (copilot)
 user-invocable: true
 ---
 
+<!-- effort: low — see orchestration-governor.agent.md effort_preamble_lookup -->
+
 <invocation_gate>
 
 **Check this FIRST. Before any tool call. Before the preamble sequence. Before everything.**
@@ -228,15 +230,16 @@ Invoke `solar-scan-collector` as a subagent with exactly this instruction:
 
 Read `.github/scan-raw-signals.json`. For each raw block, classify using this taxonomy:
 
-| Type | Key signals |
-|------|-------------|
-| `branching-strategy` | branch, checkout, PR, merge, git, main |
-| `story-execution` | AC, implement, test, commit gate, before commit, story |
-| `deployment` | deploy, release, Railway, Vercel, publish, production |
-| `bug-fix` | reproduce, fix, regression, hotfix, root cause |
-| `testing` | test suite, coverage, run tests, CI |
+| Type                 | Key signals                                            |
+| -------------------- | ------------------------------------------------------ |
+| `branching-strategy` | branch, checkout, PR, merge, git, main                 |
+| `story-execution`    | AC, implement, test, commit gate, before commit, story |
+| `deployment`         | deploy, release, Railway, Vercel, publish, production  |
+| `bug-fix`            | reproduce, fix, regression, hotfix, root cause         |
+| `testing`            | test suite, coverage, run tests, CI                    |
 
 Rules:
+
 - Classify each block independently using the taxonomy above
 - If two blocks share the same type: merge sources into `source: "<file1>, <file2>"`, keep the richer content
 - Produce **one `.workflow.md` per distinct type detected** — NOT one per repo, NOT one per source file
@@ -378,17 +381,17 @@ After all 5 passes complete, write `.github/solar-project-profile.json`:
 1. **AUTO BOOTSTRAP MODE**:
    - BEFORE any setup work: Activate bootstrap mode in `.github/solar.config.json` (set `solar.enabled: false` and `solar.mode: "bootstrap"`)
    - AFTER setup work completes: Restore previous mode (usually `simple`)
-3. **USE TOOLS IMMEDIATELY**: You MUST use file-edit tools. Do NOT just report findings in chat.
+2. **USE TOOLS IMMEDIATELY**: You MUST use file-edit tools. Do NOT just report findings in chat.
 
-4. **NO CHAT FIRST**: Do not explain your plan before editing. Work first, report after.
+3. **NO CHAT FIRST**: Do not explain your plan before editing. Work first, report after.
 
-5. **PRESERVE STRUCTURE**: Only replace `[placeholder]` strings or documented target values. Do NOT change file structure, headings, or keys.
+4. **PRESERVE STRUCTURE**: Only replace `[placeholder]` strings or documented target values. Do NOT change file structure, headings, or keys.
 
-6. **FALLBACK PROTOCOL**: If a value cannot be detected, write `NEEDS MANUAL INPUT` — never guess or hallucinate.
+5. **FALLBACK PROTOCOL**: If a value cannot be detected, write `NEEDS MANUAL INPUT` — never guess or hallucinate.
 
-7. **INFERRED VALUES**: If a value is an assumption, write `INFERRED: [value]` so the human can verify.
+6. **INFERRED VALUES**: If a value is an assumption, write `INFERRED: [value]` so the human can verify.
 
-8. **SILENCE RULES**: No "I will now...", no "Let me...", no explanations before acting. Show the indicator, do the work, report completion.
+7. **SILENCE RULES**: No "I will now...", no "Let me...", no explanations before acting. Show the indicator, do the work, report completion.
    </critical_constraints>
 
 <preamble_sequence>

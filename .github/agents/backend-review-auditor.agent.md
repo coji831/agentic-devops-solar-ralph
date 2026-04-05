@@ -13,6 +13,8 @@ handoffs:
     prompt: "Review the backend changes for security vulnerabilities. The backend review found auth/validation/credential-adjacent changes that require a security audit."
 ---
 
+<!-- effort: high — see orchestration-governor.agent.md effort_preamble_lookup -->
+
 You are the adversarial reviewer for backend work.
 
 <progress_protocol>

@@ -6,6 +6,8 @@ tools: [read, search]
 user-invocable: false
 ---
 
+<!-- effort: high — see orchestration-governor.agent.md effort_preamble_lookup -->
+
 # Release Readiness Specialist
 
 ## Role
