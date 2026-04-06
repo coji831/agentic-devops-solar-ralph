@@ -343,14 +343,453 @@ or effort at the API level.]
 
 ---
 
+### Phase 5: Gap Closure — Feedback Items Not Covered by Phases 1-4
+
+**Prerequisite:** Phase 5 is executable only after all Phase 1-4 decision gates
+are closed. S8-S12 are additive changes only — no Phase 1-4 artefact is deleted
+or overwritten. Files already modified by Phases 1-4 that Phase 5 also touches are
+called out explicitly in each section below with a "prior-phase owner" note.
+
+**Goal:** Close the five feedback items FB-3, FB-6, FB-12, FB-15, and FB-17 that
+were not fully addressed by Phases 1-4: repo-adaptive setup with user-verification
+gate (FB-3); AGENTS.md baseline-only redesign with JIT pipeline loading (FB-6);
+project-unbiased agent and prompt defaults (FB-12); format-safe output with adapted
+template enforcement (FB-15); and per-session SOLAR activity logging (FB-17).
+Sections S8-S12 are gap-closure work only and have no corresponding feasibility
+analysis section. VS Code native log views (Agent Debug Logs, MCP Output log) are
+read-only UI surfaces that cannot be written to by hooks; the per-session JSON file
+in S12 is the mechanism for FB-17.
+
+**Sections:**
+
+- S8 — Repo-Adaptive Setup with User-Verification Gate (FB-3)
+- S9 — AGENTS.md Baseline-Only Redesign with JIT Pipeline Loading (FB-6)
+- S10 — Project-Unbiased Agent and Prompt Defaults (FB-12)
+- S11 — Format-Safe Output with Adapted Template Enforcement (FB-15)
+- S12 — Per-Session SOLAR Activity Log (FB-17)
+
+---
+
+#### S8: Repo-Adaptive Setup with Greedy Capture and Soft Nudge
+
+**Clarification:** This is a setup-stage improvement, not a blocking gate. The
+full setup flow (`/solar-setup-full`, `/solar-setup-quick`, `/solar-setup-scan-repo`
+
+- `/solar-setup-core-config`) already exists and runs freely. The FB-3 feedback
+  asks for "extract all and request user to verify" — the scan already emits
+  `INFERRED:` markers for assumed values, but the scan agent's default posture is
+  to omit fields it is not confident about, and the Step 3 report does not tell the
+  user to review those markers before running setup.
+
+S8 fixes both gaps: (1) instruct the scan agent to always capture a value for
+every profile field, flagging confidence rather than skipping; (2) add a soft
+review nudge to the scan's Step 3 report. No blocking gate, no config flag, no
+new files. The user can correct `solar-project-profile.json` and re-run setup
+at any time.
+
+**Implementation Skeleton:**
+
+Files to create or modify:
+
+- `.github/agents/solar-bootstrap.agent.md` — MODIFY: strengthen the capture
+  posture in the Critical Constraints block (currently constraint #6 says
+  "INFERRED VALUES: If a value is an assumption, write `INFERRED: [value]`"):
+  replace with: "GREEDY CAPTURE: Never omit a profile field because evidence is
+  ambiguous. Always emit a value — use `INFERRED: [value]` for assumed values and
+  `LOW-CONFIDENCE: [value]` for values with weak signal. A profile that
+  over-captures with confidence flags is preferable to a sparse profile;
+  the user review step is the quality gate."
+
+- `.github/prompts/solar-setup-scan-repo.prompt.md` — MODIFY: in the Step 3
+  Report block, add one line to the "Next steps" output:
+  "If `INFERRED:` or `LOW-CONFIDENCE:` values appear above, review
+  `.github/solar-project-profile.json` and correct before or after running setup."
+
+Config / frontmatter fields needed: none
+
+Isolation: `.github/` only; no new files or directories created
+
+---
+
+#### S9: AGENTS.md Baseline-Only Redesign with JIT Pipeline Loading
+
+**Clarification:** Phases 1-4 regressed this feedback item — Phase 3 gate #5
+wrote a full Router pipeline body directly into AGENTS.md, making it larger and
+more pipeline-specific, not simpler. FB-6 ("AGENTs.md need to be more simple and
+generic") is not partially addressed; it is unaddressed by Phases 1-4. S9 is the
+full closure.
+
+AGENTS.md is platform-injected on every agent turn, so every line equals
+persistent token cost regardless of which pipeline is active. Anthropic's routing
+workflow pattern (classify → dispatch to specialized handler) makes the correct
+split explicit: the governor's existing `<pipeline_selection>` block already serves
+as the lightweight index (signal → pipeline name); it does not need AGENTS.md for
+this. The full stage bodies are only needed once per session, only for the selected
+pipeline. All stage detail therefore moves to per-pipeline files loaded JIT.
+
+AGENTS.md is reduced to the operating contract only: purpose, precedence, roles,
+session-type table. Nothing executable remains in it. Project-level fine-tuning
+(skip a step, add a stage) is applied by modifying the per-pipeline file, not
+AGENTS.md.
+
+**Implementation Skeleton:**
+
+Files to create or modify:
+
+- `.github/AGENTS.md` — REDESIGN [prior-phase owner: Phase 3 gate #5 wrote the
+  Router pipeline entry]: keep only:
+  1. S.O.L.A.R. 5-layer purpose statement (already in AGENTS.md lines 3-14)
+  2. Instruction precedence list (already present)
+  3. Core role roster (one line per role, name + one-sentence purpose only)
+  4. Session-Type reference table (chat / loop / manual-test)
+  5. Execution mode (chat vs loop — one sentence each)
+     Remove: all Pipeline 0-4 stage bodies, Mandatory Delegation Matrix, Write-Back
+     Rule body (move to solar.instructions.md), Operating Artifacts detail
+     (move to solar.instructions.md), Pipeline Contracts section header and body.
+     Do NOT add a "pipeline definitions: load from..." pointer line — the
+     governor's `<pipeline_selection>` block already serves as the index; a
+     redundant pointer in AGENTS.md adds noise without value. Target: 40-60 lines.
+     Migration note: the Router pipeline body written by Phase 3 is NOT deleted —
+     it migrates intact to `pipeline-0-router.md` in the step below.
+
+- `.github/solar-system/pipelines/` — NEW directory: one file per pipeline.
+  Each file contains the full stage definition currently in AGENTS.md:
+  - `pipeline-0-router.md` — Router pipeline (signal types, routing table, bypass conditions)
+  - `pipeline-1-knowledge.md`
+  - `pipeline-2-simple-fix.md`
+  - `pipeline-3-bug-fix.md`
+  - `pipeline-4-feature.md`
+    These files are NOT auto-loaded. The governor reads the matching file when it
+    selects a pipeline. Pipeline files are generic — no project-specific commands
+    or stack references. Fine-tuning for a specific project belongs in
+    `.github/solar-system/` override files, not in these base pipeline files.
+
+- `.github/agents/orchestration-governor.agent.md` — MODIFY [prior-phase owners:
+  Phase 3 gate #6 added conditional skip logic, agents: roster, handoff payload
+  read/write, and effort-preamble table; Phase 4 gate #6 added ledger compaction
+  instruction — this is the third and final edit to this file]:
+  Two targeted changes:
+  1. In `<pipeline_selection>`, replace the instruction _"execute that pipeline's
+     stage sequence from `.github/AGENTS.md` in order"_ with: _"read
+     `.github/solar-system/pipelines/<pipeline-name>.md` to get the stage sequence,
+     then execute it in order."_ This is a one-line replacement; the
+     signal-to-pipeline mapping entries below it are unchanged.
+  2. In the tiered-context gate table, add a new row:
+     `| All pipelines (except Knowledge) | Read matching pipeline file from solar-system/pipelines/ BEFORE first agent call |`
+     and update the note at the bottom of the gate from "do NOT read AGENTS.md
+     explicitly" to "do NOT read AGENTS.md explicitly; DO read the selected
+     pipeline file from solar-system/pipelines/ before stage 1."
+     All prior-phase content (skip logic, handoff read/write, compaction) is
+     preserved; only these two targeted replacements are made.
+
+Folder changes (if any):
+
+```
+.github/
+  solar-system/
+    pipelines/
+      pipeline-0-router.md
+      pipeline-1-knowledge.md
+      pipeline-2-simple-fix.md
+      pipeline-3-bug-fix.md
+      pipeline-4-feature.md
+```
+
+Config / frontmatter fields needed: none
+
+[ASSUMPTION: Governor can locate and read the pipeline file at delegation time using
+the `read_file` tool. No hook automation is required for JIT pipeline loading;
+the governor instruction is sufficient.]
+[ASSUMPTION: Pipeline files contain generic, stack-agnostic stage definitions only.
+Any project-specific step (e.g., run npm test) is injected via solar-system/
+override files resolved at setup time, not hardcoded into pipeline files.]
+
+Isolation: SOLAR-only (AGENTS.md baseline, pipeline files)
+
+---
+
+#### S10: Project-Unbiased Agent and Prompt Defaults
+
+**Clarification:** The target is to make every SOLAR agent and prompt work correctly
+out-of-the-box for any project without assuming a specific stack (e.g., npm, React,
+Prisma). A user who installs SOLAR without running the full setup should still get
+useful, correct agent behavior. Stack-specific adaptation is added later via
+custom solar-system/ override instruction files, reducing the need to modify
+agent or prompt files directly.
+**Implementation Skeleton:**
+
+Files to create or modify:
+
+- All `.github/agents/*.agent.md` — AUDIT: identify any hard-coded technology
+  references (npm, TypeScript, ESLint, Prisma, React, etc.) in instruction bodies.
+  For each:
+  - If the reference is a default example, replace with a generic placeholder
+    token (e.g., `[verify-command]`, `[lint-command]`, `[test-command]`)
+  - If the reference is a stack-specific step, move it to a companion
+    `.github/solar-system/pipelines/` override entry or
+    `.github/instructions/*.instructions.md` with `applyTo` glob
+  - Retain technology-neutral behavioural rules (e.g., "run verification before
+    claiming progress") unmodified.
+
+- `docs/guides/prompt-authoring-guide.md` — ADD: "Project-Unbiased Writing Rules"
+  section:
+  - No stack names, package managers, or framework paths in agent instruction bodies
+  - Use token placeholders for commands; resolved by approved-profile.md injection
+  - Each agent must cover at least 3 scenario types (new feature / bug fix /
+    refactor) — single-use-case agents belong in custom solar-system/ workflows
+  - Fine-tuning a specific stack: create a companion instruction file with
+    `applyTo` glob; do NOT edit the base agent file
+
+Config / frontmatter fields needed: none (audit and guideline update only)
+
+[ASSUMPTION: Agent audit scope is limited to `.github/agents/*.agent.md` files.
+Skill SKILL.md files are not modified in this phase — they contain methodology
+rather than stack-specific commands, so bias is lower.]
+
+Isolation: SOLAR-only (agent file cleanup and guide update)
+
+---
+
+#### S11: Format-Safe Output with Adapted Template Enforcement
+
+**Clarification:** The feedback is: _"implementor/doc writer sometimes output
+without keeping format or wrong position."_ This is a target-repo problem, not a
+SOLAR setup problem. When agents write or update files in the target repo — code
+comments, implementation docs, BR files, README sections — they sometimes:
+
+- Invent their own section structure instead of following the repo's existing template
+- Place content in the wrong section of an existing file
+- Reorder or remove sections they should not touch
+
+The fix is instruction-level enforcement on implementation and doc agents: before
+writing to any file in the target repo, the agent MUST read the full current file
+and identify where the new content belongs. If creating a new file, the agent MUST
+check whether the target repo's docs contain a matching template before inventing
+structure. This enforcement applies specifically to agents that write target-repo
+artefacts (Implementation Specialist, Docs Curator, Design Planning Architect).
+It does NOT apply to SOLAR's own internal files.
+
+**Implementation Skeleton:**
+
+Files to create or modify:
+
+- `.github/solar-system/patterns/output-position-contract.md` — NEW: defines the
+  write-safe rules enforced on all agents that modify target-repo files:
+  - Before modifying an existing file: read the full current file; identify all
+    existing section headers and their order; write new content only inside the
+    correct matching section; do NOT add, remove, or reorder sections unless
+    explicitly instructed by the user or the design doc.
+  - Before creating a new file: search the target repo for an existing template
+    of the same doc type (e.g., `docs/templates/`); if found, use it as the
+    skeleton; if not found, ask the user or Design Planning Architect for a
+    skeleton — do NOT invent structure.
+  - Wrong-position rule: if the correct section for the new content cannot be
+    identified with confidence, STOP and ask — do not place content in an
+    approximate or nearby section.
+
+- `.github/agents/implementation-specialist.agent.md` (and other agents that write
+  target-repo files: Docs Curator, Design Planning Architect) — ADD:
+  `<output_contract>` XML block enforcing the write-safe rules:
+  - Read target file in full before any edit.
+  - Identify target section before writing.
+  - Match existing template if creating a new file.
+  - Wrong position = formatting defect; stop and ask rather than guess.
+    No prior-phase edits to these files in Phases 1-4.
+
+- `.github/instructions/solar.instructions.md` — MODIFY [prior-phase owner:
+  Phase 2 (S2) added inquiry-first and schema-enforcement sections — this is the
+  second edit; Phase 2 content is preserved]: ADD "Format Safety Rules" section
+  as a new section after the existing Phase 2 content:
+  - All agents MUST read the target file before modifying it.
+  - All agents MUST place content in the correct existing section — not an
+    approximate one.
+  - New file creation requires a matching template from the target repo; absent
+    one, ask before proceeding.
+  - Wrong-position output is a formatting defect and a review finding.
+
+Config / frontmatter fields needed: none (instruction-level enforcement only)
+
+[ASSUMPTION: The `<output_contract>` block is a VS Code agent instruction convention.
+Compliance is verified by review agents reading output-position-contract.md during
+their review step. No hook enforcement is needed.]
+[ASSUMPTION: "Target repo" means the user's project files (docs/, src/, etc.), not
+SOLAR's own .github/ artefacts. SOLAR internal file writes are governed by their
+own agent instructions and are out of scope for S11.]
+
+Isolation: SOLAR-only (enforcement instructions only; no target-repo files modified)
+
+---
+
+#### S12: Per-Session SOLAR Activity Log
+
+**Clarification:** Phase 1 captures errors in ERRORS.md (persistent, cross-session).
+This section adds a per-session activity log: a new JSON file created at session
+start and appended by hooks on every SOLAR tool call event. It records what happened
+inside SOLAR (which tools fired, which agents were delegated to, which files were
+written, any errors) so that sessions can be monitored and debugged after the fact.
+Format is JSON for token efficiency when loading the log back into context for
+analysis. VS Code Agent Debug Logs and MCP Output Log are native UI views (read-only,
+not hook-writable) — they supplement this log but do not replace it.
+
+**Implementation Skeleton:**
+
+Files to create or modify:
+
+- `.github/hooks/session-start.cjs` — MODIFY (from Phase 1 — already creates this
+  hook): add session log creation. At session start, create a new log file at
+  `.github/solar-system/logs/session-<ISO-timestamp>.json`:
+
+  ```json
+  { "session": "<timestamp>", "events": [] }
+  ```
+
+  Write the path of the current log file to a temp ref:
+  `.github/solar-system/logs/.current-session`.
+
+- `.github/hooks/post-tool-use.cjs` — MODIFY [prior-phase owner: Phase 1 gate #5
+  added ERRORS.md write instruction on tool failure — this is the second edit;
+  Phase 1 ERRORS.md logic is preserved and runs first]: after existing ERRORS.md
+  logic, if `config.logging.sessionLog.enabled` is true, read `.current-session`
+  to get the active log file path, then append one JSON event object:
+
+  ```json
+  {
+    "t": "<ISO-timestamp>",
+    "tool": "<tool-name>",
+    "file": "<file-path-if-any>",
+    "ok": true|false,
+    "note": "<error-message-if-failed>"
+  }
+  ```
+
+  Append to the `"events"` array. Keep the entry compact — no full file contents,
+  no tool input payloads. Fields: timestamp, tool name, affected file path (if
+  readable from tool output), success/fail boolean, error note on failure only.
+
+- `.github/hooks/stop.cjs` — MODIFY: on session stop, append a final event:
+
+  ```json
+  { "t": "<ISO-timestamp>", "tool": "SESSION_END", "ok": true }
+  ```
+
+  then clear `.current-session`.
+
+- `.github/solar-system/logs/` — NEW directory (gitignored): holds per-session
+  log files. Add `.github/solar-system/logs/*.json` to `.gitignore`.
+
+- `.github/solar-system/.learnings/LOG-SOURCES.md` — NEW: reference table for all
+  available log sources and how to use them:
+  | Source | Location | Access | Write-back target |
+  |---|---|---|---|
+  | Session Log | solar-system/logs/session-\*.json | read_file | ERRORS.md (on failure events) |
+  | ERRORS.md | solar-system/.learnings/ERRORS.md | Phase 1 auto | Self |
+  | Agent Debug Logs | VS Code Chat -> ... -> Show Agent Debug Logs | UI only | ERRORS.md (manual) |
+  | MCP Output Log | Command Palette -> MCP: List Servers -> Show Output | UI only | ERRORS.md (manual) |
+
+- `.github/solar-system/README.md` — MODIFY [prior-phase owner: Phase 1 gate #1
+  created this file — this is the second edit]: add `logs/` entry to the isolation boundary section
+  alongside the existing project-profile/ entry. All prior content preserved.
+
+Folder changes (if any):
+
+```
+.github/
+  solar-system/
+    logs/
+      .current-session    (temp ref, cleared on stop)
+      session-<ts>.json   (gitignored, per-session)
+```
+
+Config / frontmatter fields needed:
+
+- `solar.config.json` -> `logging.sessionLog.enabled: boolean` — master toggle
+  for per-session log writing (default: true)
+- `solar.config.json` -> `logging.sessionLog.path: string` — log directory path
+  (default: `.github/solar-system/logs/`)
+- `solar.config.json` -> `logging.sessionLog.maxFiles: number` — maximum number
+  of session log files to retain before oldest is deleted on new session start
+  (default: 20)
+
+[ASSUMPTION: VS Code hook scripts can write files using Node.js fs module —
+confirmed by existing hook implementations (post-tool-use.cjs, session-start.cjs).
+The tool input payload is not logged (only tool name + file path) to keep log
+files compact.]
+[ASSUMPTION: ISO timestamp for the filename is generated via
+`new Date().toISOString().replace(/[:.]/g, "-")` — avoids filesystem-illegal
+characters on Windows.]
+
+Isolation: SOLAR-only (logs/ is gitignored and never referenced by pipeline agents
+during active execution)
+
+---
+
+**Decision Gate:** All of the following must be true before Phase 5 is considered
+complete:
+
+1. `solar-bootstrap.agent.md` has the greedy-capture constraint in place (never
+   omit a field, emit `INFERRED:` or `LOW-CONFIDENCE:` instead); the scan Step 3
+   report includes the soft nudge directing the user to review
+   `solar-project-profile.json` if flagged values appear. Setup commands run
+   freely — no blocking gate.
+2. AGENTS.md is reduced to 40-60 lines containing only the 5-layer baseline,
+   instruction precedence, role roster, and session-type table (no pipeline bodies,
+   no Pipeline Contracts section, no pointer line — governor `<pipeline_selection>`
+   block serves as the index); all Pipeline 0-4 stage bodies exist as generic,
+   stack-agnostic files in solar-system/pipelines/\*.md; governor
+   `<pipeline_selection>` instruction references the pipeline files and the
+   tiered-context gate table includes the pipeline file read row.
+3. All agent.md files pass the stack-agnostic audit (no hard-coded npm/React/
+   Prisma/ESLint references in instruction bodies); prompt-authoring-guide.md has
+   the Project-Unbiased Writing Rules section.
+4. output-position-contract.md exists with write-safe rules (read before edit,
+   correct-section placement, template-match before create); Implementation
+   Specialist, Docs Curator, and at least one other agent carry the
+   `<output_contract>` block; solar.instructions.md has the Format Safety Rules
+   section. SCOPE: target-repo file writes only — not SOLAR internal artefacts.
+5. session-start.cjs creates a new per-session JSON log in solar-system/logs/;
+   post-tool-use.cjs appends compact JSON events to the active log; stop.cjs
+   writes SESSION_END and clears .current-session; LOG-SOURCES.md exists.
+
+**Risk:** S9 AGENTS.md redesign is the highest-risk item. Removing pipeline stage
+bodies from AGENTS.md and moving them to JIT-loaded files changes the governor's
+information access pattern. If the governor does not consistently load the pipeline
+file before executing a stage, it will operate with incomplete stage knowledge.
+The pipeline-load instruction in orchestration-governor.agent.md is the single
+point of failure — it must be unambiguous and tested with a full Pipeline 4 run
+before this phase closes.
+
+S12 hook modifications touch stop.cjs, which is the loop-continuation enforcement
+hook. Any error in the stop.cjs modification could silently disable loop enforcement.
+Verify loop continuation still fires after stop.cjs changes by running a
+two-step loop session and confirming the exit-block message still appears.
+
+**Open Decisions to Resolve First:**
+
+- S9 AGENTS.md split approach: remove pipeline bodies from AGENTS.md in place
+  (single edit) vs. write pipeline files first, verify governor can load them,
+  then remove from AGENTS.md (two-step). Must be resolved before any AGENTS.md
+  edits.
+  [Recommended: two-step — write pipeline files first, add governor load
+  instruction, verify one full pipeline run, then remove pipeline bodies from
+  AGENTS.md. This ensures there is never a moment where pipeline detail is
+  inaccessible.]
+
+- S12 log file rotation: delete oldest file when maxFiles limit is reached vs.
+  keep all and warn. Must be resolved before session-start.cjs is written.
+  [Recommended: delete oldest on session start if count exceeds maxFiles;
+  silent deletion, no warning — log files are diagnostic, not auditable records.]
+
+---
+
 ## Step 3 — Summary Table
 
-| Phase | Sections                                        | Gate                                                                                                   | Highest Risk                                          | Status      |
-| ----- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ----------- |
-| 1     | S4 Isolated Self-Improvement, S3 Pipeline Cores | solar-system/ live; hooks verified; compaction-policy.md written; S3 Open Decision resolved            | post-tool-use.cjs / user-prompt-submit.cjs regression | Not Started |
-| 2     | S6 Inquiry-First, S2 Designer-Implementer       | Watch Mode fires correctly; schema written; adversarial manifest written; Pipeline 4 regression clean  | pre-tool-use.cjs Watch Mode over-broad pattern match  | Not Started |
-| 3     | S7 Handoffs/Lifecycle, S1 Lightweight Routing   | SubagentStart/Stop verified; typed schemas live; Router pipeline functional; governor roster declared  | ledger template migration breaking in-flight sessions | Not Started |
-| 4     | S5 Interleaved Thinking / Compaction            | pre-compact.cjs fires; effort: field live; JIT guide written; governor compaction instruction in place | effort simulation phantom compliance (unverifiable)   | Not Started |
+| Phase | Sections                                        | Gate                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Highest Risk                                                                             | Status      |
+| ----- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------- |
+| 1     | S4 Isolated Self-Improvement, S3 Pipeline Cores | solar-system/ live; hooks verified; compaction-policy.md written; S3 Open Decision resolved                                                                                                                                                                                                                                                                                                                                                              | post-tool-use.cjs / user-prompt-submit.cjs regression                                    | Not Started |
+| 2     | S6 Inquiry-First, S2 Designer-Implementer       | Watch Mode fires correctly; schema written; adversarial manifest written; Pipeline 4 regression clean                                                                                                                                                                                                                                                                                                                                                    | pre-tool-use.cjs Watch Mode over-broad pattern match                                     | Not Started |
+| 3     | S7 Handoffs/Lifecycle, S1 Lightweight Routing   | SubagentStart/Stop verified; typed schemas live; Router pipeline functional; governor roster declared                                                                                                                                                                                                                                                                                                                                                    | ledger template migration breaking in-flight sessions                                    | Not Started |
+| 4     | S5 Interleaved Thinking / Compaction            | pre-compact.cjs fires; effort: field live; JIT guide written; governor compaction instruction in place                                                                                                                                                                                                                                                                                                                                                   | effort simulation phantom compliance (unverifiable)                                      | Not Started |
+| 5     | S8-S12 Gap Closure (FB-3,6,12,15,17)            | scan greedy-capture constraint live + soft nudge in Step 3 report; AGENTS.md reduced to 40-60 line operating contract (no pipeline bodies, no pointer line); JIT pipeline files in solar-system/pipelines/ generic and stack-agnostic; governor `<pipeline_selection>` instruction + tiered-context gate updated; agents pass bias-free audit; output-position-contract.md + `<output_contract>` blocks in agents; per-session JSON log created by hooks | AGENTS.md JIT regression on Pipeline 4; stop.cjs loop enforcement intact after S12 edits | Not Started |
 
 ---
 

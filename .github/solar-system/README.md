@@ -11,7 +11,9 @@ This directory is the **SOLAR-Ralph isolated self-improvement boundary**.
 | `schemas/`     | Typed handoff JSON schemas for inter-agent output contracts (Phase 2+)                |
 | `adversarial/` | Adversarial vulnerability pattern checklist for prompt injection detection (Phase 2+) |
 | `protocols/`   | Lifecycle coordination, session resumption, and inquiry-first protocols (Phase 2+)    |
-| `patterns/`    | Orchestration pattern cost/latency classification (Phase 3+)                          |
+| `patterns/`    | Orchestration pattern cost/latency classification; output-position contract (Phase 3+, 5+) |
+| `pipelines/`   | JIT-loaded pipeline stage definitions (Pipeline 0-4); loaded by governor at runtime (Phase 5+) |
+| `logs/`        | Per-session activity log JSON files (gitignored); created by `session-start.cjs` (Phase 5+) |
 
 ## What does NOT belong here
 
@@ -45,3 +47,4 @@ self-improvement, and governance operations only.
 ## Directory Created
 
 Phase 1 of SOLAR-Ralph v4 implementation (2026-04-04).
+Phase 5 additions: `pipelines/` (JIT pipeline files), `logs/` (per-session activity log, gitignored), `patterns/output-position-contract.md`.

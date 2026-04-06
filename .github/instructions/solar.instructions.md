@@ -239,3 +239,38 @@ constrained decoding. Route to Security Auditor only when:
 For standard feature work with a schema-conformant plan, trust the Design Planning
 Architect output and proceed to implementation delegation without an additional
 Security Auditor review pass.
+
+---
+
+## 🛡️ Format Safety Rules (S11)
+
+These rules apply to all agents that modify or create files in the **target repository**. They prevent wrong-position output — placing content in the wrong section or inventing document structure.
+
+### Before modifying any existing file
+
+- Read the **full current file** before making any edit.
+- Identify all existing section headers and their order.
+- Place new content **only inside the correct matching section** — not an approximate or nearby section.
+- Do NOT add, remove, or reorder sections unless explicitly instructed by the user or the design doc.
+
+### Before creating any new file
+
+- Search the target repo for a matching template (e.g., `docs/templates/`) before writing any structure.
+- If a matching template exists: use it as the skeleton with no structural invention.
+- If no template exists: ask the user or Design Planning Architect for a skeleton — do NOT invent structure.
+
+### Wrong-position rule
+
+If the correct section for new content cannot be identified with confidence:
+
+- STOP. Do not write to an approximate location.
+- Output: `Output position unclear — please specify the target section or provide a template.`
+- Record the blockage in `.github/.ai_ledger.md` under Blockers.
+
+Wrong-position output is a formatting defect and a review finding. It triggers a repair iteration.
+
+### Scope
+
+Target repo = project source files, docs, configs. SOLAR internal `.github/` artefact writes are governed by their own per-agent instructions and are **out of scope** for these rules.
+
+Full specification: `.github/solar-system/patterns/output-position-contract.md`

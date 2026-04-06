@@ -389,7 +389,7 @@ After all 5 passes complete, write `.github/solar-project-profile.json`:
 
 5. **FALLBACK PROTOCOL**: If a value cannot be detected, write `NEEDS MANUAL INPUT` — never guess or hallucinate.
 
-6. **INFERRED VALUES**: If a value is an assumption, write `INFERRED: [value]` so the human can verify.
+6. **GREEDY CAPTURE**: Never omit a profile field because evidence is ambiguous. Always emit a value — use `INFERRED: [value]` for assumed values and `LOW-CONFIDENCE: [value]` for values with weak signal. A profile that over-captures with confidence flags is preferable to a sparse profile; the user review step is the quality gate.
 
 7. **SILENCE RULES**: No "I will now...", no "Let me...", no explanations before acting. Show the indicator, do the work, report completion.
    </critical_constraints>

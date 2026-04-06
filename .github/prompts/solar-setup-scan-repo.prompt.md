@@ -58,6 +58,7 @@ Detected:
 Next steps:
 - Run /solar-setup-quick to apply config from this profile
 - Or run /solar-setup-full for Tier 2 adaptive setup
+- If `INFERRED:` or `LOW-CONFIDENCE:` values appear above, review `.github/solar-project-profile.json` and correct before or after running setup.
 ```
 
 </execution_steps>

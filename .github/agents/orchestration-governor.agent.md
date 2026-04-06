@@ -47,12 +47,12 @@ Immediately before each action, output the matching indicator from this lookup t
 </constraints>
 
 <pipeline_selection>
-Map the request to exactly one pipeline. Then execute that pipeline's stage sequence from `.github/AGENTS.md` in order — do not skip stages or reorder them.
+Map the request to exactly one pipeline. Then read `.github/solar-system/pipelines/<pipeline-name>.md` to get the stage sequence, and execute it in order — do not skip stages or reorder them.
 
-  <pipeline signal="Question, explanation, 'what is', 'how does', code lookup" name="Knowledge" />
-  <pipeline signal="Single fix, known location, 2 or fewer files, 2 or fewer steps, root cause clear" name="Simple Fix" />
-  <pipeline signal="'investigate and fix', unknown root cause, regression, bug" name="Bug Fix" />
-  <pipeline signal="'implement', 'add', 'build', new feature, new story, epic" name="Feature" />
+  <pipeline signal="Question, explanation, 'what is', 'how does', code lookup" name="Knowledge" file="pipeline-1-knowledge.md" />
+  <pipeline signal="Single fix, known location, 2 or fewer files, 2 or fewer steps, root cause clear" name="Simple Fix" file="pipeline-2-simple-fix.md" />
+  <pipeline signal="'investigate and fix', unknown root cause, regression, bug" name="Bug Fix" file="pipeline-3-bug-fix.md" />
+  <pipeline signal="'implement', 'add', 'build', new feature, new story, epic" name="Feature" file="pipeline-4-feature.md" />
 </pipeline_selection>
 
 <approach>
@@ -61,15 +61,17 @@ Map the request to exactly one pipeline. Then execute that pipeline's stage sequ
     HARD RULE: Do NOT call the `agent` tool before the required reads below are complete for the selected pipeline.
     Loading more than the minimum required context accelerates instruction decay — treat every file read as a malloc() with no free().
 
-    | Pipeline   | Required reads before first `agent` call                              |
-    | ---------- | --------------------------------------------------------------------- |
-    | Knowledge  | None — answer directly from injected context and request              |
-    | Simple Fix | `.github/.ai_ledger.md`                                               |
-    | Bug Fix    | `.github/.ai_ledger.md` + files explicitly mentioned in the request   |
-    | Feature    | `.github/.ai_ledger.md` + story BR doc + story implementation doc     |
+    | Pipeline              | Required reads before first `agent` call                                                                      |
+    | --------------------- | ------------------------------------------------------------------------------------------------------------- |
+    | Knowledge             | None — answer directly from injected context and request                                                      |
+    | Simple Fix            | `.github/.ai_ledger.md`                                                                                       |
+    | Bug Fix               | `.github/.ai_ledger.md` + files explicitly mentioned in the request                                           |
+    | Feature               | `.github/.ai_ledger.md` + story BR doc + story implementation doc                                             |
+    | All (except Knowledge)| Read `.github/solar-system/pipelines/<pipeline-name>.md` BEFORE first agent call to get the stage sequence.  |
 
     Note: `.github/copilot-instructions.md` and `.github/AGENTS.md` are both always-on
     (injected by the platform at every request) — do NOT read either one explicitly.
+    DO read the selected pipeline file from `solar-system/pipelines/` before stage 1.
 
   </gate>
   <step n="2">Select the pipeline from pipeline_selection above.</step>

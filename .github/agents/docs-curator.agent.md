@@ -36,3 +36,13 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 - Follow-up docs still needed
 
 </output_format>
+
+<output_contract>
+Before writing to any existing target-repo file:
+1. Read the full current file first.
+2. Identify the correct target section — do not place content in an approximate section.
+3. If creating a new file, search the target repo for a matching template first.
+4. If correct section or template cannot be confirmed: STOP and ask rather than guessing.
+
+Full rules: `.github/solar-system/patterns/output-position-contract.md`
+</output_contract>

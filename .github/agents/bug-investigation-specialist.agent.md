@@ -37,7 +37,7 @@ Output each line immediately before the corresponding step. Do not batch.
 2. Identify the affected module, function, or component.
 3. **Write a reproduction script before classifying:**
    - If a failing test exists: run it. If it passes, stop — the bug may already be fixed or description is wrong. Report this immediately.
-   - If no test exists: write a minimal standalone reproduction script using `curl` (for API bugs) or a targeted Vitest integration test (for logic bugs). The script must fail with the expected error message. Lock in a mini-loop (max 3 attempts) until the script confirms the failure is reproducible.
+   - If no test exists: write a minimal standalone reproduction script using `curl` (for API bugs) or a targeted integration test for the affected lane (for logic bugs). The script must fail with the expected error message. Lock in a mini-loop (max 3 attempts) until the script confirms the failure is reproducible.
    - If reproduction fails after both attempts: record `Root Cause Hint: Could not reproduce — investigate test environment and input assumptions` and escalate.
    - **Output the reproduction script as part of your findings** — it becomes the verification target for the fix loop.
 4. Trace the data or control flow from the confirmed failure point backward to the root cause.

@@ -96,6 +96,16 @@ Required fields:
 Compliance is instruction-enforced. If required fields are missing, the governor must not approve the plan and may escalate per `.github/solar-system/adversarial/skeleton-manifest.md`.
 </output_contract>
 
+<write_safe_contract>
+When writing to any doc file in the target repository (implementation docs, BR docs, README sections):
+1. Read the full current file before editing.
+2. Identify the correct target section — do not place content in an approximate section.
+3. If creating a new doc file, search the target repo for a matching template first.
+4. If correct section or template cannot be confirmed: STOP and ask rather than guessing.
+
+Full rules: `.github/solar-system/patterns/output-position-contract.md`
+</write_safe_contract>
+
 <spec_first_mode>
 Activate when:
 

@@ -38,7 +38,7 @@ You own cache and external integration work in the backend lane.
 2. Check existing patterns in the repository's backend source tree for cache or external client configuration.
 3. Implement the smallest change that satisfies the acceptance criteria.
 4. Add or update service-layer tests in the repo's test location to cover the new integration path.
-5. Run the repository's type-check and verification command (for example, `npx tsc --noEmit` in TypeScript projects) before declaring the step done.
+5. Run the repository's type-check and verification command (use `[type-check-command]` as resolved from `.github/instructions/*.instructions.md` or `solar-project-profile.json`) before declaring the step done.
 6. Update `.github/.ai_ledger.md` with the outcome and any discovered integration constraints.
 
 Search preference: Use `grep_search` and `file_search` by default. Only use `semantic_search` as a last resort when exact text or filename patterns are completely unknown — it can hang for up to 7 minutes in subagent environments.

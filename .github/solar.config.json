@@ -121,5 +121,12 @@
     "manual-test": "manual-test",
     "plan": "plan",
     "bootstrap": "bootstrap"
+  },
+  "logging": {
+    "sessionLog": {
+      "enabled": true,
+      "path": ".github/solar-system/logs/",
+      "maxFiles": 20
+    }
   }
 }

@@ -19,7 +19,7 @@ Apply instructions in this order when guidance overlaps:
 1. User request and current task constraints
 2. `.github/copilot-instructions.md`
 3. `.github/AGENTS.md`
-4. Path-specific instructions in `apps/frontend/.instructions.md` and `apps/backend/.instructions.md`
+4. Path-specific `.instructions.md` files (scoped by `applyTo` glob)
 5. Matching skills and agent definitions
 6. `.github/instructions/*.instructions.md` facts and `.github/.ai_ledger.md`
 
@@ -28,254 +28,28 @@ Memory never overrides source-of-truth documentation. If memory and docs disagre
 ## Core Roles
 
 - Orchestration Governor: owns intake, delegation, escalation, and completion decisions
-- Design Planning Architect: owns solution shaping, decomposition strategy, architecture-fit checks, and high-signal planning output before implementation starts
+- Design Planning Architect: owns solution shaping, decomposition strategy, and high-signal planning before implementation starts
 - Frontend Implementation Specialist: owns UI, routing, client integration, and state changes
 - Frontend Review Auditor: challenges frontend correctness, regressions, accessibility, and maintainability
 - Frontend Test Specialist: owns frontend test coverage and failure triage
 - Backend Implementation Specialist: owns API, service, data, and integration changes
 - Backend Review Auditor: challenges backend correctness, data integrity, and contract safety
 - Backend Test Specialist: owns backend and integration tests
-- Cache and External Integration Specialist: owns Redis cache layers, external HTTP clients, TTL policies, and retry/circuit-breaker patterns in the backend
+- Cache and External Integration Specialist: owns cache layers, external HTTP clients, TTL policies, and retry/circuit-breaker patterns
 - Security Auditor: challenges auth, validation, secret handling, and high-risk flows
+- Bug Investigation Specialist: traces bug root causes; does not implement fixes
 - Docs Curator: keeps rollout, implementation, and knowledge artifacts aligned
-
-## Operating Artifacts
-
-- `.github/.ai_ledger.md`: active work queue, blockers, verification state, and completion promises
-- `.github/instructions/*.instructions.md`: concise durable facts verified from the current codebase (auto-loaded by Copilot via `applyTo` patterns)
-- Repo docs: durable guidance, workflow rules, templates, and architectural decisions
-
-## Write-Back Rule
-
-When any agent verifies a new fact during work — a real command, a file path, a naming convention, an API contract — it **must write it back** to the relevant `.github/instructions/*.instructions.md` file before proceeding:
-
-- Replace the matching `[FILL IN]` or `[SCAN-INCOMPLETE]` placeholder with the verified value.
-- If no placeholder exists, append as a new bullet under the relevant section.
-- Flag conflicts with `// CONFLICT: <existing-value>` rather than silently overwriting.
-- This makes instruction files self-evolving: they grow accurate through every task, not just at setup time.
+- Release Readiness Specialist: verifies pipeline readiness before closure
 
 ## Session-Type Reference
 
-| Session-Type  | Stop Hook Behaviour                | When to Use                                                                                           |
-| ------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `chat`        | Allows clean exit                  | Governor planning, single delegation, knowledge queries                                               |
-| `loop`        | Blocks exit, enforces continuation | `/ralph-loop` autonomous execution                                                                    |
-| `manual-test` | Silent — no blocking, no message   | Human is interacting with the app; agent observes and reports findings without enforcing continuation |
+| Session-Type  | Stop Hook Behaviour                | When to Use                                                      |
+| ------------- | ---------------------------------- | ---------------------------------------------------------------- |
+| `chat`        | Allows clean exit                  | Governor planning, single delegation, knowledge queries          |
+| `loop`        | Blocks exit, enforces continuation | `/ralph-loop` autonomous execution                               |
+| `manual-test` | Silent — no blocking, no message   | Human testing; agent observes and reports without enforcing exit |
 
 ## Execution Mode
 
 Chat mode (`@orchestration-governor`): planning only — produces a plan and waits. Use for questions, single lookups, and scoping.
 Loop mode (`/ralph-loop`): autonomous execution — runs multiple steps unattended until completion promise is met. Use for stories, bugs, and multi-step tasks.
-
-When in doubt, prefer loop mode for any task that involves code changes.
-
-## Pipeline Contracts
-
-Every request maps to exactly one pipeline. Execute stages in order. Do not skip stages except where explicitly marked conditional.
-
-Record the active pipeline and current stage in `.github/.ai_ledger.md` Current Objective:
-
-```
-- Pipeline: Bug Fix
-- Pipeline Stage: 1 — Bug Investigation
-```
-
-Update the stage field after each stage completes.
-
----
-
-### Pipeline 0: Router
-
-**Signal:** explicit single-agent dispatch, quick-question with a known answering agent, targeted-fix with a known specialist
-
-The Router pipeline dispatches a single agent directly without full pipeline overhead. The governor reads the request signal, matches it to the routing table below, and delegates once. No loop, no planner, no review stage — the user must explicitly request those if needed.
-
-**Routing Table (static — OD-1 Option A):**
-
-| Signal type      | Example triggers                                                       | Target agent                        |
-| ---------------- | ---------------------------------------------------------------------- | ----------------------------------- |
-| `quick-question` | "what does X do", "explain Y", code lookup                             | Explore (read-only subagent)        |
-| `targeted-fix`   | "fix line N in file X", single known location, no root cause ambiguity | Implementation Specialist           |
-| `backend-fix`    | "fix this backend error", known backend location                       | Backend Implementation Specialist   |
-| `frontend-fix`   | "fix this frontend error", known frontend location                     | Frontend Implementation Specialist  |
-| `security-check` | "audit this for XSS", "check this route for auth issues"               | Security Auditor                    |
-| `docs-update`    | "update the README", "add doc for X"                                   | Docs Curator                        |
-| `test-repair`    | "fix this failing test", "add a test for X"                            | Backend or Frontend Test Specialist |
-
-**Router pipeline stages:**
-
-```
-Governor
-└─ Match signal to routing table entry
-└─ Delegate to target agent (single call, no loop)
-└─ Receive result
-└─ Close (no ledger task required for quick-question; write brief ledger note for any code change)
-```
-
-**Bypass conditions for router:**
-
-- Router does NOT trigger for new features, epics, or any request that requires design decomposition → use Pipeline 4 (Feature).
-- Router does NOT trigger for bug investigation requests with unknown root cause → use Pipeline 3 (Bug Fix).
-- Router does NOT trigger when the governor judges that more than 2 files need changing → escalate to Pipeline 2 or 3.
-
-Session-Type: `chat` throughout. No `/ralph-loop` for router dispatches.
-
----
-
-### Pipeline 1: Knowledge
-
-**Signal:** question, explanation, "what is", "how does", code lookup
-
-```
-Governor → Answer directly. No ledger task. No loop. No specialists.
-```
-
----
-
-### Pipeline 2: Simple Fix
-
-**Signal:** single known location, ≤2 files, ≤2 steps, root cause already clear
-
-```
-Governor
-└─ 1. Implementation Specialist (frontend or backend)
-└─ 2. Test Specialist (if logic changed)
-└─ 3. Close
-```
-
-Session-Type: `chat` throughout. No `/ralph-loop` needed.
-
----
-
-### Pipeline 3: Bug Fix
-
-**Signal:** "investigate and fix", "bug in X", unknown root cause, regression, multi-step fix
-
-```
-Governor
-└─ 1. Bug Investigation Specialist
-      ├─ simple root cause  → skip stage 2, go to stage 3
-      └─ architectural root cause → stage 2
-└─ 2. Design Planning Architect  [conditional: architectural only]
-      └─ Output: decomposed work packages written to ledger
-└─ 3. /ralph-loop  [Session-Type: loop]
-      └─ Implementation Specialist + Test Specialist per iteration
-└─ 4. Review Auditor (frontend and/or backend)
-      ├─ Findings exist → one repair iteration back to stage 3
-      └─ No findings → stage 5
-└─ 5. Security Auditor  [conditional: only if auth/JWT/CORS/cookies touched]
-└─ 6. Close  [Session-Type: chat, WORK_PACKAGE_COMPLETE]
-      Log-Backpressure Gate: before writing WORK_PACKAGE_COMPLETE, the agent MUST run the
-      original reproduction script from stage 1 and confirm it no longer produces the error.
-      Provide the passing log/output as evidence in the Completion Notes section of the ledger.
-      A bug fix is NOT complete until the reproduction script passes.
-```
-
----
-
-### Pipeline 4: Feature
-
-**Signal:** "implement", "add", "build", new feature, story, epic, "story-X"
-
-```
-Governor
-└─ 1. Design Planning Architect
-      └─ Output: decomposed work packages written to ledger
-└─ 2. /ralph-loop  [Session-Type: loop]
-      └─ Implementation Specialist + Test Specialist per iteration
-└─ 3. Review Auditor (frontend and/or backend)
-      ├─ Findings exist → one repair iteration back to stage 2
-      └─ No findings → stage 4
-└─ 4. Security Auditor  [conditional: only if auth/JWT/CORS/cookies touched]
-└─ 5. Docs Curator
-└─ 6. Close  [Session-Type: chat, WORK_PACKAGE_COMPLETE]
-```
-
----
-
-## Mandatory Delegation Matrix
-
-These rules fire based on task signal, NOT on governor judgment. No exceptions.
-
-| Signal                                                   | Required Agent                            | When                            |
-| -------------------------------------------------------- | ----------------------------------------- | ------------------------------- |
-| New story, epic, or feature                              | Design Planning Architect                 | BEFORE any implementation       |
-| Bug with unknown root cause                              | Bug Investigation Specialist              | BEFORE any fix attempt          |
-| Complex or architectural root cause (from investigation) | Design Planning Architect                 | AFTER investigation, BEFORE fix |
-| Frontend code changes                                    | Frontend Implementation Specialist        | Always                          |
-| Backend code changes                                     | Backend Implementation Specialist         | Always                          |
-| Frontend changes complete                                | Frontend Review Auditor                   | BEFORE closure                  |
-| Backend changes complete                                 | Backend Review Auditor                    | BEFORE closure                  |
-| Auth, JWT, cookies, CORS, secrets, permissions touched   | Security Auditor                          | BEFORE closure                  |
-| Redis, external HTTP client, TTL, retry, or cache work   | Cache and External Integration Specialist | Always                          |
-| New logic or component                                   | Frontend or Backend Test Specialist       | Always                          |
-| Doc or template changes                                  | Docs Curator                              | BEFORE closure                  |
-
-High-intelligence agents (Design Planning Architect, Security Auditor) are invoked at well-defined entry points only — NOT for repeated iteration steps. This prevents cost spikes while ensuring they run where judgment matters.
-
-## Verification Contract
-
-No work package is complete until these are satisfied when relevant:
-
-- Targeted tests pass
-- Type or build checks pass for the affected lane
-- Reviewer findings are either resolved or explicitly escalated
-- Documentation impact is captured
-- `.github/.ai_ledger.md` reflects the current state
-
-Verification findings must be summarized under the ledger sections for verification failures, review findings, and next actions.
-
-When recording a failure in `.github/.ai_ledger.md`, agents MUST include all three fields — a bare "test failed" entry is not acceptable:
-
-```
-- Verification Step: <what was checked>
-- Failure: <what failed and the error output summary>
-- Root Cause Hint: <why it failed + semantic direction for the fix>
-```
-
-The Root Cause Hint is the "semantic gradient" for the next iteration. It must state a direction — not just what broke, but which concept, abstraction, or data path to investigate next. This prevents repeated identical failures with no new hypothesis.
-
-## Recursive Refinement Contract
-
-Each bounded loop follows:
-
-1. Plan the next smallest meaningful step
-2. Implement only that step
-3. Verify with the narrowest relevant checks
-4. Repair failures or record blockers
-5. Repeat until one completion promise is true
-
-### Completion Promise Workflow
-
-**How to emit a completion promise:**
-
-1. Perform all required verification (tests, reviews, audits pass)
-2. Document evidence in `.github/.ai_ledger.md` Completion Notes section
-3. **Replace the "Completion Promise" field** in "Current Objective" section:
-   - From: `Completion Promise: pending`
-   - To: `Completion Promise: <promise>WORK_PACKAGE_COMPLETE</promise>` (or BLOCKED/ESCALATION_REQUIRED)
-4. The Stop hook will detect the non-pending promise and allow the session to exit
-
-**Important:** The promise tag goes in the "Completion Promise" field (Current Objective section), NOT in a separate Completion Notes tag.
-
-Supported completion promises:
-
-- `<promise>WORK_PACKAGE_COMPLETE</promise>` — All work done, all verifications pass, ready to close
-- `<promise>WORK_PACKAGE_BLOCKED</promise>` — Work blocked by external dependency, blocker documented in ledger
-- `<promise>ESCALATION_REQUIRED</promise>` — Issue exceeds agent scope, escalated to human decision
-
-Loop guardrails:
-
-- Default maximum iterations per work package: `3`
-- Escalate instead of looping if the same failure repeats without a new hypothesis
-- Stop if the task requires policy, product, or external-system decisions that are not documented
-
-## Stop Conditions
-
-The agency may stop only when one of these is true:
-
-- The active work package has a completion promise and no unresolved verification failures
-- The ledger records a blocker with a concrete escalation reason
-- The request is complete and all touched docs are synchronized
-
-If none of the above is true, continue the bounded loop or escalate.

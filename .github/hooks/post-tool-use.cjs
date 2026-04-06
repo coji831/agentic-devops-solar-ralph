@@ -21,6 +21,68 @@ function resolveErrorsPath(cfg) {
   return path.join(base, "ERRORS.md");
 }
 
+function isWriteOp(toolName) {
+  return /edit|creat|appl|insert|delet|writ|replac/i.test(toolName);
+}
+
+function resolveSessionLogDir(cfg) {
+  return cfg.logging.sessionLog.path
+    ? path.resolve(__dirname, "../../", cfg.logging.sessionLog.path)
+    : path.resolve(__dirname, "../solar-system/logs/");
+}
+
+function appendSessionEvent(input) {
+  try {
+    const cfg = loadConfig();
+    if (
+      !cfg ||
+      !cfg.logging ||
+      !cfg.logging.sessionLog ||
+      cfg.logging.sessionLog.enabled === false
+    )
+      return;
+    const logDir = resolveSessionLogDir(cfg);
+    const currentSessionRef = path.join(logDir, ".current-session");
+    if (!fs.existsSync(currentSessionRef)) return;
+    const activeLogPath = fs.readFileSync(currentSessionRef, "utf8").trim();
+    if (!activeLogPath || !fs.existsSync(activeLogPath)) return;
+    const toolName = (
+      input.toolName ||
+      input.tool ||
+      input.name ||
+      "unknown"
+    ).toLowerCase();
+    const toolFailed = !!(input.error || input.isError === true);
+    const filePath = input.filePath || input.path || "";
+    const event = {
+      t: new Date().toISOString(),
+      tool: toolName,
+      ok: !toolFailed,
+    };
+    if (filePath) event.file = filePath;
+    if (toolFailed && input.error)
+      event.note = String(input.error).slice(0, 200);
+    try {
+      const logData = JSON.parse(fs.readFileSync(activeLogPath, "utf8"));
+      logData.events.push(event);
+      fs.writeFileSync(activeLogPath, JSON.stringify(logData, null, 2), "utf8");
+    } catch (e) {
+      /* append is best-effort */
+    }
+  } catch (e) {
+    /* session log is best-effort; never block main hook logic */
+  }
+}
+
+function resolveSessionMode(config) {
+  const ledger = fs.existsSync(path.resolve(__dirname, "../.ai_ledger.md"))
+    ? fs.readFileSync(path.resolve(__dirname, "../.ai_ledger.md"), "utf8")
+    : "";
+  const match = ledger.match(/Session-Type:\s*(\w+)/i);
+  const sessionType = match ? match[1].toLowerCase() : "chat";
+  return config.sessionTypes?.[sessionType] || "simple";
+}
+
 function buildTscMessage(cfg, currentMode) {
   const modeConfig = cfg.modes?.[currentMode] || {};
   if (
@@ -55,17 +117,17 @@ process.stdin.on("end", () => {
   // Outer catch-all: VS Code hook contract requires { continue: true } on any crash
   try {
     const input = JSON.parse(data || "{}");
+
+    appendSessionEvent(input); // Phase 5 S12: best-effort session activity log
+
     const toolName = (
       input.toolName ||
       input.tool ||
       input.name ||
       ""
     ).toLowerCase();
-    const isWriteOp = /edit|creat|appl|insert|delet|writ|replac/i.test(
-      toolName,
-    );
 
-    if (!isWriteOp) {
+    if (!isWriteOp(toolName)) {
       console.log(JSON.stringify({ continue: true }));
       return;
     }
@@ -83,15 +145,7 @@ process.stdin.on("end", () => {
       return;
     }
 
-    const ledger = fs.existsSync(path.resolve(__dirname, "../.ai_ledger.md"))
-      ? fs.readFileSync(path.resolve(__dirname, "../.ai_ledger.md"), "utf8")
-      : "";
-
-    const sessionTypeMatch = ledger.match(/Session-Type:\s*(\w+)/i);
-    const sessionType = sessionTypeMatch
-      ? sessionTypeMatch[1].toLowerCase()
-      : "chat";
-    const currentMode = config.sessionTypes?.[sessionType] || "simple";
+    const currentMode = resolveSessionMode(config);
 
     if (currentMode === "bootstrap") {
       console.log(JSON.stringify({ continue: true }));

@@ -19,17 +19,47 @@ if (
   process.exit(0);
 }
 
-const ledgerPath = path.resolve(__dirname, "../.ai_ledger.md");
-const ledger = fs.existsSync(ledgerPath)
-  ? fs.readFileSync(ledgerPath, "utf8")
-  : "";
+// --- helpers ---
 
-// Determine current mode from Session-Type in ledger
-const sessionTypeMatch = ledger.match(/Session-Type:\s*(\w+)/i);
-const sessionType = sessionTypeMatch
-  ? sessionTypeMatch[1].toLowerCase()
-  : "chat";
-const currentMode = config.sessionTypes?.[sessionType] || "simple";
+function readLedger() {
+  const ledgerPath = path.resolve(__dirname, "../.ai_ledger.md");
+  return fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath, "utf8") : "";
+}
+
+function resolveSessionMode(cfg, ledger) {
+  const match = ledger.match(/Session-Type:\s*(\w+)/i);
+  const sessionType = match ? match[1].toLowerCase() : "chat";
+  return cfg.sessionTypes?.[sessionType] || "simple";
+}
+
+function resolveSessionLogDir(cfg) {
+  return cfg.logging.sessionLog.path
+    ? path.resolve(__dirname, "../../", cfg.logging.sessionLog.path)
+    : path.resolve(__dirname, "../solar-system/logs/");
+}
+
+function finalizeSessionLog(cfg) {
+  try {
+    if (!cfg.logging || !cfg.logging.sessionLog || cfg.logging.sessionLog.enabled === false) return;
+    const logDir = resolveSessionLogDir(cfg);
+    const currentSessionRef = path.join(logDir, ".current-session");
+    if (!fs.existsSync(currentSessionRef)) return;
+    const activeLogPath = fs.readFileSync(currentSessionRef, "utf8").trim();
+    if (activeLogPath && fs.existsSync(activeLogPath)) {
+      try {
+        const logData = JSON.parse(fs.readFileSync(activeLogPath, "utf8"));
+        logData.events.push({ t: new Date().toISOString(), tool: "SESSION_END", ok: true });
+        fs.writeFileSync(activeLogPath, JSON.stringify(logData, null, 2), "utf8");
+      } catch (e) { /* best-effort */ }
+    }
+    try { fs.unlinkSync(currentSessionRef); } catch (e) { /* best-effort */ }
+  } catch (e) { /* session log teardown is best-effort; never block stop logic */ }
+}
+
+// --- main ---
+
+const ledger = readLedger();
+const currentMode = resolveSessionMode(config, ledger);
 
 // Bootstrap mode bypass - governance disabled during setup
 if (currentMode === "bootstrap") {
@@ -63,6 +93,8 @@ const completionOptions =
   "<promise>WORK_PACKAGE_COMPLETE</promise> (all work verified done), " +
   "<promise>WORK_PACKAGE_BLOCKED</promise> (blocked, no new hypothesis, documented), " +
   "<promise>ESCALATION_REQUIRED</promise> (needs human decision).";
+
+finalizeSessionLog(config); // Phase 5 S12: write SESSION_END and clear .current-session
 
 console.log(
   JSON.stringify({
