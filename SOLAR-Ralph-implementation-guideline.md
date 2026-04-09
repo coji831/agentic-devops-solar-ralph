@@ -122,25 +122,19 @@ If automated setup fails, run individual steps:
 
    Review `.github/solar-setup.md` and correct any misdetections
 
-2. **Apply core config:**
+2. **Apply configuration:**
 
    ```
-   /solar-setup-core-config
+   /solar-setup-apply-config
    ```
 
-3. **Apply agent config (optional):**
+3. **Create instruction scaffolding:**
 
    ```
-   /solar-setup-agent-config
+   /solar-setup-instructions
    ```
 
-4. **Create scaffolding:**
-
-   ```
-   /solar-setup-scaffold
-   ```
-
-5. **Manually activate:** Edit `.github/solar.config.json`, set `"active": true`
+4. **Manually activate:** Edit `.github/solar.config.json`, set `"active": true`
 
 ---
 

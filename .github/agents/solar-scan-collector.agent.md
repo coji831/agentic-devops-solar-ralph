@@ -1,7 +1,7 @@
 ---
 name: Solar Scan Collector
 description: Raw signal extractor for SOLAR-Ralph repo scanning. Extracts verbatim blocks only — no classification, no deduplication, no interpretation.
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
 user-invocable: false
 tools: [read, search, edit]
 ---

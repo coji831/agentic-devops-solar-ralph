@@ -2,7 +2,7 @@
 name: Frontend Implementation Specialist
 description: "Use when implementing frontend domain changes — components, state, routing, client integration, and pages. Actual stack context is loaded from the project's frontend .instructions.md at runtime."
 tools: [read, search, edit, execute, todo]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
 user-invocable: true
 handoffs:
   - label: "Request frontend review"

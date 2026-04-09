@@ -2,7 +2,7 @@
 name: Cache and External Integration Specialist
 description: "Use when implementing or debugging Redis cache layers, external service integrations (third-party APIs, webhooks, external HTTP clients), connection pooling, TTL policies, cache invalidation strategies, or retry/circuit-breaker patterns in the backend."
 tools: [read, search, edit, execute, todo]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
 user-invocable: false
 ---
 

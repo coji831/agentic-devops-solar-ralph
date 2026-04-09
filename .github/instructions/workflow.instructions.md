@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: "[FILL IN — e.g., ** for global or apps/** for monorepo]"
 ---
 
 # Workflow Context

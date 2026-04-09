@@ -1,3 +1,7 @@
+---
+applyTo: "[FILL IN — e.g., apps/frontend/** or src/client/**]"
+---
+
 # SOLAR-Ralph Copilot Instructions
 
 This file contains all SOLAR-specific Copilot instructions, workflows, and overlays. Project-specific instructions should remain in `.github/copilot-instructions.md`.
@@ -23,6 +27,21 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 - Keep durable guidance in `docs/`
 - Use bounded recursive repair loops with explicit completion promises instead of open-ended retry
 - Route frontend, backend, security, review, and documentation work through their matching specialist roles when the SOLAR overlay is active
+
+---
+
+## 📝 Format Safety Rules
+
+**Scope:** All SOLAR agents writing or modifying files in the target repository (project source files, docs, configs). Full rules in `.github/solar-system/patterns/output-position-contract.md`.
+
+### Core Rules
+
+1. **Read before writing** — Read full existing files before modifying; identify section headers and confirm exact placement before writing
+2. **Correct section placement** — Place content only in the matching section header (exact match); never place in approximate or nearby sections
+3. **Use templates** — Always search `docs/templates/` for matching document template before creating new files
+4. **Never invent structure** — If target section or template cannot be determined with confidence, STOP and ask; do not write to approximate location
+
+**Enforcement:** Implementation agents carry `<output_contract>` blocks referencing this contract. Review auditors check output-position compliance as part of review step.
 
 ---
 
@@ -60,11 +79,10 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 
 **Setup Commands:**
 
-- `/solar-setup-quick` — All-in-one setup (scan + config + scaffold + activate) - RECOMMENDED
+- `/solar-setup-quick` — Tier 1: Standard scan + config + scaffold + activate (recommended for most users)
+- `/solar-setup-full` — Tier 2: Greedy scan + domain-adaptive agents, instructions, and workflow files
 - `/solar-setup-scan-repo` — Manual: Auto-detect project stack and paths only
-- `/solar-setup-core-config` — Manual: Apply config to core SOLAR files
-- `/solar-setup-agent-config` — Manual: Apply config to agents, skills, and path instructions
-- `/solar-setup-scaffold` — Manual: Create ledger and memory templates
+- `/solar-setup-apply-config` — Manual: Apply config from profile to core files, agents, and skills
 - `/solar-setup-instructions` — Advanced: Scaffold domain instruction templates on demand
 
 **Activation:**
@@ -239,38 +257,3 @@ constrained decoding. Route to Security Auditor only when:
 For standard feature work with a schema-conformant plan, trust the Design Planning
 Architect output and proceed to implementation delegation without an additional
 Security Auditor review pass.
-
----
-
-## 🛡️ Format Safety Rules (S11)
-
-These rules apply to all agents that modify or create files in the **target repository**. They prevent wrong-position output — placing content in the wrong section or inventing document structure.
-
-### Before modifying any existing file
-
-- Read the **full current file** before making any edit.
-- Identify all existing section headers and their order.
-- Place new content **only inside the correct matching section** — not an approximate or nearby section.
-- Do NOT add, remove, or reorder sections unless explicitly instructed by the user or the design doc.
-
-### Before creating any new file
-
-- Search the target repo for a matching template (e.g., `docs/templates/`) before writing any structure.
-- If a matching template exists: use it as the skeleton with no structural invention.
-- If no template exists: ask the user or Design Planning Architect for a skeleton — do NOT invent structure.
-
-### Wrong-position rule
-
-If the correct section for new content cannot be identified with confidence:
-
-- STOP. Do not write to an approximate location.
-- Output: `Output position unclear — please specify the target section or provide a template.`
-- Record the blockage in `.github/.ai_ledger.md` under Blockers.
-
-Wrong-position output is a formatting defect and a review finding. It triggers a repair iteration.
-
-### Scope
-
-Target repo = project source files, docs, configs. SOLAR internal `.github/` artefact writes are governed by their own per-agent instructions and are **out of scope** for these rules.
-
-Full specification: `.github/solar-system/patterns/output-position-contract.md`

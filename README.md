@@ -42,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/
 
 **2. Setup:** Run `/solar-setup-quick` (or `/solar-setup-full` for advanced customization)
 
-**3. Test:** Run `/ralph-loop "Add a README badge"`
+**3. Test:** Run `/solar "Add a README badge"`
 
 **📖 Detailed Guide:** See [SOLAR-Ralph Implementation Guideline](SOLAR-Ralph-implementation-guideline.md)
 

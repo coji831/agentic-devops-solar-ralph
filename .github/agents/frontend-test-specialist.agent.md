@@ -2,7 +2,7 @@
 name: Frontend Test Specialist
 description: "Use when writing or repairing frontend tests in the repository's frontend area. Stack and test runner context loaded from the project's frontend .instructions.md at runtime."
 tools: [read, search, edit, execute]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), Claude Haiku 4.5 (copilot)]
 user-invocable: true
 ---
 

@@ -2,7 +2,7 @@
 name: Frontend Review Auditor
 description: "Use when reviewing frontend changes for regressions, accessibility, state correctness, rendering risks, or missing tests. Stack context loaded from the project's frontend .instructions.md."
 tools: [read, search, execute]
-model: GPT-4o (copilot)
+model: [GPT-4.1 (copilot), GPT-4o (copilot), Claude Sonnet 4.6 (copilot), GPT-5.2 (copilot)]
 user-invocable: true
 handoffs:
   - label: "Request repair"

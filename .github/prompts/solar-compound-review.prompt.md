@@ -52,11 +52,11 @@ For each promotable pattern, append a new entry to
 **Source:** <ledger entry, task, or observation that confirmed this>
 ```
 
-### Step 4 — Update AGENTS.md Write-Back Rules (if applicable)
+### Step 4 — Update Write-Back Rules (if applicable)
 
 If any of the promotable patterns represent a new governance rule or delegation
 pattern that the governor should follow in future sessions, add it to the
-Write-Back Rules section in `.github/AGENTS.md`.
+Self-Improvement Write-Back Rules section in `.github/instructions/solar.instructions.md`.
 
 Only add governance rules that have been validated in at least one completed work
 package. Do NOT add speculative rules.

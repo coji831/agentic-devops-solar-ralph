@@ -2,7 +2,7 @@
 name: Bug Investigation Specialist
 description: "Use when a bug's root cause is unknown. Reads code, tests, and error output to trace the failure to a specific location. Escalates to Design Planning Architect only if root cause is architectural."
 tools: [read, search, execute]
-model: Claude Haiku 4.5 (copilot)
+model: [Claude Haiku 4.5 (copilot), Gemini 3 Flash (Preview) (copilot), Claude Sonnet 4 (copilot), GPT-5.2 (copilot)]
 user-invocable: false
 ---
 

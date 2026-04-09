@@ -2,7 +2,7 @@
 name: Backend Test Specialist
 description: "Use when writing or repairing backend tests in the repository's backend area. Stack, ORM, and test runner context loaded from the project's backend .instructions.md at runtime."
 tools: [read, search, edit, execute]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), Claude Haiku 4.5 (copilot)]
 user-invocable: true
 handoffs:
   - label: "Fix failing tests"

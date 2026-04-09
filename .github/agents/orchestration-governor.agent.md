@@ -2,7 +2,7 @@
 name: Orchestration Governor
 description: "Use when orchestrating a task, decomposing work, assigning frontend or backend specialists, tracking blockers, or deciding whether a SOLAR loop can close."
 tools: [read, search, edit, execute, agent, todo]
-model: [Claude Haiku 4.5 (copilot), Claude Sonnet 4.5 (copilot)]
+model: [Claude Haiku 4.5 (copilot), Claude Sonnet 4.5 (copilot), Claude Sonnet 4.6 (copilot), Gemini 2.5 Pro (copilot)]
 user-invocable: true
 agents:
   - Backend Implementation Specialist

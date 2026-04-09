@@ -4,7 +4,8 @@
 # Format: one path per line. Lines starting with # or blank are ignored.
 
 # Root contracts
-.github/AGENTS.md
+.template.gitignore
+.github/AGENTS.template.md
 .github/.ai_ledger.template.md
 
 # Setup config
@@ -33,23 +34,30 @@
 # Agents - generic (Tier 1 fallback; no stack assumptions)
 .github/agents/implementation-specialist.agent.md
 
+# Agents - bootstrap utilities
+.github/agents/solar-scan-collector.agent.md
+
 # Hooks
 .github/hooks/hooks.json
 .github/hooks/pre-tool-use.cjs
+.github/hooks/pre-compact.cjs
+.github/hooks/session-start.cjs
 .github/hooks/user-prompt-submit.cjs
 .github/hooks/post-tool-use.cjs
+.github/hooks/subagent-start.cjs
+.github/hooks/subagent-stop.cjs
 .github/hooks/stop.cjs
 
 # Setup prompts
 .github/prompts/solar-setup-quick.prompt.md
 .github/prompts/solar-setup-full.prompt.md
 .github/prompts/solar-setup-scan-repo.prompt.md
-.github/prompts/solar-setup-core-config.prompt.md
-.github/prompts/solar-setup-agent-config.prompt.md
-.github/prompts/solar-setup-scaffold.prompt.md
+.github/prompts/solar-setup-apply-config.prompt.md
 .github/prompts/solar-setup-instructions.prompt.md
 .github/prompts/solar-enter-bootstrap.prompt.md
 .github/prompts/solar-exit-bootstrap.prompt.md
+.github/prompts/solar-compound-review.prompt.md
+.github/prompts/solar-workflow-update.prompt.md
 
 # User-facing commands
 .github/prompts/solar.prompt.md
@@ -84,6 +92,7 @@ verification-artifacts/README.md
 verification-artifacts/.gitkeep
 
 # Instruction scaffolding (templates; update applyTo glob after install)
+.github/instructions/solar.instructions.md
 .github/instructions/architecture.instructions.md
 .github/instructions/backend.instructions.md
 .github/instructions/conventions.instructions.md
@@ -91,3 +100,47 @@ verification-artifacts/.gitkeep
 .github/instructions/security.instructions.md
 .github/instructions/verification.instructions.md
 .github/instructions/workflow.instructions.md
+
+# SOLAR System - Framework runtime files (DO NOT EDIT)
+.github/solar-system/README.md
+
+# SOLAR context tier system
+.github/solar-system/context/context-tiers.md
+.github/solar-system/context/compaction-policy.md
+.github/solar-system/context/jit-loading-guide.md
+.github/solar-system/context/artifact-handle-pattern.md
+.github/solar-system/context/effort-simulation.md
+
+# SOLAR pipeline definitions (DO NOT EDIT)
+.github/solar-system/pipelines/pipeline-0-router.md
+.github/solar-system/pipelines/pipeline-1-knowledge.md
+.github/solar-system/pipelines/pipeline-2-simple-fix.md
+.github/solar-system/pipelines/pipeline-3-bug-fix.md
+.github/solar-system/pipelines/pipeline-4-feature.md
+
+# SOLAR protocol definitions
+.github/solar-system/protocols/inquiry-first.md
+.github/solar-system/protocols/lifecycle-coordination.md
+.github/solar-system/protocols/session-resumption.md
+
+# SOLAR patterns and contracts
+.github/solar-system/patterns/output-position-contract.md
+.github/solar-system/adversarial/skeleton-manifest.md
+
+# SOLAR schemas (input/output contracts)
+.github/solar-system/schemas/handoff-types.md
+.github/solar-system/schemas/designer-output.schema.json
+.github/solar-system/schemas/implementer-handoff.schema.json
+.github/solar-system/schemas/review-result.schema.json
+.github/solar-system/schemas/qa-result.schema.json
+.github/solar-system/schemas/scout-findings.schema.json
+.github/solar-system/schemas/dev-progress.schema.json
+
+# SOLAR learnings repository (built by session hooks)
+.github/solar-system/.learnings/LOG-SOURCES.md
+.github/solar-system/.learnings/ERRORS.md
+.github/solar-system/.learnings/LEARNINGS.md
+.github/solar-system/.learnings/FEATURE_REQUESTS.md
+
+# SOLAR logs directory (runtime, not distributed)
+.github/solar-system/logs/.gitkeep

@@ -2,7 +2,7 @@
 name: Implementation Specialist
 description: "Use when implementing code changes in a repository where domain-specific specialists (frontend, backend) are not installed. Generic Tier 1 agent — no stack assumptions. Tech context loaded from the project's .instructions.md at runtime."
 tools: [read, search, edit, execute, todo]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
 user-invocable: true
 handoffs:
   - label: "Request review"

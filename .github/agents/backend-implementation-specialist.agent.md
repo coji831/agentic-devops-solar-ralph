@@ -2,7 +2,7 @@
 name: Backend Implementation Specialist
 description: "Use when implementing backend domain changes — services, repositories, routes, controllers, middleware, and API contracts. Actual stack context is loaded from the project's backend .instructions.md at runtime."
 tools: [read, search, edit, execute, todo]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
 user-invocable: true
 handoffs:
   - label: "Request backend review"

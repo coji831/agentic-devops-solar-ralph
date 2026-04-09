@@ -8,27 +8,32 @@
 #   curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
 #
 # Options:
-#   --force    Overwrite existing files (default: skip files that already exist)
+#   --force     Overwrite existing files (default: skip files that already exist)
+#   --branch    Branch to download from (default: main)
 #
 # Usage with options (download then run):
 #   curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh -o install-solar.sh
-#   bash install-solar.sh --force
+#   bash install-solar.sh --force --branch v4
 #   rm install-solar.sh
 
 set -euo pipefail
 
 REPO="coji831/agentic-devops-solar-ralph"
 BRANCH="main"
-BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 FORCE=false
 
 # Parse arguments
-for arg in "$@"; do
-    case $arg in
-        --force|-f) FORCE=true ;;
-        *) echo "Unknown option: $arg"; exit 1 ;;
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force|-f) FORCE=true; shift ;;
+        --branch) BRANCH="$2"; shift 2 ;;
+        --branch=*) BRANCH="${1#*=}"; shift ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
+
+# Build URL after parsing arguments (BRANCH may have changed)
+BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
 # Fetch file list from manifest (single source of truth)
 MANIFEST_URL="${BASE_URL}/scripts/solar-manifest.txt"
@@ -95,6 +100,20 @@ for file in "${FILES[@]}"; do
     fi
 done
 
+# Rename template files to working files
+if [ -f ".template.gitignore" ]; then
+    mv ".template.gitignore" ".gitignore"
+    echo -e "${CYAN}  RENAME .template.gitignore → .gitignore${NC}"
+fi
+if [ -f ".github/AGENTS.template.md" ]; then
+    mv ".github/AGENTS.template.md" ".github/AGENTS.md"
+    echo -e "${CYAN}  RENAME .github/AGENTS.template.md → .github/AGENTS.md${NC}"
+fi
+if [ -f ".github/.ai_ledger.template.md" ]; then
+    mv ".github/.ai_ledger.template.md" ".github/.ai_ledger.md"
+    echo -e "${CYAN}  RENAME .github/.ai_ledger.template.md → .github/.ai_ledger.md${NC}"
+fi
+
 echo ""
 echo -e "${CYAN}========================================${NC}"
 echo -e "${GREEN}  Downloaded : ${downloaded}${NC}"
@@ -124,14 +143,14 @@ echo "    Run: /solar-setup-quick"
 echo "    - Scans repo and applies core configuration"
 echo "    - Creates ledger and activates SOLAR"
 echo "    - Uses default agent settings (fastest path)"
-echo "    - Optional: Run /solar-setup-agent-config later for customization"
+echo "    - Optional: Run /solar-setup-apply-config later for full customization"
 echo ""
 echo "  Option 2: Full Setup (Advanced)"
 echo "    Run: /solar-setup-full"
 echo "    - Does everything Quick Setup does"
-echo "    - PLUS customizes all 14 agents and skills with your tech stack"
+echo "    - PLUS customizes all 16 agents and 14 skills with your tech stack"
 echo "    - Best for complex monorepos or non-standard stacks"
 echo ""
 echo "  Smoke Test (after either setup):"
-echo "    /ralph-loop \"Add a README badge\""
+echo "    /solar \"Add a README badge\""
 echo ""

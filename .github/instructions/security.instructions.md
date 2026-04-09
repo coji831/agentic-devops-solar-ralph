@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: "[FILL IN -- e.g., ** for global or apps/backend/** for backend only]"
 ---
 
 # Security Context

@@ -2,7 +2,7 @@
 name: Docs Curator
 description: "Use when updating rollout plans, business requirements, implementation docs, review checklists, knowledge base articles, or documentation templates."
 tools: [read, search, edit]
-model: GPT-5 mini (copilot)
+model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
 user-invocable: false
 ---
 

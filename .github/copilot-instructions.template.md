@@ -1,10 +1,7 @@
 # Copilot Instructions for AI Coding Agents
 
 <!-- ============================================================
-  TEMPLATE MODE — SOLAR IS INACTIVE
-  ============================================================
-  This is the agentic-devops-solar-ralph template in its default state.
-  SOLAR autonomous hooks are disabled until you complete setup below.
+  This file is a template for the main Copilot instructions file that must exist in every SOLAR-enabled repository at `.github/copilot-instructions.md`.
 
   ⚠️  APPLYING TO AN EXISTING REPO?
   If your target repo already has a .github/copilot-instructions.md,
@@ -64,16 +61,6 @@ Development: [local dev flow] | Testing: [framework + command] | Deployment: [ta
 ## 📝 Documentation Standards
 
 <!-- [POST-IMPLEMENT: doc types, content requirements, style guide] -->
-
-## � Scripting Standards
-
-**ASCII-Only for Shell Scripts:**
-
-- NEVER use Unicode, emoji, or non-ASCII characters in `.sh`, `.ps1`, `.bat`, or any executable script files
-- Scripts served from web URLs (GitHub raw, CDN) often fail to parse when they contain UTF-8 characters
-- Use plain ASCII text only: A-Z, a-z, 0-9, and standard punctuation
-- Replace emoji/symbols with descriptive text: ❌ "✓" → ✅ "Success:", ❌ "📦" → ✅ "Package:"
-- This prevents encoding errors when scripts are downloaded and executed directly
 
 ## �🛠️ Code Change Checklist
 

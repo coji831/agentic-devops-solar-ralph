@@ -1,7 +1,7 @@
 ---
 name: Release Readiness Specialist
 description: "Verifies that a pipeline is safe to close before the governor writes WORK_PACKAGE_COMPLETE. Checks tests, security audit, documentation, acceptance criteria, and ledger state. Produces a Go / No-Go report. Invoked by the governor at the release gate stage of Pipeline 3 (Bug Fix) and Pipeline 4 (Feature)."
-model: GPT-4o (copilot)
+model: [GPT-4.1 (copilot), GPT-4o (copilot), Claude Sonnet 4.6 (copilot), Gemini 2.5 Pro (copilot)]
 tools: [read, search]
 user-invocable: false
 ---

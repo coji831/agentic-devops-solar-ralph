@@ -2,7 +2,7 @@
 name: Backend Review Auditor
 description: "Use when reviewing backend changes for regressions, API contract safety, data integrity, and auth/validation correctness. Stack context loaded from the project's backend .instructions.md."
 tools: [read, search, execute]
-model: GPT-4o (copilot)
+model: [GPT-4.1 (copilot), GPT-4o (copilot), Claude Sonnet 4.6 (copilot), GPT-5.2 (copilot)]
 user-invocable: true
 handoffs:
   - label: "Request repair"

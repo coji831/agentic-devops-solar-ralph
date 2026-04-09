@@ -2,7 +2,7 @@
 name: Design Planning Architect
 description: "Use when solution design, architecture-fit, decomposition, implementation planning, or high-ambiguity technical tradeoff analysis needs stronger reasoning before coding starts."
 tools: [read, search, edit, todo]
-model: Claude Sonnet 4.6 (copilot)
+model: [Claude Sonnet 4.6 (copilot), Claude Sonnet 4.5 (copilot), Gemini 2.5 Pro (copilot), GPT-5.4 (copilot)]
 user-invocable: true
 ---
 
