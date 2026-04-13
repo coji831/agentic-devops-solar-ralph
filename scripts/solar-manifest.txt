@@ -39,6 +39,7 @@
 
 # Hooks
 .github/hooks/hooks.json
+.github/hooks/common.cjs
 .github/hooks/pre-tool-use.cjs
 .github/hooks/pre-compact.cjs
 .github/hooks/session-start.cjs
@@ -47,6 +48,7 @@
 .github/hooks/subagent-start.cjs
 .github/hooks/subagent-stop.cjs
 .github/hooks/stop.cjs
+.github/hooks/README.md
 
 # Setup prompts
 .github/prompts/solar-setup-quick.prompt.md

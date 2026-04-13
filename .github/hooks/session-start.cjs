@@ -1,28 +1,20 @@
 // session-start.cjs
-// SOLAR-Ralph v4 - SessionStart hook
-// Phase 1: Reads .learnings/LEARNINGS.md and injects a condensed summary into session context.
-// Phase 5 S12: Creates a per-session activity log JSON file in solar-system/logs/.
-// ASCII only in this script.
+// SOLAR-Ralph v4 SessionStart hook
+// Reads .learnings/LEARNINGS.md and injects a condensed summary into session context.
+// Creates a per-session activity log JSON file in solar-system/logs/.
+//
+// Changelog:
+// - v4.1: Merged hooks.enabled into solar.active (Option A)
+// - v4.1 P0 Fix: Added debug logging for session log creation
+// - Phase 5 S12: Added createSessionLog() for session-*.json activity log
+// - Phase 1: Added LEARNINGS.md injection at session start
 
+// [imports]
 const fs = require("fs");
 const path = require("path");
+const common = require("./common.cjs");
 
-const configPath = path.resolve(__dirname, "../solar.config.json");
-let config = null;
-try {
-  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-} catch (e) {
-  // Config missing or invalid - exit silently
-  process.exit(0);
-}
-
-// --- helpers ---
-
-function resolveSessionLogDir(cfg) {
-  return cfg.logging.sessionLog.path
-    ? path.resolve(__dirname, "../../", cfg.logging.sessionLog.path)
-    : path.resolve(__dirname, "../solar-system/logs/");
-}
+// [helper functions]
 
 function rotateOldLogs(logDir, maxFiles) {
   try {
@@ -38,45 +30,64 @@ function rotateOldLogs(logDir, maxFiles) {
     while (existing.length >= maxFiles) {
       fs.unlinkSync(existing.shift());
     }
-  } catch (e) {
-    /* rotation is best-effort */
-  }
+  } catch (e) {}
 }
 
 function createSessionLog(cfg) {
+  const debugLog = common.resolveDebugLogPath();
   try {
-    var logDir = resolveSessionLogDir(cfg);
+    var logDir = common.resolveSessionLogDir(cfg);
+
+    try {
+      const debugDir = path.dirname(debugLog);
+      if (!fs.existsSync(debugDir)) {
+        fs.mkdirSync(debugDir, { recursive: true });
+      }
+      fs.appendFileSync(
+        debugLog,
+        "[SessionStart] Log dir: " + logDir + "\n",
+        "utf8",
+      );
+    } catch (e) {}
+
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
+      try {
+        fs.appendFileSync(debugLog, "[SessionStart] Created log dir\n", "utf8");
+      } catch (e) {}
     }
     rotateOldLogs(logDir, cfg.logging.sessionLog.maxFiles || 20);
     var ts = new Date().toISOString().replace(/[:.]/g, "-");
     var logFilePath = path.join(logDir, "session-" + ts + ".json");
-    fs.writeFileSync(
-      logFilePath,
-      JSON.stringify(
-        { session: new Date().toISOString(), events: [] },
-        null,
-        2,
-      ),
-      "utf8",
-    );
+
+    var sessionData = {
+      session: new Date().toISOString(),
+      events: [],
+    };
+
+    fs.writeFileSync(logFilePath, JSON.stringify(sessionData, null, 2), "utf8");
     fs.writeFileSync(
       path.join(logDir, ".current-session"),
       logFilePath,
       "utf8",
     );
-  } catch (e) {
-    /* session log creation is best-effort; never block hook */
-  }
-}
 
-function resolveLearningsPath(cfg) {
-  var dir =
-    cfg.selfImprovement && cfg.selfImprovement.learningsPath
-      ? path.resolve(__dirname, "../../", cfg.selfImprovement.learningsPath)
-      : path.resolve(__dirname, "../solar-system/.learnings/");
-  return path.join(dir, "LEARNINGS.md");
+    try {
+      fs.appendFileSync(
+        debugLog,
+        "[SessionStart] Created session log: " + logFilePath + "\n",
+        "utf8",
+      );
+    } catch (e) {}
+  } catch (e) {
+    try {
+      fs.appendFileSync(
+        debugLog,
+        "[SessionStart] ERROR: " + e.message + "\n" + e.stack + "\n",
+        "utf8",
+      );
+    } catch (logError) {}
+  }
 }
 
 function extractLearningsSummary(learningsPath) {
@@ -90,48 +101,73 @@ function extractLearningsSummary(learningsPath) {
   return lines.slice(0, 20).join(" ").trim();
 }
 
-// --- main ---
+// [main function]
+function main() {
+  const config = common.loadConfig();
+  if (!config) process.exit(0);
 
-// Global kill switches - only blocks when SOLAR is fully inactive
-if (!config.solar?.active || !config.hooks?.enabled) {
-  process.exit(0);
+  if (!common.isSolarActive(config)) {
+    return;
+  }
+
+  common.logHookExecution("SessionStart", "ENTRY");
+
+  if (
+    config.logging &&
+    config.logging.sessionLog &&
+    config.logging.sessionLog.enabled !== false
+  ) {
+    createSessionLog(config);
+  }
+
+  if (!config.hooks?.sessionStart?.injectLearnings) {
+    common.logHookExecution(
+      "SessionStart",
+      "EXIT (learnings injection disabled)",
+    );
+    console.log(JSON.stringify({ continue: true }));
+    process.exit(0);
+  }
+
+  var learningsSummary = "";
+  try {
+    learningsSummary = extractLearningsSummary(
+      common.resolveLearningsPath(config),
+    );
+  } catch (e) {
+    console.log(JSON.stringify({ continue: true }));
+    process.exit(0);
+  }
+
+  if (!learningsSummary) {
+    common.logHookExecution("SessionStart", "EXIT (no learnings content)");
+    console.log(JSON.stringify({ continue: true }));
+    process.exit(0);
+  }
+
+  common.logHookExecution(
+    "SessionStart",
+    "Injecting learnings summary (" + learningsSummary.length + " chars)",
+  );
+  common.logHookExecution("SessionStart", "EXIT (success)");
+  console.log(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: "SOLAR Learnings Summary: " + learningsSummary,
+      },
+    }),
+  );
 }
 
-// Phase 5 S12: Per-session activity log creation
-if (
-  config.logging &&
-  config.logging.sessionLog &&
-  config.logging.sessionLog.enabled !== false
-) {
-  createSessionLog(config);
-}
-
-// Skip learnings injection if disabled
-if (!config.hooks?.sessionStart?.injectLearnings) {
-  console.log(JSON.stringify({ continue: true }));
-  process.exit(0);
-}
-
-var learningsSummary = "";
+// [main invoke and top level try catch]
 try {
-  learningsSummary = extractLearningsSummary(resolveLearningsPath(config));
-} catch (e) {
-  // Learnings file missing or unreadable - no injection needed
+  main();
+} catch (error) {
+  common.logHookExecution(
+    "SessionStart",
+    "EXIT (error - " + error.message + ")",
+  );
   console.log(JSON.stringify({ continue: true }));
   process.exit(0);
 }
-
-if (!learningsSummary) {
-  // File exists but has no extractable content yet - skip injection
-  console.log(JSON.stringify({ continue: true }));
-  process.exit(0);
-}
-
-console.log(
-  JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: "SessionStart",
-      additionalContext: "SOLAR Learnings Summary: " + learningsSummary,
-    },
-  }),
-);

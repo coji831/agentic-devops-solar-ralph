@@ -80,24 +80,6 @@ foreach ($file in $FILES) {
     }
 }
 
-# Rename template files to working files
-$renameCount = 0
-if (Test-Path ".template.gitignore") {
-    Rename-Item -Path ".template.gitignore" -NewName ".gitignore" -Force
-    Write-Host "  RENAME .template.gitignore → .gitignore" -ForegroundColor Cyan
-    $renameCount++
-}
-if (Test-Path ".github/AGENTS.template.md") {
-    Rename-Item -Path ".github/AGENTS.template.md" -NewName ".github/AGENTS.md" -Force
-    Write-Host "  RENAME .github/AGENTS.template.md → .github/AGENTS.md" -ForegroundColor Cyan
-    $renameCount++
-}
-if (Test-Path ".github/.ai_ledger.template.md") {
-    Rename-Item -Path ".github/.ai_ledger.template.md" -NewName ".github/.ai_ledger.md" -Force
-    Write-Host "  RENAME .github/.ai_ledger.template.md → .github/.ai_ledger.md" -ForegroundColor Cyan
-    $renameCount++
-}
-
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Downloaded : $downloaded" -ForegroundColor Green

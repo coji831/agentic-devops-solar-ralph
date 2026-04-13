@@ -100,20 +100,6 @@ for file in "${FILES[@]}"; do
     fi
 done
 
-# Rename template files to working files
-if [ -f ".template.gitignore" ]; then
-    mv ".template.gitignore" ".gitignore"
-    echo -e "${CYAN}  RENAME .template.gitignore → .gitignore${NC}"
-fi
-if [ -f ".github/AGENTS.template.md" ]; then
-    mv ".github/AGENTS.template.md" ".github/AGENTS.md"
-    echo -e "${CYAN}  RENAME .github/AGENTS.template.md → .github/AGENTS.md${NC}"
-fi
-if [ -f ".github/.ai_ledger.template.md" ]; then
-    mv ".github/.ai_ledger.template.md" ".github/.ai_ledger.md"
-    echo -e "${CYAN}  RENAME .github/.ai_ledger.template.md → .github/.ai_ledger.md${NC}"
-fi
-
 echo ""
 echo -e "${CYAN}========================================${NC}"
 echo -e "${GREEN}  Downloaded : ${downloaded}${NC}"

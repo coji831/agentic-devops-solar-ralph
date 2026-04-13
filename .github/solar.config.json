@@ -38,7 +38,6 @@
     }
   },
   "hooks": {
-    "enabled": true,
     "userPromptSubmit": {
       "enabled": true,
       "activeModes": ["loop"],
@@ -123,6 +122,9 @@
     "bootstrap": "bootstrap"
   },
   "logging": {
+    "hookLog": {
+      "daysToKeep": 7
+    },
     "sessionLog": {
       "enabled": true,
       "path": ".github/solar-system/logs/",

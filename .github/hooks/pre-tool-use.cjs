@@ -1,31 +1,9 @@
-const fs = require("fs");
-const path = require("path");
+// [imports]
+const common = require("./common.cjs");
 
-// --- Helpers ---
-
-function loadConfig() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.resolve(__dirname, "../solar.config.json"), "utf8"),
-    );
-  } catch (e) {
-    process.exit(0); // missing or invalid config - fail open
-  }
-}
-
-function readLedger() {
-  const p = path.resolve(__dirname, "../.ai_ledger.md");
-  return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
-}
-
-function getSessionType(ledger) {
-  const m = ledger.match(/Session-Type:\s*(\w[\w-]*)/i);
-  return m ? m[1].toLowerCase() : "chat";
-}
-
-// S6 Phase 2, OD-6 Option B: loop-mode only
+// [helper functions]
 function isWatchModeTriggered(config, sessionType, toolName) {
-  if (!config.solar?.active) return false;
+  if (!common.isSolarActive(config)) return false;
   if (config.hooks?.preToolUse?.watchModeEnabled !== true) return false;
   if (sessionType !== "loop") return false;
   const patterns = config.hooks.preToolUse.watchModeToolPatterns;
@@ -33,8 +11,6 @@ function isWatchModeTriggered(config, sessionType, toolName) {
   return patterns.some((p) => toolName.includes(p.toLowerCase()));
 }
 
-// Design/Architect agents open pipelines; Bug Investigation diagnoses before
-// implementation; Solar Bootstrap operates outside governance.
 function isBypassAgent(targetAgent) {
   const BYPASS_PATTERNS = [
     "design",
@@ -46,7 +22,6 @@ function isBypassAgent(targetAgent) {
   return BYPASS_PATTERNS.some((p) => targetAgent.toLowerCase().includes(p));
 }
 
-// Stage 1 is complete when an explicit PASS marker, stage 2+, or CLOSED is present.
 function isStage1Complete(ledger) {
   return (
     /Stage\s*1.*PASS/i.test(ledger) ||
@@ -55,13 +30,36 @@ function isStage1Complete(ledger) {
   );
 }
 
-// --- Main handler ---
+function isInquiryGateComplete(ledger) {
+  const inquirySection = ledger.match(
+    /## Inquiry Gate\s*([\s\S]*?)(?=\n##|$)/i,
+  );
+  if (!inquirySection) return true; // No inquiry gate section = not enforcing
 
-let data = "";
-process.stdin.on("data", (chunk) => (data += chunk));
-process.stdin.on("end", () => {
+  const sectionText = inquirySection[1];
+  const checkboxes = sectionText.match(/- \[[x ]\]/gi) || [];
+
+  if (checkboxes.length !== 3) return false;
+
+  const allChecked = checkboxes.every((cb) => /- \[x\]/i.test(cb));
+  return allChecked;
+}
+
+// [main function]
+function main(data) {
   try {
     const input = JSON.parse(data || "{}");
+    const config = common.loadConfig();
+
+    if (
+      !common.isSolarActive(config) ||
+      config.hooks?.preToolUse?.enabled === false
+    ) {
+      return;
+    }
+
+    common.logHookExecution("PreToolUse", "ENTRY");
+
     const toolName = (
       input.toolName ||
       input.tool ||
@@ -69,14 +67,14 @@ process.stdin.on("end", () => {
       ""
     ).toLowerCase();
 
-    // Read config and ledger once; both gates share these values
-    const config = loadConfig();
-    const ledger = readLedger();
-    // Derive session type here so Watch Mode and delegation gate use the same value
-    const sessionType = getSessionType(ledger);
+    const ledger = common.readLedger();
+    const sessionType = common.getSessionType(ledger);
 
-    // Ask for confirmation before any high-risk tool call executes in loop mode
     if (isWatchModeTriggered(config, sessionType, toolName)) {
+      common.logHookExecution(
+        "PreToolUse",
+        "BLOCK (watch mode - tool: " + toolName + ")",
+      );
       console.log(
         JSON.stringify({
           hookSpecificOutput: {
@@ -90,44 +88,65 @@ process.stdin.on("end", () => {
       return;
     }
 
-    // Delegation gate applies to agent calls only; all other tools pass through
     if (toolName !== "agent") {
+      common.logHookExecution("PreToolUse", "PASS (tool: " + toolName + ")");
       console.log(JSON.stringify({ continue: true }));
       return;
-    }
-
-    // Global kill switches — fail open (exit 0) so tool call is not blocked
-    if (
-      !config.solar?.active ||
-      !config.hooks?.enabled ||
-      config.hooks?.preToolUse?.enabled === false
-    ) {
-      process.exit(0);
     }
 
     const agentArgs = input.input || input.arguments || input.params || {};
     const targetAgent =
       agentArgs.agentName || agentArgs.agent || agentArgs.name || "";
 
-    // Design/architect/bootstrap agents are always allowed to start without a prior stage
     if (isBypassAgent(targetAgent)) {
+      common.logHookExecution(
+        "PreToolUse",
+        "PASS (bypass agent: " + targetAgent + ")",
+      );
       console.log(JSON.stringify({ continue: true }));
       return;
     }
 
-    // Bootstrap mode bypass - governance disabled during setup
-    if ((config.sessionTypes?.[sessionType] || "simple") === "bootstrap") {
+    if (common.isBootstrapMode(config, sessionType)) {
       process.exit(0);
     }
 
-    // Allow delegation once Stage 1 (Design Planning Architect) has signed off
+    if (!isInquiryGateComplete(ledger)) {
+      const targetLabel = targetAgent
+        ? `to ${targetAgent}`
+        : "to implementation";
+      common.logHookExecution(
+        "PreToolUse",
+        "BLOCK (inquiry gate incomplete - target: " + targetAgent + ")",
+      );
+      console.log(
+        JSON.stringify({
+          decision: "block",
+          message:
+            `Inquiry Gate incomplete. Before delegating ${targetLabel}, ensure:\n` +
+            `1. Files examined (minimum 3 reads)\n` +
+            `2. Ambiguities resolved\n` +
+            `3. Plan approved\n` +
+            `Check all 3 boxes in ## Inquiry Gate section of .ai_ledger.md.`,
+        }),
+      );
+      return;
+    }
+
     if (isStage1Complete(ledger)) {
+      common.logHookExecution(
+        "PreToolUse",
+        "PASS (Stage 1 complete - agent: " + targetAgent + ")",
+      );
       console.log(JSON.stringify({ continue: true }));
       return;
     }
 
-    // Stage 1 not found — block and redirect to Design Planning Architect
     const targetLabel = targetAgent ? `to ${targetAgent}` : "to implementation";
+    common.logHookExecution(
+      "PreToolUse",
+      "BLOCK (Stage 1 incomplete - target: " + targetAgent + ")",
+    );
     console.log(
       JSON.stringify({
         decision: "block",
@@ -137,7 +156,18 @@ process.stdin.on("end", () => {
       }),
     );
   } catch (e) {
-    // Parse error - fail open
+    common.logHookExecution("PreToolUse", "EXIT (parse error - fail open)");
     process.exit(0);
   }
-});
+}
+
+// [main invoke and top level try catch]
+try {
+  let data = "";
+  process.stdin.on("data", (chunk) => (data += chunk));
+  process.stdin.on("end", () => main(data));
+} catch (error) {
+  common.logHookExecution("PreToolUse", "EXIT (error - " + error.message + ")");
+  console.log(JSON.stringify({ continue: true }));
+  process.exit(0);
+}

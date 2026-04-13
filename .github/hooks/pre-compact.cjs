@@ -9,20 +9,19 @@
 // hookSpecificOutput is NOT used here -- VS Code ignores it on PreCompact events.
 // Return { "continue": true } to allow compaction to proceed.
 
+//
+// Changelog:
+// - v4.1: Added global gates (isSolarActive check)
+
 "use strict";
 
+// [imports]
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const common = require("./common.cjs");
 
-// ----------------------------------------------------------------
-// Resolve workspace root: prefer VSCODE_WORKSPACE_ROOT, then cwd
-// ----------------------------------------------------------------
-const workspaceRoot = process.env.VSCODE_WORKSPACE_ROOT || process.cwd();
-
-// ----------------------------------------------------------------
-// Helper: safe file read (returns empty string if file missing)
-// ----------------------------------------------------------------
+// [helper functions]
 function safeRead(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8");
@@ -31,22 +30,12 @@ function safeRead(filePath) {
   }
 }
 
-// ----------------------------------------------------------------
-// Helper: extract a labelled field value from ledger text
-// e.g. extractField("Pipeline Stage: 2 -- Implement", "Pipeline Stage")
-//   => "2 -- Implement"
-// ----------------------------------------------------------------
 function extractField(text, label) {
   const regex = new RegExp("^" + label + ":\\s*(.+)$", "m");
   const match = text.match(regex);
   return match ? match[1].trim() : "(not found)";
 }
 
-// ----------------------------------------------------------------
-// Helper: extract in-progress todos from manage_todo_list style
-// blocks. Also handles simple "- [ ]" / "- [x]" markdown lists.
-// Looks for any line containing "in-progress" or unchecked "- [ ]".
-// ----------------------------------------------------------------
 function extractInProgressTodos(ledger) {
   const lines = ledger.split("\n");
   const inProgress = [];
@@ -62,10 +51,18 @@ function extractInProgressTodos(ledger) {
   return inProgress.length > 0 ? inProgress.join("\n") : "(none found)";
 }
 
-// ----------------------------------------------------------------
-// Main
-// ----------------------------------------------------------------
-(function main() {
+// [main function]
+function main() {
+  const config = common.loadConfig();
+  if (!config) process.exit(0);
+
+  if (!common.isSolarActive(config)) {
+    return;
+  }
+
+  common.logHookExecution("PreCompact", "ENTRY");
+
+  const workspaceRoot = process.env.VSCODE_WORKSPACE_ROOT || process.cwd();
   const ledgerPath = path.join(workspaceRoot, ".github", ".ai_ledger.md");
   const outputDir = path.join(os.homedir(), ".aitk", "memories", "session");
   const outputPath = path.join(outputDir, "pre-compact-state.md");
@@ -122,5 +119,18 @@ function extractInProgressTodos(ledger) {
       ")",
   };
 
+  common.logHookExecution(
+    "PreCompact",
+    "EXIT (snapshot written - stage: " + pipelineStage + ")",
+  );
   process.stdout.write(JSON.stringify(output));
-})();
+}
+
+// [main invoke and top level try catch]
+try {
+  main();
+} catch (error) {
+  common.logHookExecution("PreCompact", "EXIT (error - " + error.message + ")");
+  console.log(JSON.stringify({ continue: true }));
+  process.exit(0);
+}
