@@ -26,6 +26,7 @@ Place the converted content in the appropriate section of the target instruction
 
 ```markdown
 <!-- Source: PATTERNS.md #[DATE]-[SHORT-TITLE] -->
+
 ### [Short descriptive rule title]
 
 **Context**: [When this rule applies — e.g., "When implementing backend routes", "When designing frontend state"]
@@ -43,6 +44,7 @@ Place the converted content in the appropriate section of the target instruction
 ## Duplicate Detection
 
 Before inserting, search the target instructions file for:
+
 - The main keyword from the entry title
 - The core concept from the Lesson field
 
@@ -58,6 +60,7 @@ If either matches an existing entry within ~70% similarity: flag as `DUPLICATE_C
 ## Example Transformation
 
 **Input (PATTERNS.md):**
+
 ```
 ### 2026-04-15 BACKEND — Prisma Migration Order Matters
 **Problem**: Running migrations before seeding caused FK constraint failures in test setup.
@@ -66,8 +69,10 @@ If either matches an existing entry within ~70% similarity: flag as `DUPLICATE_C
 ```
 
 **Output (backend.instructions.md addition):**
+
 ```markdown
 <!-- Source: PATTERNS.md #2026-04-15-Prisma-Migration-Order-Matters -->
+
 ### Prisma Test Setup Order
 
 **Context**: When setting up backend test environments with Prisma.

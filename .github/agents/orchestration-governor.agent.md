@@ -150,11 +150,26 @@ Map the request to exactly one pipeline. Then read `.github/solar-system/pipelin
   <step n="1b" label="ambiguity-check">
     Before selecting a pipeline, check for signal clarity:
 
-    **Ambiguous signal (maps to 2+ pipelines equally):** Use `vscode_askQuestions` to disambiguate. Example: "look at and fix this issue" could be Bug Fix or Simple Fix → ask "Is the root cause of this issue already known?"
+    **Ambiguous signal (maps to 2+ pipelines equally):** Use `vscode_askQuestions` to disambiguate before loading any context.
 
-    **Gap detection (request requires a capability no pipeline covers):** Surface the gap — write `CAPABILITY_GAP: <description>` to `## Active Blockers` in the ledger and ask the user: "This requires [missing capability]. Should I add a new workflow/agent, or adjust scope?"
+    Example disambiguation questions:
+    - Feature vs Bug Fix: "Is the root cause of this issue already known?"
+    - Feature vs Simple Fix: "Does this require a design phase, or is the change straightforward?"
+    - Unclear scope: "What is the expected outcome — what should work differently after this task?"
 
-    **Clear signal:** If the request maps cleanly to exactly one pipeline, skip disambiguation and proceed to step 2.
+    **Pre-flight intent confirmation (Feature pipeline — broad or multi-step requests):** Before loading the ledger and story docs, use `vscode_askQuestions` to confirm the user's intent:
+    - header: "Pipeline Pre-flight"
+    - question: "This looks like a Feature pipeline task (Design → Implementation → Review). Should I proceed?"
+    - options: ["Yes — proceed with full Feature pipeline", "No — this is a simpler fix (Simple Fix pipeline)", "No — I need to describe the scope more precisely"]
+    This avoids wasting a context load on a misclassified task.
+
+    **Gap detection (request requires a capability no pipeline covers):** Surface the gap using `vscode_askQuestions`:
+    - Write `CAPABILITY_GAP: <description>` to `## Active Blockers` in the ledger
+    - Use `vscode_askQuestions`: header="Capability Gap Detected", question="This task requires [missing capability] which no existing workflow covers. What should I do?", options=["Add a new workflow or agent for this capability", "Adjust task scope to fit existing capabilities", "Proceed anyway — I accept the limitation"]
+    - Do NOT proceed past this step until user responds.
+    - If user chooses "Add workflow": write `WORKFLOW_ADDITION_REQUESTED: <capability>` to `## Active Blockers` and surface to user with specific suggestion.
+
+    **Clear signal:** If the request maps cleanly to exactly one pipeline and intent is unambiguous, skip disambiguation and proceed to step 2.
 
   </step>
   <gate label="tiered-context">
@@ -220,6 +235,26 @@ Map the request to exactly one pipeline. Then read `.github/solar-system/pipelin
       - "Feature pipeline requires design → delegating to Design Planning Architect for solution decomposition"
     </step>
     <step n="6">Execute stage 1 of the pipeline by delegating to the required agent (with orchestratorRationale in handoff payload).</step>
+    <step n="6b" label="design-approval-gate">
+      **Feature pipeline only — after Design Planning Architect returns:**
+
+      After the Design Planning Architect completes and returns a plan, use `vscode_askQuestions` to present the plan to the user and request explicit approval BEFORE proceeding to Work Breakdown:
+
+      - header: "Design Plan Approval"
+      - question: "The Design Planning Architect has produced a plan. Review the milestone and work packages in the ledger Handoff Payload, then approve to proceed."
+      - options:
+        - "✅ Approve — proceed to Work Breakdown and implementation"
+        - "🔄 Request changes — return to Design Planning Architect with feedback"
+        - "⛔ Cancel — stop this pipeline"
+
+      **On approval:** Write `Plan Approved: ✅ [user confirmed — <date>]` to `## Inquiry Gate` in the ledger. Proceed to Work Breakdown Specialist.
+
+      **On changes requested:** Collect user feedback via a follow-up `vscode_askQuestions` or free-form input. Write feedback to `## Handoff Payload` and re-delegate to Design Planning Architect (increment loop iteration if `Session-Type: loop`).
+
+      **On cancel:** Write `Pipeline: CANCELLED` to `## Current Objective` in the ledger. Do not proceed. Surface to user: "Pipeline cancelled. WORK_PACKAGE_CANCELLED."
+
+      **Skip condition:** Skip this gate ONLY for Simple Fix and Bug Fix pipelines (no Design Planning Architect stage involved).
+    </step>
     <step n="7">
       After each stage completes, update `Pipeline Stage:` in the ledger and proceed to the next stage.
 
@@ -387,21 +422,21 @@ Effort assignments and preambles are centralized here. Do NOT read agent files t
 
 **Step 1 — Look up the agent's effort level:**
 
-| Agent                        | effort |
-| ---------------------------- | ------ |
-| Data Collector Specialist          | low    |
-| Work Breakdown Specialist          | medium |
-| Documentation Review Specialist    | medium |
-| Design Planning Architect    | high   |
-| Bug Investigation Specialist | high   |
-| Security Auditor             | high   |
-| Backend Review Auditor       | high   |
-| Frontend Review Auditor      | high   |
-| Release Readiness Specialist | high   |
-| Docs Curator                 | low    |
-| Solar Bootstrap              | low    |
-| Solar Scan Collector         | low    |
-| \* (all others)              | medium |
+| Agent                           | effort |
+| ------------------------------- | ------ |
+| Data Collector Specialist       | low    |
+| Work Breakdown Specialist       | medium |
+| Documentation Review Specialist | medium |
+| Design Planning Architect       | high   |
+| Bug Investigation Specialist    | high   |
+| Security Auditor                | high   |
+| Backend Review Auditor          | high   |
+| Frontend Review Auditor         | high   |
+| Release Readiness Specialist    | high   |
+| Docs Curator                    | low    |
+| Solar Bootstrap                 | low    |
+| Solar Scan Collector            | low    |
+| \* (all others)                 | medium |
 
 **Step 2 — Map effort level to injected preamble:**
 

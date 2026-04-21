@@ -10,6 +10,7 @@ Use when the pattern entry describes a **process flow, agent routing sequence, o
 - Signs this belongs in instructions instead: the lesson describes a code convention, naming rule, or tech stack fact
 
 Target workflow files:
+
 - `feature.workflow.md` — full feature pipeline patterns
 - `bug-fix.workflow.md` — debugging and repair patterns
 - `simple-fix.workflow.md` — small change patterns
@@ -28,11 +29,13 @@ Target workflow files:
 
 ```markdown
 <!-- Source: PATTERNS.md #[DATE]-[SHORT-TITLE] -->
+
 #### [Step or stage name]
 
 **Trigger**: [When this step or routing decision applies]
 
 **Action**:
+
 1. [First action]
 2. [Second action]
 3. [etc.]
@@ -45,6 +48,7 @@ Target workflow files:
 ## Duplicate Detection
 
 Before inserting, search the target workflow file for:
+
 - Stage names that match the converted step name
 - Trigger conditions that overlap with the new step's trigger
 
@@ -60,6 +64,7 @@ If overlap exists: flag as `DUPLICATE_CANDIDATE` and surface to user. Do not aut
 ## Example Transformation
 
 **Input (PATTERNS.md):**
+
 ```
 ### 2026-04-10 ORCHESTRATOR — Collector Before Planner Prevents Rework
 **Problem**: Planner was re-reading files already read during planning, wasting 2 context window iterations.
@@ -68,13 +73,16 @@ If overlap exists: flag as `DUPLICATE_CANDIDATE` and surface to user. Do not aut
 ```
 
 **Output (feature.workflow.md addition):**
+
 ```markdown
 <!-- Source: PATTERNS.md #2026-04-10-Collector-Before-Planner-Prevents-Rework -->
+
 #### Context Collection Gate
 
 **Trigger**: Request requires reading > 3 non-ledger source files to understand scope.
 
 **Action**:
+
 1. Dispatch Data Collector Specialist with file list
 2. Wait for `scout_findings` in `## Handoff Payload`
 3. Only then dispatch Design Planning Architect

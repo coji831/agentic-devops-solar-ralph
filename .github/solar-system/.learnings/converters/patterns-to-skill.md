@@ -11,6 +11,7 @@ Use when the pattern entry describes a **reusable technique, domain knowledge, o
 - Signs this belongs in a workflow instead: the lesson is a routing or handoff sequence
 
 Skill additions vs. new skills:
+
 - Add to an existing skill's SKILL.md if the pattern extends existing domain guidance
 - Create a new skill only if the pattern represents a new, standalone domain technique
 
@@ -27,6 +28,7 @@ Skill additions vs. new skills:
 
 ```markdown
 <!-- Source: PATTERNS.md #[DATE]-[SHORT-TITLE] -->
+
 ## [Technique Name]
 
 **When to use**: [Specific conditions when this technique applies]
@@ -34,6 +36,7 @@ Skill additions vs. new skills:
 **When NOT to use**: [Conditions where this technique would be wrong or unnecessary]
 
 **Steps**:
+
 1. [First step — specific and actionable]
 2. [Second step]
 3. [etc.]
@@ -41,6 +44,7 @@ Skill additions vs. new skills:
 **Expected outcome**: [What should be true after applying this technique]
 
 **Tradeoffs**:
+
 - Pro: [benefit]
 - Con: [limitation or risk]
 
@@ -50,6 +54,7 @@ Skill additions vs. new skills:
 ## Duplicate Detection
 
 Before inserting or creating, search existing skill SKILL.md files for:
+
 - Technique names matching the new technique title
 - Problem statements describing the same scenario
 
@@ -64,6 +69,7 @@ If overlap exists: extend the existing skill section rather than creating a dupl
 ## Example Transformation
 
 **Input (PATTERNS.md):**
+
 ```
 ### 2026-03-28 FRONTEND-TEST — RTL Query Stability
 **Problem**: Tests using getByTestId broke when test IDs changed; tests using getByRole stayed stable.
@@ -72,8 +78,10 @@ If overlap exists: extend the existing skill section rather than creating a dupl
 ```
 
 **Output (frontend-testing/SKILL.md addition):**
+
 ```markdown
 <!-- Source: PATTERNS.md #2026-03-28-RTL-Query-Stability -->
+
 ## RTL Query Stability Hierarchy
 
 **When to use**: Any time writing or reviewing RTL component tests.
@@ -81,6 +89,7 @@ If overlap exists: extend the existing skill section rather than creating a dupl
 **When NOT to use**: When testing non-semantic elements with no accessible role.
 
 **Steps**:
+
 1. Default to `getByRole` (most resilient — survives refactoring)
 2. Use `getByText` for text content checks
 3. Use `getByLabelText` for form inputs
@@ -89,6 +98,7 @@ If overlap exists: extend the existing skill section rather than creating a dupl
 **Expected outcome**: Tests survive component refactors without needing query updates.
 
 **Tradeoffs**:
+
 - Pro: Role-based queries also verify accessibility
 - Con: Requires understanding ARIA roles for less common elements
 ```

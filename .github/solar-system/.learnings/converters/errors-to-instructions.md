@@ -25,6 +25,7 @@ Add to a `## Known Tool Limitations` or `## Troubleshooting` section in the targ
 
 ```markdown
 <!-- Source: ERRORS.md #[DATE]-[TOOL-NAME] -->
+
 ### [Tool Name]: [Short Description]
 
 **Symptom**: [Observable failure — what the agent sees when this problem occurs]
@@ -41,6 +42,7 @@ Add to a `## Known Tool Limitations` or `## Troubleshooting` section in the targ
 ## Duplicate Detection
 
 Before inserting, search the target instructions file's troubleshooting section for:
+
 - Tool name matches
 - Symptom descriptions with overlapping failure modes
 
@@ -56,6 +58,7 @@ If overlap exists: update the existing entry rather than adding a new one. Note 
 ## Example Transformation
 
 **Input (ERRORS.md):**
+
 ```
 ### 2026-04-02 semantic_search — 7-Minute Hang in Subagent Environments
 **Error**: semantic_search hung for 7 minutes with no output in a subagent invocation.
@@ -64,8 +67,10 @@ If overlap exists: update the existing entry rather than adding a new one. Note 
 ```
 
 **Output (conventions.instructions.md addition):**
+
 ```markdown
 <!-- Source: ERRORS.md #2026-04-02-semantic_search -->
+
 ### semantic_search: 7-Minute Hang in Subagent Environments
 
 **Symptom**: Tool call produces no output for 7+ minutes, blocking the entire subagent context window.

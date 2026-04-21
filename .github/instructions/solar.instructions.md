@@ -257,3 +257,70 @@ constrained decoding. Route to Security Auditor only when:
 For standard feature work with a schema-conformant plan, trust the Design Planning
 Architect output and proceed to implementation delegation without an additional
 Security Auditor review pass.
+
+---
+
+## 🔇 Output Verbosity Rules
+
+All SOLAR agents must follow these output rules by default:
+
+- **Concise by default**: Output only what is explicitly requested. No explanations unless asked.
+- **No preamble or epilogue**: Do not start with "I'll now..." or end with "Let me know if you need anything else."
+- **Structured over prose**: Use tables, bullet lists, and code blocks instead of long paragraphs.
+- **Progress indicators only**: Use the agent's designated progress protocol line; do not narrate intermediate steps.
+- **Findings over analysis**: Report findings directly. Reserve "why" explanations for HIGH or CRITICAL severity items only.
+- **Handoff payloads are not summaries**: Write the raw structured payload — do not add an introductory paragraph before it.
+
+---
+
+## 🤖 Model Selection Rules
+
+Agent model tiers are defined in each agent's frontmatter `model:` array. The governor MUST NOT override agent model selection — the frontmatter is authoritative.
+
+**High-reasoning agents** (Sonnet+ class — deep analysis, planning, security judgment):
+
+- Orchestration Governor
+- Design Planning Architect
+- Bug Investigation Specialist
+- Security Auditor
+- Backend Review Auditor
+- Frontend Review Auditor
+- Release Readiness Specialist
+
+**Fast agents** (mini/fast class — execution, collection, formatting):
+
+- Data Collector Specialist
+- Work Breakdown Specialist
+- All Implementation Specialists (Backend, Frontend, Generic)
+- Docs Curator
+- Solar Bootstrap
+- Solar Scan Collector
+
+**Rule**: Never downgrade a high-reasoning agent to a fast model for a "quick" task — the tier assignment in the agent frontmatter is the authoritative source for model selection.
+
+**Effort preamble as reasoning amplifier**: When invoking a high-reasoning agent, use the `high` effort preamble (`"Think through all edge cases and failure modes before acting. Document your reasoning."`) to increase analytical depth without changing the model.
+
+---
+
+## 🔧 Known Platform Behaviors
+
+### Model Inheritance — Subagents Use Their Own Frontmatter Model
+
+**Behavior**: When a governor (or any parent agent) invokes a subagent using the `agent` tool, the subagent uses the model defined in **its own frontmatter** — it does NOT inherit the parent's active model.
+
+**Implication**: The governor's current model has no effect on subagent reasoning depth. If you need a high-reasoning subagent pass, verify the TARGET agent's frontmatter lists Sonnet or equivalent — not the governor's.
+
+**Workaround**: Use the `effort_preamble_lookup` to prepend thinking prompts to high-effort delegations. This increases the depth of reasoning for the subagent call even when model override is not possible.
+
+**Verified**: 2026-04-22 — consistent with VS Code Copilot agent framework behavior.
+
+---
+
+## 📚 Learning System Commands
+
+After completing a task or epic, use these prompts to manage accumulated learnings:
+
+- `/promote-learning` — Promote specific PATTERNS.md or ERRORS.md entries to permanent files (instructions, workflows, or skill docs). Use after identifying entries worth keeping beyond the current task.
+- `/cleanup-learning <scope>` — Archive remaining unpromoted entries and reset PATTERNS.md / ERRORS.md for the next task. Scope: `task` | `epic` | `all`.
+
+**Compound Review (deprecated)**: `/solar-compound-review` is deprecated. Use `/promote-learning` and `/cleanup-learning` instead. The compound-review file is preserved for reference only.

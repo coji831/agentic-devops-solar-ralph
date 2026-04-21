@@ -1,10 +1,20 @@
 ---
 name: solar-compound-review
-description: Extract verified patterns from recent ledger tasks and promote them into LEARNINGS.md and AGENTS.md write-back rules.
+description: "⚠️ DEPRECATED — Use /promote-learning and /cleanup-learning instead. Preserved for reference only."
 agent: Orchestration Governor
 ---
 
-# SOLAR Compound Review
+> **⚠️ DEPRECATED / LEGACY**
+>
+> This prompt uses a manual 6-step extraction workflow. It has been replaced by:
+> - `/promote-learning` — batch-promote specific entries via format converters
+> - `/cleanup-learning` — archive unpromoted entries and reset learning files
+>
+> This file is preserved for reference only. Do NOT use it in active workflows.
+
+---
+
+# SOLAR Compound Review (Legacy)
 
 Trigger this prompt to instruct the governor to extract verified patterns from recent
 completed ledger tasks and promote them into `LEARNINGS.md` and `AGENTS.md`.

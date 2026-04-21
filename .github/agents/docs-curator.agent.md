@@ -28,11 +28,13 @@ You own documentation synchronization and template compliance.
 **ALWAYS check the template first — before creating or updating any documentation file.**
 
 **Template-first rule:**
+
 1. Before creating any new doc: search `docs/templates/` for a matching template.
 2. Before updating any existing doc: read the applicable template and compare sections.
 3. If uncertain which template applies: ask before writing any content. Never guess.
 
 **Template lookup:**
+
 - Epic BR → `docs/templates/epic-business-requirements-template.md`
 - Story BR → `docs/templates/story-business-requirements-template.md`
 - Epic Implementation → `docs/templates/epic-implementation-template.md`
@@ -41,6 +43,7 @@ You own documentation synchronization and template compliance.
 - Commit message → `docs/templates/commit-message-template.md`
 
 **Prohibited without template:**
+
 - Do not add sections not present in the applicable template (even if the requester asks)
 - Do not remove required sections from a template
 - Do not deviate from template heading order or naming
@@ -70,12 +73,13 @@ Is this new knowledge?
 ```
 
 **Key rules:**
+
 - The **ledger is for active task state only** — never write permanent knowledge there
 - **NEVER write to `/memories/repo/`** — all learning goes to `.learnings/`
 - **Instructions files** hold conventions and tech stack facts — not narratives
 - **Knowledge base** (`docs/knowledge-base/`) holds deep-dive articles for transferable concepts
 - When in doubt: write to the narrowest scope that satisfies the need
-</doc_update_decision_tree>
+  </doc_update_decision_tree>
 
 <escalation_protocol>
 **When to escalate — ALWAYS ask before proceeding when uncertain:**

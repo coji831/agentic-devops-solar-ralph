@@ -65,14 +65,13 @@ Ephemeral session activity logs (`session-*.json`). Created by the `SessionStart
 
 Converter templates in `converters/` define how to transform PATTERNS/ERRORS entries into their target format. The orchestrator uses these when generating the Learning Promotion Report.
 
-| Converter | Input | Output |
-|-----------|-------|--------|
-| [patterns-to-instructions](converters/patterns-to-instructions.md) | PATTERNS.md entry | `.github/instructions/*.instructions.md` |
-| [patterns-to-workflow](converters/patterns-to-workflow.md) | PATTERNS.md entry | `.github/workflows/*.workflow.md` |
-| [patterns-to-skill](converters/patterns-to-skill.md) | PATTERNS.md entry | `.github/skills/*/SKILL.md` |
-| [errors-to-instructions](converters/errors-to-instructions.md) | ERRORS.md entry | `.github/instructions/*.instructions.md` troubleshooting section |
+| Converter                                                          | Input             | Output                                                           |
+| ------------------------------------------------------------------ | ----------------- | ---------------------------------------------------------------- |
+| [patterns-to-instructions](converters/patterns-to-instructions.md) | PATTERNS.md entry | `.github/instructions/*.instructions.md`                         |
+| [patterns-to-workflow](converters/patterns-to-workflow.md)         | PATTERNS.md entry | `.github/workflows/*.workflow.md`                                |
+| [patterns-to-skill](converters/patterns-to-skill.md)               | PATTERNS.md entry | `.github/skills/*/SKILL.md`                                      |
+| [errors-to-instructions](converters/errors-to-instructions.md)     | ERRORS.md entry   | `.github/instructions/*.instructions.md` troubleshooting section |
 
 **Duplicate detection**: Before any insertion, check the target file for similar entries (~70% keyword overlap). Flag as `DUPLICATE_CANDIDATE` and surface to user — never auto-insert duplicates.
 
-**Cross-reference preservation**: All inserted content includes a `<!-- Source: PATTERNS.md #[ID] -->` comment so the instruction's origin can be traced back.
-5. Use `/cleanup-learning` to archive unpromoted task-specific entries after each story/epic.
+**Cross-reference preservation**: All inserted content includes a `<!-- Source: PATTERNS.md #[ID] -->` comment so the instruction's origin can be traced back. 5. Use `/cleanup-learning` to archive unpromoted task-specific entries after each story/epic.

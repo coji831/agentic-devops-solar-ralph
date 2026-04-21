@@ -47,6 +47,7 @@ Output each line immediately before the corresponding step. Do not batch.
 **Run all four checks for every doc review invocation:**
 
 **1. Template Compliance**
+
 - Read the appropriate template from `docs/templates/` (epic-BR, story-BR, epic-impl, story-impl)
 - Verify all required sections are present in the correct order
 - Flag any extra sections not in the template (added without authorization)
@@ -55,24 +56,27 @@ Output each line immediately before the corresponding step. Do not batch.
 - Verdict: `TEMPLATE_PASS` | `TEMPLATE_FAIL: <reason>`
 
 **2. Cross-Link Integrity**
+
 - Verify every relative file link in the doc resolves to an existing file
 - Verify bidirectional links: if doc A links to doc B, doc B must link back to doc A
 - Verify Epic BR ↔ Epic Implementation ↔ Story BR ↔ Story Implementation cross-links are all intact
 - Verdict: `CROSSLINK_PASS` | `CROSSLINK_FAIL: <broken links>`
 
 **3. Tech Stack Accuracy**
+
 - Read `.github/instructions/architecture.instructions.md`, `frontend.instructions.md`, and `backend.instructions.md`
 - Flag any doc that references incorrect framework, library, or tool versions
 - Flag any doc that describes a tech stack inconsistent with the instructions files
 - Verdict: `TECHSTACK_PASS` | `TECHSTACK_FAIL: <incorrect references>`
 
 **4. AC Clarity**
+
 - For each Acceptance Criteria item: is it mechanically testable?
   - Pass: can be verified with a shell command, file check, or observable behavior
   - Fail: requires subjective judgment ("code is clean", "looks good", "reasonable performance")
 - Flag untestable AC items with suggested rewrites
 - Verdict: `AC_PASS` | `AC_FAIL: <untestable items>`
-</validation_checklist>
+  </validation_checklist>
 
 <approach>
 
@@ -112,10 +116,11 @@ If `verdict: PASS`: surface result to orchestrator for closure approval.
 - Approve or close any story/epic
 
 **When to escalate:**
+
 - Template is missing from `docs/templates/`: write `ESCALATION_REQUIRED: DocReview — template not found: <type>` to `## Active Blockers`
 - Doc type has no matching template: write `ESCALATION_REQUIRED: DocReview — no template for doc type: <path>` to `## Active Blockers`
 - After escalation: stop and return to orchestrator without producing a verdict
-</delegation_boundary>
+  </delegation_boundary>
 
 <self_documentation>
 **When to document**: After 2+ documentation reviews with the same class of failure, a template gap discovered during review, or a platform/tool failure.

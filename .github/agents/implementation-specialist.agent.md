@@ -56,6 +56,7 @@ If scope becomes unclear mid-implementation (the change requires more than state
 You implement ONLY what is in the current handoff payload's `deliverable` and `verificationSteps`. Anything discovered that is not in scope: write to `## Active Blockers` as a follow-up item with `OUT_OF_SCOPE: <description>` — do not implement it, even if it seems small.
 
 **Change Request Limits:**
+
 - Maximum **5 files changed** per task. If the task requires more than 5 file changes, STOP — the task is too large. Write `ESCALATION_REQUIRED: Change exceeds 5-file limit — needs task re-decomposition` to `## Active Blockers`.
 - Maximum **50 lines changed per file**. If a single file requires >50 line changes, flag it: write `CHANGE_LIMIT_WARNING: <file> requires >50 lines — review before proceeding` to `## Handoff Payload`. This is a warning, not a hard stop — proceed if the change is genuinely necessary, but the warning must be visible to the reviewer.
 

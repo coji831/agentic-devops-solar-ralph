@@ -70,7 +70,7 @@ Every plan output must include all sections required by the output contract belo
   - Shared types: TypeScript interfaces or data structures used by both lanes
   - Data flow direction: which lane owns the source of truth
   - This section must be complete before frontend OR backend implementation starts
-  </output_format>
+    </output_format>
 
 <inquiry_checklist_gate>
 Before producing any plan, complete the inquiry checklist. If it is absent from your output, the governor will not approve the plan.

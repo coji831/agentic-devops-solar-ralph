@@ -8,12 +8,12 @@ The learning system captures raw signals during task execution. Converters trans
 
 ## Converter Index
 
-| Converter | Input | Output Destination |
-|-----------|-------|-------------------|
-| [patterns-to-instructions](patterns-to-instructions.md) | PATTERNS.md entry | `.github/instructions/*.instructions.md` |
-| [patterns-to-workflow](patterns-to-workflow.md) | PATTERNS.md entry | `.github/workflows/*.workflow.md` |
-| [patterns-to-skill](patterns-to-skill.md) | PATTERNS.md entry | `.github/skills/*/SKILL.md` |
-| [errors-to-instructions](errors-to-instructions.md) | ERRORS.md entry | `.github/instructions/*.instructions.md` (troubleshooting section) |
+| Converter                                               | Input             | Output Destination                                                 |
+| ------------------------------------------------------- | ----------------- | ------------------------------------------------------------------ |
+| [patterns-to-instructions](patterns-to-instructions.md) | PATTERNS.md entry | `.github/instructions/*.instructions.md`                           |
+| [patterns-to-workflow](patterns-to-workflow.md)         | PATTERNS.md entry | `.github/workflows/*.workflow.md`                                  |
+| [patterns-to-skill](patterns-to-skill.md)               | PATTERNS.md entry | `.github/skills/*/SKILL.md`                                        |
+| [errors-to-instructions](errors-to-instructions.md)     | ERRORS.md entry   | `.github/instructions/*.instructions.md` (troubleshooting section) |
 
 ## Workflow
 
@@ -49,8 +49,8 @@ Before inserting converted content into any destination file, the Docs Curator M
 
 ## Classification Guide
 
-| Classification | Criteria | Typical Destination |
-|---------------|----------|-------------------|
-| HIGH | Affects all agents or all pipelines; applies to any project | `conventions.instructions.md` or `workflow.instructions.md` |
-| MEDIUM | Domain-specific; applies to frontend, backend, or docs work | `frontend.instructions.md`, `backend.instructions.md`, or a skill SKILL.md |
-| LOW | Task-specific; applies only to the current project's stack | `architecture.instructions.md` or project-local notes |
+| Classification | Criteria                                                    | Typical Destination                                                        |
+| -------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| HIGH           | Affects all agents or all pipelines; applies to any project | `conventions.instructions.md` or `workflow.instructions.md`                |
+| MEDIUM         | Domain-specific; applies to frontend, backend, or docs work | `frontend.instructions.md`, `backend.instructions.md`, or a skill SKILL.md |
+| LOW            | Task-specific; applies only to the current project's stack  | `architecture.instructions.md` or project-local notes                      |
