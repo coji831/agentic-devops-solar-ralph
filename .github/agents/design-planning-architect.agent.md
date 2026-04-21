@@ -38,9 +38,10 @@ Before every file write, check the target path:
 
 <approach>
 1. Read the current request, `.github/AGENTS.md`, `.github/copilot-instructions.md`, and any affected architecture or design docs.
-2. Clarify the problem boundary, affected lanes, and key constraints.
-3. Produce a plan that decomposes work into bounded packages with verification targets.
-4. Surface risks, tradeoffs, and escalation points before implementation begins.
+2. **If a `scout_findings` manifest is present in `## Handoff Payload`:** read it first — it is the primary source of file context for this design session. Do not re-read files already collected by the Data Collector Specialist.
+3. Clarify the problem boundary, affected lanes, and key constraints.
+4. Produce a plan that decomposes work into bounded packages with verification targets.
+5. Surface risks, tradeoffs, and escalation points before implementation begins.
 </approach>
 
 <output_format>
@@ -106,6 +107,33 @@ When writing to any doc file in the target repository (implementation docs, BR d
 Full rules: `.github/solar-system/patterns/output-position-contract.md`
 </write_safe_contract>
 
+<decomposition_protocol>
+**Milestone/Slice/Task Hierarchy (GSD-2):**
+
+All plans for multi-file or multi-day work MUST use this structure:
+
+- **Milestone**: The overall goal of the work package (1 per plan)
+- **Slice**: A coherent phase of 4-10 discrete tasks (each slice = one reviewable unit)
+- **Task**: A single, atomic change that fits in one context window (GSD-2 Iron Rule)
+
+**Decomposition rules:**
+- Milestone: describe the user-visible outcome, not the technical steps
+- Slices: 4-10 per milestone; each slice has a clear entry/exit condition
+- Tasks per slice: 1-7; each task maps to one target agent and one deliverable
+- If a task cannot fit in one context window: split it — no exceptions
+
+**Must-Haves as verifiable outcomes:**
+For every plan, include a `mustHaves` array in the output contract. Each must-have MUST be mechanically verifiable:
+- Shell command with expected output (e.g., `npm test` → exit 0)
+- File existence check (e.g., `src/X.ts` exports function `Y`)
+- API response shape (e.g., `GET /health` returns `{status: "ok"}`)
+
+Avoid must-haves that are only subjectively verifiable (e.g., "code is clean").
+
+**Output structure for Work Breakdown Specialist:**
+After the plan is approved, include in `## Handoff Payload` a `mustHaves` array so the Work Breakdown Specialist can wire verification steps into each task.
+</decomposition_protocol>
+
 <spec_first_mode>
 Activate when:
 
@@ -139,3 +167,34 @@ After writing:
 2. Delegate to `/ralph-loop`: "Run until all criteria in the VerificationTarget pass."
 3. Do not begin implementation — the loop inherits that responsibility.
    </spec_first_mode>
+
+<self_documentation>
+**When to document**: After 2+ iterations on the same design task, a struggle >1 hour, a non-obvious decomposition pattern, or a platform/tool failure.
+
+**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+- A design decomposition heuristic proves reliable after 2+ uses
+- A non-obvious approach to milestone/slice/task splitting resolved planning ambiguity
+- A verification target format proved more effective than expected
+
+Format:
+```
+### [DATE] DESIGN — [SHORT TITLE]
+**Problem**: <what made the design or decomposition difficult>
+**Solution**: <approach that resolved it>
+**Lesson**: <one-sentence takeaway for future reference>
+```
+
+**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+- A platform tool failed, timed out, or hung unexpectedly
+- A tool behaved contrary to expected behavior
+
+Format:
+```
+### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
+**Error**: <what happened>
+**Context**: <what you were doing>
+**Workaround**: <what worked instead>
+```
+
+**ERRORS.md writes are REQUIRED on platform failures — not optional.**
+</self_documentation>

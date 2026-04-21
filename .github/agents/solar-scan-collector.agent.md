@@ -85,3 +85,23 @@ Write to: `.github/scan-raw-signals.json`
 This is a **temporary file** — the bootstrap agent will read it and delete it after classification. Do not consider it a permanent artifact.
 
 </task>
+
+<self_documentation>
+**When to document**: Only on platform tool failures during scan operations.
+
+**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+- A file scan or read tool fails unexpectedly
+- The JSON write to `.github/scan-raw-signals.json` fails
+- A glob pattern produces no results on a non-empty repository
+
+Format:
+```
+### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
+**Error**: <what happened>
+**Context**: <what scan operation was running>
+**Workaround**: <what worked instead>
+```
+
+**ERRORS.md writes are REQUIRED on platform failures — not optional.**
+**Do NOT write to PATTERNS.md** — raw extraction is deterministic, not pattern-based.
+</self_documentation>

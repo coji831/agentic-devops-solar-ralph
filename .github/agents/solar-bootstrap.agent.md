@@ -737,3 +737,23 @@ Do NOT:
 - Update any ledger or memory files
 - Trigger any SOLAR pipelines or delegate to specialists
 ```
+
+<self_documentation>
+**When to document**: Only on platform tool failures during setup operations.
+
+**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+- A setup tool call fails, times out, or behaves unexpectedly
+- A file write operation fails during template installation
+- A scan or apply-config command produces unexpected output
+
+Format:
+```
+### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
+**Error**: <what happened>
+**Context**: <which setup command was running>
+**Workaround**: <what worked instead>
+```
+
+**ERRORS.md writes are REQUIRED on platform failures — not optional.**
+**Do NOT write to PATTERNS.md** — bootstrap operations are one-time setup, not reusable patterns.
+</self_documentation>

@@ -49,3 +49,31 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 - Residual risk if unchanged
 
 </output_format>
+
+<self_documentation>
+**When to document**: After 2+ security review cycles on the same flow, a non-obvious vulnerability pattern found, or a platform/tool failure.
+
+**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+- A non-obvious OWASP Top 10 pattern recurs across 2+ audits in this codebase
+- A security boundary assumption proves consistently wrong for this stack
+
+Format:
+```
+### [DATE] SECURITY — [SHORT TITLE]
+**Problem**: <what vulnerability pattern was hard to detect or repeatedly appears>
+**Solution**: <approach that identified it reliably>
+**Lesson**: <one-sentence takeaway for future audits>
+```
+
+**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+
+Format:
+```
+### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
+**Error**: <what happened>
+**Context**: <what you were doing>
+**Workaround**: <what worked instead>
+```
+
+**ERRORS.md writes are REQUIRED on platform failures — not optional.**
+</self_documentation>

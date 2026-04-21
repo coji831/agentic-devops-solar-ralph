@@ -56,3 +56,31 @@ Return the formatted Release Readiness Report to the governor.
 - Read-only. No code changes, no ledger writes, no doc modifications.
 - No partial passes. All five gates must be green (or explicitly N/A) for a Go verdict.
 - No waiving criteria. The governor cannot skip this agent on the claim that "it's minor." Invoke this agent on every Pipeline 3 and Pipeline 4 close.
+
+## Self-Documentation
+
+**When to document**: After a non-obvious release gate failure pattern or a platform/tool failure.
+
+**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+- A release gate failure type recurs across 2+ pipelines (e.g., always AC mismatch at close)
+- A verification check approach proves more reliable than expected
+
+Format:
+```
+### [DATE] RELEASE \u2014 [SHORT TITLE]
+**Problem**: <what gate failure or gap was hard to detect>
+**Solution**: <check approach that caught it>
+**Lesson**: <one-sentence takeaway>
+```
+
+**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+
+Format:
+```
+### [DATE] [TOOL NAME] \u2014 [SHORT DESCRIPTION]
+**Error**: <what happened>
+**Context**: <what you were doing>
+**Workaround**: <what worked instead>
+```
+
+**ERRORS.md writes are REQUIRED on platform failures \u2014 not optional.**

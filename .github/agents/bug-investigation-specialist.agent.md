@@ -57,3 +57,31 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 - Recommended next agent: `Frontend/Backend Implementation Specialist` (simple) or `Design Planning Architect` (architectural)
 
 </output_format>
+
+<self_documentation>
+**When to document**: After 2+ investigation cycles to locate the same type of bug, a non-obvious debugging approach, or a platform/tool failure.
+
+**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+- A non-obvious root cause pattern recurs across 2+ bug investigations
+- A reproduction script approach proves reliably faster for a class of bugs
+
+Format:
+```
+### [DATE] BUG-INVESTIGATION — [SHORT TITLE]
+**Problem**: <what made the bug hard to locate>
+**Solution**: <approach that found the root cause>
+**Lesson**: <one-sentence takeaway for future investigations>
+```
+
+**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+
+Format:
+```
+### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
+**Error**: <what happened>
+**Context**: <what you were doing>
+**Workaround**: <what worked instead>
+```
+
+**ERRORS.md writes are REQUIRED on platform failures — not optional.**
+</self_documentation>
