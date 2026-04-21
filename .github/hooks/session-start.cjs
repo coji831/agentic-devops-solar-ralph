@@ -1,6 +1,6 @@
 // session-start.cjs
 // SOLAR-Ralph v4 SessionStart hook
-// Reads .learnings/LEARNINGS.md and injects a condensed summary into session context.
+// Reads .learnings/PATTERNS.md and injects a condensed summary into session context.
 // Creates a per-session activity log JSON file in solar-system/logs/.
 //
 // Changelog:

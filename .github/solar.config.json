@@ -75,14 +75,11 @@
       ],
       "requireDesignBeforeImpl": false,
       "routerBypassAgents": [
+        "Design Planning Architect",
+        "Bug Investigation Specialist",
         "Explore",
-        "Implementation Specialist",
-        "Backend Implementation Specialist",
-        "Frontend Implementation Specialist",
-        "Security Auditor",
-        "Docs Curator",
-        "Backend Test Specialist",
-        "Frontend Test Specialist"
+        "Solar Bootstrap",
+        "Solar Scan Collector"
       ]
     }
   },
@@ -95,6 +92,7 @@
       ".github/.ai_ledger.md",
       ".github/AGENTS.md",
       ".github/instructions/solar.instructions.md",
+      ".github/solar-system/.learnings/PATTERNS.md",
       "/memories/session/checkpoint.md"
     ]
   },

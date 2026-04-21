@@ -18,7 +18,7 @@ tool failure, record the entry below using the format:
 ```
 
 Entries are reviewed during Compound Review (`/solar-compound-review`) and promoted
-to `.learnings/LEARNINGS.md` if the corrective action is generally applicable.
+to `.learnings/PATTERNS.md` if the corrective action is generally applicable.
 
 ---
 

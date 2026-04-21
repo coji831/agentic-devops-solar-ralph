@@ -163,7 +163,7 @@ function resolveLearningsDir(config) {
  * @returns {string} Absolute path to LEARNINGS.md
  */
 function resolveLearningsPath(config) {
-  return path.join(resolveLearningsDir(config), "LEARNINGS.md");
+  return path.join(resolveLearningsDir(config), "PATTERNS.md");
 }
 
 /**

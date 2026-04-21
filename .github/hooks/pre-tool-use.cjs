@@ -11,7 +11,14 @@ function isWatchModeTriggered(config, sessionType, toolName) {
   return patterns.some((p) => toolName.includes(p.toLowerCase()));
 }
 
-function isBypassAgent(targetAgent) {
+function isBypassAgent(config, targetAgent) {
+  const bypassAgents = config?.hooks?.preToolUse?.routerBypassAgents;
+  if (Array.isArray(bypassAgents) && bypassAgents.length > 0) {
+    return bypassAgents.some((a) =>
+      targetAgent.toLowerCase().includes(a.toLowerCase()),
+    );
+  }
+  // Fallback to hardcoded patterns if config missing
   const BYPASS_PATTERNS = [
     "design",
     "architect",
@@ -98,7 +105,7 @@ function main(data) {
     const targetAgent =
       agentArgs.agentName || agentArgs.agent || agentArgs.name || "";
 
-    if (isBypassAgent(targetAgent)) {
+    if (isBypassAgent(config, targetAgent)) {
       common.logHookExecution(
         "PreToolUse",
         "PASS (bypass agent: " + targetAgent + ")",

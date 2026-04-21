@@ -244,15 +244,20 @@ Rules:
 **Output:**
 
 - Write classified `.workflow.md` files to `.github/workflows/`
-- Name pattern: `<taxonomy-type>.workflow.md` (e.g., `story-execution.workflow.md`, `branching-strategy.workflow.md`)
-- YAML frontmatter: `status: inferred | source: <file(s)> | confidence: high|medium|low | type: <taxonomy-type>`
-- In the `## Steps` section, add injection markers:
-  - After each numbered step line: `<!-- INJECT: step-N -->`
-  - After the final step: `<!-- INJECT: append-steps -->`
+- Name pattern: `<taxonomy-type>.workflow.md` (e.g., `knowledge.workflow.md`, `bug-fix.workflow.md`)
+- Frontmatter should follow minimal schema from `.github/solar-system/schemas/workflow-metadata.schema.json`
+- Minimal metadata fields for workflows:
+  - `name`, `type`, `loop`, `max_iterations`, `exit_condition`
+- Schema mismatch is warning-only at setup time (do not block setup)
 
 **Fallback (no workflow signals in any source):**
 
-- Scaffold blank `story-execution.workflow.md` + `branching-strategy.workflow.md` with `[POST-IMPLEMENT]` markers
+- Scaffold default workflows:
+  - `knowledge.workflow.md`
+  - `simple-fix.workflow.md`
+  - `bug-fix.workflow.md`
+  - `feature.workflow.md`
+- Seed each default workflow from matching pipeline content under `.github/solar-system/pipelines/`
 - Log: `fallbacksTriggered: ["workflow-inference"]`
 
 ---

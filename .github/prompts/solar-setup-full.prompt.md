@@ -105,13 +105,10 @@ Using Pass 3 results from the profile (`instructions.files[]`):
 <step id="5" title="Generate Inferred Workflow Files">
 Using Pass 4 results from the profile (`workflows.inferred[]` + `workflows.scaffolded[]`):
 
-- Create `.github/workflows/` directory if it does not exist
-- For each inferred workflow: write `<name>.workflow.md` with:
-  - YAML frontmatter: `name`, `description`, `status: inferred`, `source: <file>`, `confidence: <value>`
-  - Body: extracted step sequence from source file
-  - `[POST-IMPLEMENT]` markers for steps that could not be extracted
-- For each scaffolded workflow: write blank template with `[POST-IMPLEMENT]` markers throughout
-- Skip files that already exist in `.github/workflows/`
+- Execute the canonical Pass 4 output contract from the Solar Bootstrap agent `<scan_protocol>`.
+- Create `.github/workflows/` directory if it does not exist.
+- Write inferred and fallback workflows exactly as specified by the agent contract.
+- Skip files that already exist in `.github/workflows/`.
 
 After writing all workflow files, output a **Workflow Verification Report** before continuing:
 
@@ -123,12 +120,12 @@ Inferred workflows written:
   - <name>.workflow.md  (confidence: high|medium|low)  source: <file>
   ...
 
-Scaffolded (no source found):
-  - <name>.workflow.md  [POST-IMPLEMENT throughout]
+Fallback workflows written:
+  - <name>.workflow.md
   ...
 
 ⚠️  Review .github/workflows/ before running any pipeline that references
-    workflow steps. Correct any low-confidence or [POST-IMPLEMENT] entries directly
+    workflow steps. Correct any low-confidence entries directly
     in the workflow files. Setup continues automatically -- no action required now.
 ----------------------------------------
 ```

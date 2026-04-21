@@ -137,6 +137,14 @@ verification-artifacts/.gitkeep
 .github/solar-system/schemas/qa-result.schema.json
 .github/solar-system/schemas/scout-findings.schema.json
 .github/solar-system/schemas/dev-progress.schema.json
+.github/solar-system/schemas/workflow-metadata.schema.json
+
+# Workflow metadata + templates
+.github/solar-system/workflow-migration-map.md
+.github/workflows/knowledge.workflow.md
+.github/workflows/simple-fix.workflow.md
+.github/workflows/bug-fix.workflow.md
+.github/workflows/feature.workflow.md
 
 # SOLAR learnings repository (built by session hooks)
 .github/solar-system/.learnings/LOG-SOURCES.md
