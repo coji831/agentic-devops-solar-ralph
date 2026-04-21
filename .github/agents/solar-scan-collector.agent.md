@@ -1,7 +1,13 @@
 ---
 name: Solar Scan Collector
 description: Raw signal extractor for SOLAR-Ralph repo scanning. Extracts verbatim blocks only — no classification, no deduplication, no interpretation.
-model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
+model:
+  [
+    GPT-5 mini (copilot),
+    GPT-4.1 (copilot),
+    Grok Code Fast 1 (copilot),
+    GPT-5.4 mini (copilot),
+  ]
 user-invocable: false
 tools: [read, search, edit]
 ---
@@ -90,11 +96,13 @@ This is a **temporary file** — the bootstrap agent will read it and delete it 
 **When to document**: Only on platform tool failures during scan operations.
 
 **Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+
 - A file scan or read tool fails unexpectedly
 - The JSON write to `.github/scan-raw-signals.json` fails
 - A glob pattern produces no results on a non-empty repository
 
 Format:
+
 ```
 ### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
 **Error**: <what happened>

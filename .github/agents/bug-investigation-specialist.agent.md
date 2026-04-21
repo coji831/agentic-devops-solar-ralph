@@ -2,7 +2,13 @@
 name: Bug Investigation Specialist
 description: "Use when a bug's root cause is unknown. Reads code, tests, and error output to trace the failure to a specific location. Escalates to Design Planning Architect only if root cause is architectural."
 tools: [read, search, execute]
-model: [Claude Haiku 4.5 (copilot), Gemini 3 Flash (Preview) (copilot), Claude Sonnet 4 (copilot), GPT-5.2 (copilot)]
+model:
+  [
+    Claude Haiku 4.5 (copilot),
+    Gemini 3 Flash (Preview) (copilot),
+    Claude Sonnet 4 (copilot),
+    GPT-5.2 (copilot),
+  ]
 user-invocable: false
 ---
 
@@ -62,10 +68,12 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 **When to document**: After 2+ investigation cycles to locate the same type of bug, a non-obvious debugging approach, or a platform/tool failure.
 
 **Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+
 - A non-obvious root cause pattern recurs across 2+ bug investigations
 - A reproduction script approach proves reliably faster for a class of bugs
 
 Format:
+
 ```
 ### [DATE] BUG-INVESTIGATION — [SHORT TITLE]
 **Problem**: <what made the bug hard to locate>
@@ -76,6 +84,7 @@ Format:
 **Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
+
 ```
 ### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
 **Error**: <what happened>

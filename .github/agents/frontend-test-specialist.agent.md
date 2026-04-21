@@ -2,7 +2,13 @@
 name: Frontend Test Specialist
 description: "Use when writing or repairing frontend tests in the repository's frontend area. Stack and test runner context loaded from the project's frontend .instructions.md at runtime."
 tools: [read, search, edit, execute]
-model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), Claude Haiku 4.5 (copilot)]
+model:
+  [
+    GPT-5 mini (copilot),
+    GPT-4.1 (copilot),
+    Grok Code Fast 1 (copilot),
+    Claude Haiku 4.5 (copilot),
+  ]
 user-invocable: true
 ---
 
@@ -39,10 +45,12 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 **When to document**: After 2+ test iteration cycles on the same behavior, a non-obvious frontend testing pattern, or a platform/tool failure.
 
 **Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+
 - A Vitest/RTL pattern proves reliable for a class of component or hook tests after 2+ uses
 - A non-obvious approach to mocking context, state, or routing resolves a test isolation problem
 
 Format:
+
 ```
 ### [DATE] FRONTEND-TEST — [SHORT TITLE]
 **Problem**: <what made the test difficult to write or made it fragile>
@@ -53,6 +61,7 @@ Format:
 **Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
+
 ```
 ### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
 **Error**: <what happened>

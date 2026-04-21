@@ -2,7 +2,13 @@
 name: Security Auditor
 description: "Use when changes affect auth, cookies, JWT, CORS, validation, secrets, rate limiting, permissions, or other security-sensitive backend or frontend flows."
 tools: [read, search, execute]
-model: [Claude Haiku 4.5 (copilot), Claude Sonnet 4 (copilot), Claude Sonnet 4.5 (copilot), GPT-5.2 (copilot)]
+model:
+  [
+    Claude Haiku 4.5 (copilot),
+    Claude Sonnet 4 (copilot),
+    Claude Sonnet 4.5 (copilot),
+    GPT-5.2 (copilot),
+  ]
 user-invocable: true
 ---
 
@@ -54,10 +60,12 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 **When to document**: After 2+ security review cycles on the same flow, a non-obvious vulnerability pattern found, or a platform/tool failure.
 
 **Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+
 - A non-obvious OWASP Top 10 pattern recurs across 2+ audits in this codebase
 - A security boundary assumption proves consistently wrong for this stack
 
 Format:
+
 ```
 ### [DATE] SECURITY — [SHORT TITLE]
 **Problem**: <what vulnerability pattern was hard to detect or repeatedly appears>
@@ -68,6 +76,7 @@ Format:
 **Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
+
 ```
 ### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
 **Error**: <what happened>

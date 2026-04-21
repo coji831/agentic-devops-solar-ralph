@@ -2,7 +2,13 @@
 name: Cache and External Integration Specialist
 description: "Use when implementing or debugging Redis cache layers, external service integrations (third-party APIs, webhooks, external HTTP clients), connection pooling, TTL policies, cache invalidation strategies, or retry/circuit-breaker patterns in the backend."
 tools: [read, search, edit, execute, todo]
-model: [GPT-5 mini (copilot), GPT-4.1 (copilot), Grok Code Fast 1 (copilot), GPT-5.4 mini (copilot)]
+model:
+  [
+    GPT-5 mini (copilot),
+    GPT-4.1 (copilot),
+    Grok Code Fast 1 (copilot),
+    GPT-5.4 mini (copilot),
+  ]
 user-invocable: false
 ---
 
@@ -80,10 +86,12 @@ At the end of each step, report:
 **When to document**: After 2+ iterations on the same cache/integration issue, a non-obvious retry or TTL pattern, or a platform/tool failure.
 
 **Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+
 - A cache invalidation pattern resolves a recurring data consistency problem after 2+ implementations
 - A retry/backoff configuration proves reliable for a class of external dependency
 
 Format:
+
 ```
 ### [DATE] CACHE-INTEGRATION — [SHORT TITLE]
 **Problem**: <what made the cache or integration difficult>
@@ -94,6 +102,7 @@ Format:
 **Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
+
 ```
 ### [DATE] [TOOL NAME] — [SHORT DESCRIPTION]
 **Error**: <what happened>

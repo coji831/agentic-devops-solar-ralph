@@ -1,7 +1,13 @@
 ---
 name: Release Readiness Specialist
 description: "Verifies that a pipeline is safe to close before the governor writes WORK_PACKAGE_COMPLETE. Checks tests, security audit, documentation, acceptance criteria, and ledger state. Produces a Go / No-Go report. Invoked by the governor at the release gate stage of Pipeline 3 (Bug Fix) and Pipeline 4 (Feature)."
-model: [GPT-4.1 (copilot), GPT-4o (copilot), Claude Sonnet 4.6 (copilot), Gemini 2.5 Pro (copilot)]
+model:
+  [
+    GPT-4.1 (copilot),
+    GPT-4o (copilot),
+    Claude Sonnet 4.6 (copilot),
+    Gemini 2.5 Pro (copilot),
+  ]
 tools: [read, search]
 user-invocable: false
 ---
@@ -62,10 +68,12 @@ Return the formatted Release Readiness Report to the governor.
 **When to document**: After a non-obvious release gate failure pattern or a platform/tool failure.
 
 **Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+
 - A release gate failure type recurs across 2+ pipelines (e.g., always AC mismatch at close)
 - A verification check approach proves more reliable than expected
 
 Format:
+
 ```
 ### [DATE] RELEASE \u2014 [SHORT TITLE]
 **Problem**: <what gate failure or gap was hard to detect>
@@ -76,6 +84,7 @@ Format:
 **Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
+
 ```
 ### [DATE] [TOOL NAME] \u2014 [SHORT DESCRIPTION]
 **Error**: <what happened>
