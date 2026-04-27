@@ -5,6 +5,52 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v4 — April 27, 2026
+
+**Theme:** Concept harness alignment — stripped v4-specific complexity back to minimal SOLAR harness.
+
+### Added
+
+- **`solar-install.prompt.md`** — single interactive installer replaces all `/solar-setup-*` prompts. One file, run in VS Code agent mode, builds the full system end-to-end.
+- **`solar-registry-update.prompt.md`** — dedicated registry sync prompt; updates `AGENTS.md` after any component add/swap/remove.
+- **Base-install skills** — `data-collection`, `design-planning`, `implementation`, `testing`, `review`, `recursive-remediation` (generic tier, stack-agnostic). Previously only stack-specific skills shipped.
+- **Base-install agents** — `review-auditor` and `test-specialist` (generic tier) added alongside existing stack-specific specialists.
+- **Communication Discipline rule** — `solar.instructions.md` now includes a `## Communication Discipline` section: work silent, signal only. Three permitted outputs: stage signals, BLOCKED notices, final artifacts. No narration, no preamble. Rule also embedded in installer Step 5E so every new installation generates it.
+- **`docs/versions/v4.md`** — full system state snapshot: base install (7+7+2), full agent roster (21), full skill roster (19), hook set, config flags, what changed from v3, and deferred items.
+- **`docs/solar-component-diagram.md`** — visual layer diagram.
+- **`.github/solar-system/learnings/README.md`** and **`logs/README.md`** — optional component activation stubs.
+
+### Changed
+
+- **`solar.config.json`** — reduced from multi-key v4 format to 5 flags: `adversarial`, `learning`, `logging`, `human_approval`, `parallel_dispatch`. Removed `solar.active` (SOLAR is active when files are present, no flag needed).
+- **`solar.instructions.md`** — removed dead `.github/guides/` references; removed `/solar-setup-*` commands and `solar.active` activation block; simplified Setup section to point to installer; simplified Key Files to actual install output.
+- **`AGENTS.template.md`** — updated to 9-section installer structure matching `solar-install.prompt.md` output; added Communication Discipline reference in Section 9.
+- **`.ai_ledger.template.md`** — updated 5-section sparse format; references `hooks.enabled` instead of `solar.active`.
+- **`SOLAR-Ralph-implementation-guideline.md`** — rewritten as 6-section install-focused reference (Install / What Gets Installed / First Task / Registry Sync / Optional Components / Config Reference). No scripts, no setup prompts.
+- **`README.md`** — rewritten: problem → SOLAR solution table replaces feature list; swappable registry callout with `#solar-registry-update.prompt.md`; "What Gets Installed" section with exact 7/7/2 counts.
+- **`copilot-instructions.template.md`** — removed `/solar-setup-quick` and `solar.active` from checklist.
+- **`.template.gitignore`** — added optional component paths for learnings and logs.
+
+### Removed
+
+- **`.github/guides/`** — all 4 operator guides moved to `docs/knowledge-base/` (content preserved, not deleted).
+- **v4 solar-system internals** — `solar-system/context/` (4 files), `solar-system/patterns/output-position-contract.md`, `solar-system/schemas/handoff-types.md`, `solar-system/schemas/workflow-metadata.schema.json` moved to `docs/knowledge-base/` with `v4-` prefix.
+- **10 setup and utility prompts** — `/solar-setup-quick`, `/solar-setup-full`, `/solar-setup-scan-repo`, `/solar-setup-apply-config`, `/solar-setup-instructions`, `solar-compound-review`, `solar-audit-story`, `solar-promote-learning`, `solar-cleanup-learning`, `solar-enter/exit-bootstrap`.
+- **4 workflow files** — `pipelines/` and `workflows/` folders removed (pipeline definitions moved into governor agent and AGENTS.md).
+- **`scripts/` folder** — 5 scripts removed (`install-solar.ps1`, `install-solar.sh`, `hook-test-runner.ps1`, `check-hook-test-results.ps1`, `solar-manifest.txt`).
+- **`.github/solar-system/.learnings/`** — 10 files removed; replaced by `learnings/README.md` stub (opt-in, activated by `"learning": true`).
+- **`solar-system/workflow-migration-map.md`** and **`solar-system/context/effort-simulation.md`**.
+
+### Research basis
+
+- [SOLAR-Ralph v4 Framework](docs/research/framework/SOLAR-Ralph-framework-v4.md)
+- [v4 Feedback](docs/research/feedback/SOLAR-Ralph-v4-feedback.md)
+- [v4 Feasibility Analysis](docs/research/notes/v4-feasibility-analysis.md)
+- [Deep Scan Report 2026-04-23](verification-artifacts/solar-ralph-deep-scan-report-2026-04-23.md)
+- [v4 System State](docs/versions/v4.md)
+
+---
+
 ## v3 — April 2, 2026
 
 **Theme:** Harness hardening for low-reasoning model governors (Claude Haiku 4.5).

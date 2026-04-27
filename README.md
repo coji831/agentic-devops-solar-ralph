@@ -1,88 +1,67 @@
-# 🤖 SOLAR-Ralph: The Autonomous Engineering Harness
+# SOLAR-Ralph
 
 [![Copilot 2026 Ready](https://img.shields.io/badge/Copilot-2026_Ready-blue.svg)](https://github.com/features/copilot)
 [![Framework SOLAR-Ralph](https://img.shields.io/badge/Framework-SOLAR--Ralph-orange.svg)](#the-solar-framework)
 [![License MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Stop "vibe coding" and start building autonomous agentic teams.**
+**Agentic AI should finish tasks autonomously. Most of the time, it doesn't.**
 
-The SOLAR-Ralph Harness is a professional-grade template for implementing the **Specialist, Orchestrator, Ledger, Adversarial, and Recursive** framework within the GitHub Copilot ecosystem. It solves the "Human-in-the-Loop Bottleneck" by transforming AI from a reactive autocomplete tool into a relentless autonomous co-worker.
+Agents declare success too early. They start work with missing context and fail mid-way. They implement in the wrong direction for hours before you notice. They self-certify their own output. They lose all state when the session ends. And changing one agent breaks everything else.
 
----
-
-## 🏗️ The SOLAR Framework (Early 2026 Standard)
-
-Unlike flat multi-agent systems, SOLAR-Ralph uses a **Hierarchical Multi-Agent System (HMAS)** to manage complexity and prevent "Context Rot."
-
-| Layer | Component        | Implementation              | Purpose                                                |
-| :---- | :--------------- | :-------------------------- | :----------------------------------------------------- |
-| **S** | **Specialist**   | `.github/agents/*.agent.md` | High-fidelity domain experts (Frontend, Security, DB). |
-| **O** | **Orchestrator** | `.github/AGENTS.md`         | The Governor. Decomposes tasks and routes via skills.  |
-| **L** | **Ledger**       | `.github/.ai_ledger.md`     | Amnesia-free persistent state and "Mistake Records".   |
-| **A** | **Adversarial**  | Review Auditors + Security  | Reward Auditing (ARA) to prevent "Code Gaming".        |
-| **R** | **Recursive**    | `/ralph-loop` + Stop hooks  | Deterministic iteration via bounded loops.             |
+SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves each of these with a structured five-layer protocol. One install command. No custom runtime. No vendor lock-in.
 
 ---
 
-## 🚀 Quick Start
+## Why SOLAR-Ralph
 
-**1. Install:**
-
-_Windows (PowerShell):_
-
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
-```
-
-_macOS / Linux (Bash):_
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
-```
-
-**2. Setup:** Run `/solar-setup-quick` (or `/solar-setup-full` for advanced customization)
-
-**3. Test:** Run `/ralph-loop "Add a README badge"`
-
-**📖 Detailed Guide:** See [SOLAR-Ralph Implementation Guideline](SOLAR-Ralph-implementation-guideline.md)
+| Pain Point                                                                | SOLAR Solution                                                                                                           |
+| :------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------- |
+| Agent declares the task done before it actually is                        | **Ralph Loop** — declarative exit condition + adversarial gate required before `TASK_COMPLETE` is written                |
+| Agent starts implementing with missing context and fails mid-way          | **Material Gate** — `MATERIAL_INSUFFICIENT` signal stops the governor before any specialist is delegated                 |
+| Wrong direction: hours of code before you realize the agent misunderstood | **Design Gate** — user-approved plan must exist before any implementation agent runs                                     |
+| Can't trust AI output without independent verification                    | **Adversarial Bystander** — a non-author agent verifies at every write stage; bystander is a principle, not a named role |
+| Session ends and the agent loses all progress                             | **Ledger** — sparse five-section restart-safe state anchor in `.github/.ai_ledger.md`; governor reads it cold            |
+| Swapping one agent breaks the whole team                                  | **Registry** — every agent is a YAML block in `AGENTS.md`; swap by updating one entry                                    |
 
 ---
 
-## 🔥 Key 2026 Features Included
+## The SOLAR Framework
 
-### 1. The Ralph Wiggum Loop (Deterministic Persistence)
-
-Embraces the philosophy that **"Iteration Beats Perfection."** The agent is trapped in a self-correcting bash loop that re-injects the prompt until your code passes strong "Backpressure" gates (tests, types, and builds).
-
-### 2. Agentic Context Rotation
-
-Solves the "malloc/free problem" of context windows. Our Stop Hooks automatically monitor token usage and trigger rotations at 80% capacity, clearing history while preserving state in the Ledger and Git.
-
-### 3. Adversarial Reward Auditing (ARA)
-
-Included specialized auditors that hunt for "Proxy Sovereignty"—detecting when implementation agents modify unit tests to pass rather than fixing underlying bugs.
-
-### 4. Persistent State via Ledger
-
-Uses `.github/.ai_ledger.md` as the restart-safe state anchor. Combined with `.github/instructions/*.instructions.md` always-on context files, the governor retains project facts across sessions without a separate memory layer.
+| Layer | Role             | Implementation              | What It Does                                                                      |
+| :---- | :--------------- | :-------------------------- | :-------------------------------------------------------------------------------- |
+| **S** | **Specialist**   | `.github/agents/*.agent.md` | Isolated domain experts dispatched in parallel; one failure does not block others |
+| **O** | **Orchestrator** | `.github/AGENTS.md`         | Pure event-driven governor; reads ledger stage, dispatches the right specialist   |
+| **L** | **Ledger**       | `.github/.ai_ledger.md`     | Restart-safe state anchor; five sections, Materials are links only                |
+| **A** | **Adversarial**  | Review Auditors + Stop hook | Non-author verification before any write lands; bystander principle               |
+| **R** | **Recursive**    | Ralph Loop + Stop hook      | Bounded iteration with a declarative exit condition and iteration cap             |
 
 ---
 
-## 📂 Repository Structure
+## Quick Start
 
-- `.github/AGENTS.md` - Orchestration contract and pipeline definitions
-- `.github/.ai_ledger.md` - Persistent work state and mistake ledger
-- `.github/agents/` - 16 specialist personas (Governor, Architects, Specialists, Auditors)
-- `.github/skills/` - 14 reusable workflows (Implementation, Testing, Review, Governance)
-- `.github/prompts/` - Setup commands and runtime prompts (`/solar`, `/solar-audit-story`, setup prompts)
-- `.github/hooks/` - Lifecycle automation (Stop hooks, Post-tool-use validation)
-- `.github/guides/` - Operator documentation and workflow guides
-- `verification-artifacts/` - Evidence backbone for release readiness
-- `docs/knowledge-base/` - Pattern guides and architectural references
+**1. Install:** Open `solar-install.prompt.md` in VS Code agent mode and follow the prompts.
+
+**2. Run your first task:** Open `#solar.prompt.md` in Copilot Chat agent mode.
+
+📖 [Full setup guide](SOLAR-Ralph-implementation-guideline.md)
 
 ---
 
-## 🛡️ Security & Governance
+## What Gets Installed
 
-- **Bypass Approvals Mode:** Configured for low-risk pipelines to enable true "Away From Keyboard" (AFK) development.
-- **Sandboxed MCPs:** Local stdio servers are restricted via OS-level sandboxing (macOS/Linux).
+- `.github/agents/` — 7 agents: Governor, Data Collector, Design Planning Architect, Implementation Specialist, Test Specialist, Docs Curator, Review Auditor
+- `.github/skills/` — 7 skills: data-collection, design-planning, implementation, testing, doc-sync, review, recursive-remediation
+- `.github/hooks/` — 2 hooks: `post-tool-use` (adversarial VERIFY signal) + `stop` (completion gate)
+- `.github/prompts/` — 2 prompts: `solar.prompt.md` (task entry) + `solar-registry-update.prompt.md`
+- `.github/AGENTS.md` — Orchestration manifest: agent registry, skill index, hook config, ledger template
+- `.github/.ai_ledger.md` — Persistent restart-safe state (Objective / Work Queue / Loop State / Materials / Decisions Log)
+- `.github/solar.config.json` — 5 behavior flags: `adversarial`, `learning`, `logging`, `human_approval`, `parallel_dispatch`
+- `.github/solar-system/` — Adversarial checklist, lifecycle protocols, handoff schemas
+
+**Everything is swappable.** Add a specialist by dropping a new `.agent.md` file; attach a different skill to an existing agent the same way. No wiring changes anywhere else — run `#solar-registry-update.prompt.md` and the governor syncs the registry automatically.
+
+---
+
+## License
+
+[MIT](LICENSE)

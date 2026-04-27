@@ -1,0 +1,6 @@
+# SOLAR-Ralph session activity logs (per-session diagnostic files, not auditable records)
+.github/solar-system/logs/*.json
+.github/solar-system/logs/.current-session
+
+# SOLAR-Ralph optional components (gitignore when enabled)
+.github/solar-system/learnings/

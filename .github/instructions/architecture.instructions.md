@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: "[FILL IN — e.g., apps/frontend/** or src/client/**]"
 ---
 
 # Architecture & Commands Context
