@@ -132,30 +132,30 @@
 
 **v4 Features Affected:**
 
-- Phase 1 (1.2): Learning capture files in `.github/solar-system/.learnings/`
+- Phase 1 (1.2): Learning capture files in `.github/solar-system/learnings/`
 - Phase 1 (1.3): `session-start.cjs` injects LEARNINGS.md summary
 - All references to `/memories/repo/` in agent instructions
 
 **Impact:**
 
-- **OVERWRITES:** Phase 1's design of learning storage location (already in `solar-system/.learnings/`)
+- **OVERWRITES:** Phase 1's design of learning storage location (already in `solar-system/learnings/`)
 - **CLARIFIES:** Disables `/memories/repo/` usage (Copilot internal, outside repo)
 - **BUG FIX:** Aligns with v4 Phase 1 intent but contradicts current agent behavior
 
 **v4 Feature Map:**
 | v4 Feature | Status | New Behavior |
 |------------|--------|--------------|
-| 1.2 LEARNINGS/ERRORS/FEATURE_REQUESTS.md | ❌ Not working | FIX — enforce `solar-system/.learnings/` as exclusive location |
+| 1.2 LEARNINGS/ERRORS/FEATURE_REQUESTS.md | ❌ Not working | FIX — enforce `solar-system/learnings/` as exclusive location |
 | 1.3 session-start.cjs injection | Not visible | VERIFY — ensure hook reads from correct location |
-| All agent.md files | Working | REMOVE references to `/memories/repo/`, add enforcement to write to `solar-system/.learnings/` only |
+| All agent.md files | Working | REMOVE references to `/memories/repo/`, add enforcement to write to `solar-system/learnings/` only |
 
 **Conflict Risk:** ✅ LOW — This FIXES broken v4 behavior rather than conflicting
 
 **Resolution Strategy:**
 
 - Audit all agent.md files for `/memories/repo/` references → remove
-- Add explicit instruction: "NEVER write to `/memories/repo/`; use `.github/solar-system/.learnings/` only"
-- Verify `session-start.cjs` reads from `solar-system/.learnings/LEARNINGS.md`
+- Add explicit instruction: "NEVER write to `/memories/repo/`; use `.github/solar-system/learnings/` only"
+- Verify `session-start.cjs` reads from `solar-system/learnings/LEARNINGS.md`
 
 ---
 
@@ -215,7 +215,7 @@
 **Resolution Strategy:**
 
 1. **Hook Diagnostics:** Add debug logging to all Phase 1 hooks → confirm they fire
-2. **Path Verification:** Verify all hooks use absolute paths to `solar-system/.learnings/`
+2. **Path Verification:** Verify all hooks use absolute paths to `solar-system/learnings/`
 3. **Write Test:** Manually trigger each hook condition → verify file writes occur
 4. **Root Cause:** Likely VS Code hook execution context issue or silent failure
 

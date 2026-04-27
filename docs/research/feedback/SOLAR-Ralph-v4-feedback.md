@@ -196,10 +196,10 @@ _51 draft feedback items organized into 14 problem categories. See [Draft Mappin
 **Recommendation:**
 
 - **Disable `/memories/repo/`:** Enforce `.github/solar-system/` for all repo-specific state
-- **Learning destination:** `.github/solar-system/.learnings/LEARNINGS.md` (in repo, version controlled)
+- **Learning destination:** `.github/solar-system/learnings/LEARNINGS.md` (in repo, version controlled)
 - **Memory hierarchy:**
   - Ephemeral (session): Ledger active sections
-  - Persistent (repo): `.github/solar-system/.learnings/`
+  - Persistent (repo): `.github/solar-system/learnings/`
   - Cross-repo (user): `/memories/` (user preferences only)
 - **Migration guide:** Document memory → solar-system migration path
 

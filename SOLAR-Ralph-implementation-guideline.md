@@ -1,153 +1,114 @@
 # SOLAR-Ralph Implementation Guideline
 
-A streamlined installation and setup flow for SOLAR-Ralph with two clear paths: Quick Setup (recommended) for fastest deployment, or Full Setup (advanced) for complete customization.
-
-## TL;DR
-
-1. **Install:** Download all SOLAR files (one installer, ~60 files)
-2. **Setup:** Choose your path
-   - **Quick:** `/solar-setup-quick` → core config only, fastest (recommended)
-   - **Full:** `/solar-setup-full` → core + agent/skill customization
-3. **Test:** `/solar "Add a README badge"` → verify SOLAR works
+A guide for installing, running, and extending the SOLAR-Ralph agent harness in your repository.
 
 ---
 
-## Installation (Single Step)
+## 1. Installation
 
-Download all SOLAR-Ralph files to your repository root:
+Open `solar-install.prompt.md` in VS Code agent mode and follow the prompts. The installer runs interactively — it asks clarifying questions (target stack, test runner, optional components) and generates all files in one pass.
 
-**Windows (PowerShell):**
+**Steps:**
 
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.ps1" -OutFile install.ps1; .\install.ps1; Remove-Item install.ps1
+1. Copy `solar-install.prompt.md` to your target repository root (or reference it directly from this template repo).
+2. Open GitHub Copilot Chat in agent mode.
+3. Reference the file: `#solar-install.prompt.md` — then send.
+4. Answer the installer questions when prompted (stack, test runner, existing agent system, optional components).
+5. Review generated files; merge any `.patch.md` conflict files manually if AGENTS.md or copilot-instructions.md already existed.
+
+---
+
+## 2. What Gets Installed
+
+The base installation generates the following files:
+
+| Category                     | Count | Location                                                                 |
+| ---------------------------- | ----- | ------------------------------------------------------------------------ |
+| Orchestration manifest       | 1     | `.github/AGENTS.md`                                                      |
+| Agents                       | 7     | `.github/agents/*.agent.md`                                              |
+| Skills                       | 7     | `.github/skills/*/SKILL.md`                                              |
+| Hooks                        | 2     | `.github/hooks/hooks.json` + `post-tool-use.cjs` + `stop.cjs`            |
+| Prompts                      | 2     | `.github/prompts/solar.prompt.md` + `solar-registry-update.prompt.md`    |
+| Instructions                 | 2     | `.github/instructions/solar.instructions.md` + `{stack}.instructions.md` |
+| System config                | 1     | `.github/solar.config.json`                                              |
+| Ledger                       | 1     | `.github/.ai_ledger.md`                                                  |
+| Copilot overlay              | 1     | `.github/copilot-instructions.md`                                        |
+| Solar-system reference files | 9     | `.github/solar-system/`                                                  |
+
+**Agents (7):** Orchestration Governor, Data Collector Specialist, Design Planning Architect, Implementation Specialist, Test Specialist, Docs Curator, Review Auditor.
+
+**Skills (7):** `data-collection`, `design-planning`, `implementation`, `testing`, `doc-sync`, `review`, `recursive-remediation`.
+
+**Hooks (2):** `post-tool-use` (write-op guard — ADVERSARIAL_VERIFY_REQUIRED signal at VERIFY stage), `stop` (blocks exit when Completion Promise: pending).
+
+---
+
+## 3. First Task
+
+After installation, run the solar prompt in GitHub Copilot Chat agent mode:
+
+```
+#solar.prompt.md
 ```
 
-**macOS / Linux (Bash):**
+The Governor reads `.github/AGENTS.md` and `.github/.ai_ledger.md`, writes a Work Queue row, and dispatches the first specialist. Task output goes to `verification-artifacts/`.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/coji831/agentic-devops-solar-ralph/main/scripts/install-solar.sh | bash
+---
+
+## 4. Registry Sync
+
+After adding or removing agents or skills, run:
+
+```
+#solar-registry-update.prompt.md
 ```
 
-**What gets downloaded (~60 files):**
-
-- Orchestration contract (AGENTS.md)
-- All 16 agents (governor, specialists, auditors, architect)
-- All 14 skills (implementation, testing, review, governance)
-- All setup commands and runtime prompts
-- Lifecycle hooks (hooks.json + 3 .cjs files)
-- Operator guides (5 guides)
-- Knowledge base (6 pattern guides)
-- Verification artifacts folder
+This updates the Agent Registry and Skill Index tables in `.github/AGENTS.md` to match the current file set. Required after any component change — AGENTS.md is the sole routing source of truth.
 
 ---
 
-## Setup Options
+## 5. Optional Components
 
-### Option 1: Quick Setup (Partial Customization For Your Project - Recommended)
+### Learning System
 
-**Run:**
+Activates agent learning capture (patterns, errors, feature requests).
 
-```text
-/solar-setup-quick
+1. Set `"learning": true` in `.github/solar.config.json`.
+2. Add `"learningsPath": ".github/solar-system/learnings/"` to `solar.config.json`.
+3. The agent scaffolds `PATTERNS.md`, `ERRORS.md`, `FEATURE_REQUESTS.md`, and `LOG-SOURCES.md` in `.github/solar-system/learnings/` on first use.
+
+### Session Logging
+
+Activates per-session activity log files.
+
+1. Set `"logging": true` in `.github/solar.config.json`.
+2. Add `"logsPath": ".github/solar-system/logs/"` to `solar.config.json`.
+3. Log files are written to `.github/solar-system/logs/` at runtime and are gitignored by default.
+
+### Stack-Specific Specialists
+
+For non-generic stacks (e.g. React + TypeScript, Node.js + Express), the installer generates stack-prefixed agent and skill files (e.g. `react-ts-implementation-specialist.agent.md`). If you add stack specialists after installation:
+
+1. Create the agent `.agent.md` file in `.github/agents/`.
+2. Create the skill `SKILL.md` file in `.github/skills/{name}/`.
+3. Run `#solar-registry-update.prompt.md` to register both in AGENTS.md.
+
+---
+
+## 6. Config Reference
+
+The 5 flags in `.github/solar.config.json`:
+
+| Flag                | Default | Effect                                                                                    |
+| ------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `adversarial`       | `true`  | Adversarial audit gate at VERIFY stage. Disable only for exploration tasks.               |
+| `learning`          | `false` | Learning system. Agents write patterns/errors to `learnings/`.                            |
+| `logging`           | `false` | Session logging. Hook writes activity logs to `logs/`.                                    |
+| `human_approval`    | `true`  | Governor waits for user confirmation before dispatching. Set `false` for unattended runs. |
+| `parallel_dispatch` | `false` | Governor dispatches multiple agents simultaneously. Set `true` for parallelisable tasks.  |
+
+To disable all hooks globally without changing individual flags, add to `solar.config.json`:
+
+```json
+"hooks": { "enabled": false }
 ```
-
-**What it does:**
-
-- Scans repository and detects project details
-- Applies core configuration (instructions, hooks, guides)
-- Creates working ledger from template
-- Activates SOLAR (sets `solar.active: true`)
-- Uses default agent settings (no customization)
-
-**Time:** ~2 minutes  
-**Best for:** Getting SOLAR running quickly, standard tech stacks
-
-**Next:** Smoke test with `/solar Add a README badge`
-
-**Optional later:** Run `/solar-setup-agent-config` to customize agents/skills with your tech stack
-
----
-
-### Option 2: Full Setup (Full Customization)
-
-**Run:**
-
-```text
-/solar-setup-full
-```
-
-**What it does:**
-
-- Everything Quick Setup does
-- **PLUS:** Customizes all 16 agents with your tech stack
-- **PLUS:** Customizes all 14 skills with your frameworks
-- Updates frontend/backend specialist instructions
-- Updates implementation and testing skill guidance
-
-**Time:** ~5 minutes  
-**Best for:** Complex monorepos, non-standard stacks, teams wanting full customization
-
-**Next:** Smoke test with `/solar Add a README badge`
-
----
-
-## Smoke Test
-
-After either setup, verify SOLAR works end-to-end:
-
-```text
-/solar Add a README badge
-```
-
-**Expected behavior:**
-
-- Governor orchestrates the task
-- Specialist implements the change
-- Tests run automatically
-- Loop completes with success message
-
-**If it fails:** Check errors, verify setup files exist, retry with `/solar-setup-quick` or `/solar-setup-full`
-
----
-
-## Manual Setup (Troubleshooting Only)
-
-If automated setup fails, run individual steps:
-
-1. **Scan repository:**
-
-   ```
-   /solar-setup-scan-repo
-   ```
-
-   Review `.github/solar-setup.md` and correct any misdetections
-
-2. **Apply configuration:**
-
-   ```
-   /solar-setup-apply-config
-   ```
-
-3. **Create instruction scaffolding:**
-
-   ```
-   /solar-setup-instructions
-   ```
-
-4. **Manually activate:** Edit `.github/solar.config.json`, set `"active": true`
-
----
-
-## Implementation Status
-
-**✅ Completed:**
-
-- Single installer downloads all files
-- Two setup paths: Quick (fast) and Full (customized)
-- All core files in `.github/` structure
-- Config-based activation (`solar.active` in config)
-- Ledger template approach
-- Complete agent and skill customization support
-
-**🎯 Ready for Use:**
-Install → Choose setup path → Smoke test → SOLAR is operational!

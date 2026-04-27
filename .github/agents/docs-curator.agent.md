@@ -63,7 +63,7 @@ Is this new knowledge?
 ├── Process flows, agent routing, handoff patterns
 │   └── → .github/workflows/<workflow>.workflow.md
 ├── Reusable patterns, mistakes, edge cases (from agent learning)
-│   └── → .github/solar-system/.learnings/PATTERNS.md or ERRORS.md
+│   └── → .github/solar-system/learnings/PATTERNS.md or ERRORS.md
 ├── Active task state (current session only)
 │   └── → .github/.ai_ledger.md (## sections)
 ├── Story or epic documentation
@@ -75,7 +75,7 @@ Is this new knowledge?
 **Key rules:**
 
 - The **ledger is for active task state only** — never write permanent knowledge there
-- **NEVER write to `/memories/repo/`** — all learning goes to `.learnings/`
+- **NEVER write to `/memories/repo/`** — all learning goes to `learnings/`
 - **Instructions files** hold conventions and tech stack facts — not narratives
 - **Knowledge base** (`docs/knowledge-base/`) holds deep-dive articles for transferable concepts
 - When in doubt: write to the narrowest scope that satisfies the need
@@ -144,7 +144,7 @@ Full rules: `.github/solar-system/patterns/output-position-contract.md`
 <self_documentation>
 **When to document**: After 2+ documentation update cycles on the same artifact, a template compliance issue that wasn't obvious, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A template compliance edge case recurs across 2+ doc updates
 - A cross-linking or AC clarity issue type proves reliably tricky
@@ -158,7 +158,7 @@ Format:
 **Lesson**: <one-sentence takeaway for future doc work>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 

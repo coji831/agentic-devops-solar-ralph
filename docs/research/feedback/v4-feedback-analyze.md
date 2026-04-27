@@ -12,7 +12,7 @@
 
 4. **Loop Invocation Trigger Design**: Define elevation mechanism (user command `/ralph-loop`? workflow metadata `loop: true`? governor auto-detect?); design ledger schema for loop state (iteration count, exit condition, timeout, active loops section); create exit criteria ruleset (max iterations, success checkboxes, user interrupt, stuck detection)
 
-5. **Memory Storage Enforcement**: Technically disable repo writes (Copilot platform limitation?); audit all agent.md files to remove repo references; enforce .learnings as exclusive destination; resolve portability vs convenience trade-off; investigate if platform enforcement possible
+5. **Memory Storage Enforcement**: Technically disable repo writes (Copilot platform limitation?); audit all agent.md files to remove repo references; enforce learnings as exclusive destination; resolve portability vs convenience trade-off; investigate if platform enforcement possible
 
 6. **Work Breakdown Agent Design**: Create structured task decomposition output format (JSON schema? ledger template?); define task state transitions (PENDING → IN_PROGRESS → REVIEW → APPROVED → COMPLETE); integrate approval gates; decide when governor delegates to Work Breakdown vs directly to planner
 
@@ -30,7 +30,7 @@
 
 10. **Inquiry Gate Activation**: Debug why pre-tool-use.cjs doesn't enforce gate; verify hook fires during agent delegation; add `## Inquiry Gate` section to ledger template; add governor enforcement rule (block delegation if checkboxes unchecked); test with deliberate bypass attempt
 
-11. **Learning Capture Debug**: Add debug logging to session-start.cjs, `user-prompt-submit.cjs`, post-tool-use.cjs; verify hooks fire on session start, prompt submit, tool failure; check file permissions on `.learnings/` folder; test write with manual trigger; identify silent failure point
+11. **Learning Capture Debug**: Add debug logging to session-start.cjs, `user-prompt-submit.cjs`, post-tool-use.cjs; verify hooks fire on session start, prompt submit, tool failure; check file permissions on `learnings/` folder; test write with manual trigger; identify silent failure point
 
 12. **Session Logging Debug**: Add debug logging to session-start.cjs session log creation; verify `logs/` directory exists and writable; test `.current-session` file creation; verify post-tool-use.cjs appends events; check if `stop.cjs` writes SESSION_END; test with manual session flow
 

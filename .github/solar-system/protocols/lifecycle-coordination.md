@@ -103,7 +103,7 @@ Next Required Agent: <agent name>
 Ledger State: <brief summary of blockers or completion notes>
 ```
 
-This checkpoint enables clean session resumption if the conversation is interrupted before the pipeline completes (see `session-resumption.md`).
+This checkpoint enables clean session resumption if the conversation is interrupted before the pipeline completes. Resumption rules are inline in `orchestration-governor.agent.md` `<constraints>`.
 
 ---
 
@@ -115,6 +115,6 @@ Parallel filesystem-isolated execution via `git worktree` is **deferred** in SOL
 
 **Rationale:** Native parallel subagent execution is now supported and covers the large majority of SOLAR pipeline sub-tasks where agents operate on independent file paths. Write conflicts are rare in structured pipelines because the delegation matrix assigns distinct file domains to distinct specialists. Worktree management adds significant governor complexity (create, switch, merge, teardown terminal sequences) without proportionate benefit.
 
-**Trigger condition for revisiting:** If an observed write conflict occurs during a parallel subagent run — specifically when two specialists are simultaneously delegated tasks that require editing the same file path — record the incident in `.github/solar-system/.learnings/ERRORS.md` and open a feature request in `FEATURE_REQUESTS.md` to implement worktree isolation.
+**Trigger condition for revisiting:** If an observed write conflict occurs during a parallel subagent run — specifically when two specialists are simultaneously delegated tasks that require editing the same file path — record the incident in `.github/solar-system/learnings/ERRORS.md` and open a feature request in `FEATURE_REQUESTS.md` to implement worktree isolation.
 
 **Current parallel safety rule:** The governor MUST NOT delegate two parallel sub-tasks that target the same file path. Before issuing concurrent `agent` calls, verify each sub-task's target files are disjoint.

@@ -91,7 +91,7 @@ Write one `Task Details` block per task. Do not omit any task.
 <self_documentation>
 **When to document**: After encountering a plan structure that was ambiguous, a decomposition requiring multiple rework cycles, or a task that kept violating the single-context-window rule.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A decomposition heuristic resolves a recurring planning ambiguity across 2+ breakdowns
 - A task granularity threshold proves reliable after repeated use
@@ -105,7 +105,7 @@ Format:
 **Lesson**: <one-sentence takeaway>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs during breakdown work.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs during breakdown work.
 
 Format:
 
@@ -118,3 +118,10 @@ Format:
 
 **ERRORS.md writes are REQUIRED on platform failures — not optional.**
 </self_documentation>
+
+## Contract
+
+**Accepts**: `verification-artifacts/{task-id}-design.md` (approved design artifact, status: ready) + ledger with `stage: ASSIGNED` and `exit_criteria` defined
+**Produces**: Structured `## Work Queue` rows in `.github/.ai_ledger.md` conforming to `dev-progress.schema.json`
+**Does NOT start if**: design artifact missing or ledger stage ≠ ASSIGNED or exit_criteria empty — emit MATERIAL_INSUFFICIENT to orchestrator instead
+**Cannot self-certify**: completion requires non-author verification before emitting TASK_COMPLETE

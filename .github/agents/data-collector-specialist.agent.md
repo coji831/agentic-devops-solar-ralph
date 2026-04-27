@@ -90,7 +90,7 @@ Write the following manifest as a fenced JSON block to `## Handoff Payload` in `
 <self_documentation>
 **When to document**: After encountering a search pattern that was non-obvious, a file structure that surprised you, or a platform tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A 2+ iteration search struggle resolves with a non-obvious query
 - A directory or file naming convention doesn't match expected patterns
@@ -105,7 +105,7 @@ Format:
 **Lesson**: <one-sentence takeaway>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when:
 
 - A tool call times out or returns no results unexpectedly
 - `semantic_search` hangs or produces no useful results
@@ -122,3 +122,10 @@ Format:
 
 **ERRORS.md writes are REQUIRED on platform failures — not optional.**
 </self_documentation>
+
+## Contract
+
+**Accepts**: `verification-artifacts/{task-id}-input.md` (input material, status: ready) + ledger with `stage: ASSIGNED` and `exit_criteria` defined
+**Produces**: `verification-artifacts/{task-id}-scout-findings.md` conforming to `scout-findings.schema.json`
+**Does NOT start if**: input material missing or ledger stage ≠ ASSIGNED or exit_criteria empty — emit MATERIAL_INSUFFICIENT to orchestrator instead
+**Cannot self-certify**: completion requires non-author verification before emitting TASK_COMPLETE

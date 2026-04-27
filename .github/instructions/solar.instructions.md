@@ -18,7 +18,6 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 - Restart-safe ledger: `.github/.ai_ledger.md`
 - Lifecycle hooks: `.github/hooks/hooks.json`
 - Path-specific instructions: `.github/instructions/solar.instructions.md`
-- Operator guides: `.github/guides/solar-ralph-workflow.md`, `.github/guides/agent-operations-guide.md`, `.github/guides/memory-governance-guide.md`
 
 **Working Rules:**
 
@@ -32,7 +31,7 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 
 ## 📝 Format Safety Rules
 
-**Scope:** All SOLAR agents writing or modifying files in the target repository (project source files, docs, configs). Full rules in `.github/solar-system/patterns/output-position-contract.md`.
+**Scope:** All SOLAR agents writing or modifying files in the target repository (project source files, docs, configs).
 
 ### Core Rules
 
@@ -42,6 +41,27 @@ When work is executed through the repo's SOLAR-Ralph files, treat the user's pro
 4. **Never invent structure** — If target section or template cannot be determined with confidence, STOP and ask; do not write to approximate location
 
 **Enforcement:** Implementation agents carry `<output_contract>` blocks referencing this contract. Review auditors check output-position compliance as part of review step.
+
+---
+
+## 🔇 Communication Discipline
+
+**Rule: work silent, signal only.** All SOLAR agents minimize token output during execution.
+
+| Prohibited | Permitted |
+| :--- | :--- |
+| "I will now read the file..." | Just call the tool |
+| "Let me check..." / "I understand..." | — |
+| Summarizing what you just did | The artifact IS the report |
+| Paragraph-form status updates | One-line signal from your identity table |
+| "I have made changes to three files" | `3 files changed` |
+
+**Three permitted outputs:**
+1. **Signals** — one-line stage indicators only (see your `<identity>` table)
+2. **Blockers** — `BLOCKED: <one-line reason>` written to ledger `## Active Blockers`
+3. **Artifacts** — the final deliverable (code changes, design doc, handoff payload)
+
+Anything else is waste. Do not narrate tool calls. Do not announce intent. Do not confirm routine actions in prose.
 
 ---
 
@@ -64,60 +84,39 @@ Follow this sequence for every task (feature, bug fix, or enhancement):
 
 ## 🛠️ SOLAR Setup & Bootstrap
 
+**Installation:** Open `solar-install.prompt.md` in VS Code agent mode — it runs the full scaffold interactively. See [SOLAR-Ralph Implementation Guideline](../../SOLAR-Ralph-implementation-guideline.md) for steps.
+
 **Bootstrap Mode Override:**
 
 - Use only for setup and recovery operations
 - Bypasses all SOLAR governance hooks temporarily
 - Activated automatically by the `Solar Bootstrap` agent
-- Manual activation: `/solar-enter-bootstrap` (emergency only)
-- Manual deactivation: `/solar-exit-bootstrap`
-
-**Installation Modes:**
-
-- **Minimal install:** Installs only core framework files (agents, hooks, skills, prompts, guides)
-- **Enhanced install:** Runs full setup wizard and scaffolds project files (ledger, instructions, memory)
-
-**Setup Commands:**
-
-- `/solar-setup-quick` — Tier 1: Standard scan + config + scaffold + activate (recommended for most users)
-- `/solar-setup-full` — Tier 2: Greedy scan + domain-adaptive agents, instructions, and workflow files
-- `/solar-setup-scan-repo` — Manual: Auto-detect project stack and paths only
-- `/solar-setup-apply-config` — Manual: Apply config from profile to core files, agents, and skills
-- `/solar-setup-instructions` — Advanced: Scaffold domain instruction templates on demand
-
-**Activation:**
-All governance and memory files are created only after setup is complete. SOLAR remains disabled until `solar.active: true` is set in `.github/solar.config.json` (automatically set by `/solar-setup-quick`).
 
 ---
 
 ## 📁 SOLAR-Ralph Key Files
 
-**Workflow & Operations:**
-
-- SOLAR Workflow Guide: `.github/guides/solar-ralph-workflow.md`
-- Agent Operations Guide: `.github/guides/agent-operations-guide.md`
-- Memory Governance Guide: `.github/guides/memory-governance-guide.md`
-
-**Knowledge Base:**
-
-- Full documentation: `docs/knowledge-base/`
+- Orchestration manifest: `.github/AGENTS.md`
+- Ledger: `.github/.ai_ledger.md`
+- Entry prompt: `.github/prompts/solar.prompt.md`
+- Registry sync: `.github/prompts/solar-registry-update.prompt.md`
 - Implementation guideline: `SOLAR-Ralph-implementation-guideline.md`
-- Framework reference: `docs/solar-ralph-reference.md`
+- Reference docs: `docs/knowledge-base/`
 
 ---
 
-For complete details, see the SOLAR-Ralph implementation guideline and knowledge base in `docs/knowledge-base/`.
+For complete details, see [SOLAR-Ralph-implementation-guideline.md](../../SOLAR-Ralph-implementation-guideline.md).
 
 ---
 
 ## 🧠 Self-Improvement Write-Back Rules
 
-SOLAR maintains three persistent learning files under `.github/solar-system/.learnings/`.
+SOLAR maintains three persistent learning files under `.github/solar-system/learnings/`.
 Agents and the governor must follow these rules for writing to each file.
 
 ### When to Write to ERRORS.md
 
-Write a new entry to `.github/solar-system/.learnings/ERRORS.md` when:
+Write a new entry to `.github/solar-system/learnings/ERRORS.md` when:
 
 - A tool call fails and the failure reveals a non-obvious constraint or edge case
 - An agent produces output that is incorrect and must be retried with a different approach
@@ -142,7 +141,7 @@ Write a new entry to `.github/solar-system/.learnings/ERRORS.md` when:
 
 ### When to Write to LEARNINGS.md
 
-Write a new entry to `.github/solar-system/.learnings/LEARNINGS.md` when:
+Write a new entry to `.github/solar-system/learnings/LEARNINGS.md` when:
 
 - A convention or project-specific rule is confirmed by a successful outcome
 - A non-obvious solution is discovered that would have caused confusion for a fresh agent
@@ -166,7 +165,7 @@ Write a new entry to `.github/solar-system/.learnings/LEARNINGS.md` when:
 
 ### When to Write to FEATURE_REQUESTS.md
 
-Write a new entry to `.github/solar-system/.learnings/FEATURE_REQUESTS.md` when:
+Write a new entry to `.github/solar-system/learnings/FEATURE_REQUESTS.md` when:
 
 - A recurring friction point is observed that no existing SOLAR mechanism addresses
 - An agent reaches the boundary of what the current governance structure can handle

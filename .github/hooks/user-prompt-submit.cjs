@@ -18,7 +18,7 @@ function getErrorsNudge(cfg) {
   try {
     const content = fs.readFileSync(common.resolveErrorsPath(cfg), "utf8");
     return /^###\s/m.test(content)
-      ? " Review .github/solar-system/.learnings/ERRORS.md for previously logged failures before retrying."
+      ? " Review .github/solar-system/learnings/ERRORS.md for previously logged failures before retrying."
       : "";
   } catch (e) {
     return "";

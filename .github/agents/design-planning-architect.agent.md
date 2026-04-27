@@ -191,7 +191,7 @@ After writing:
 <self_documentation>
 **When to document**: After 2+ iterations on the same design task, a struggle >1 hour, a non-obvious decomposition pattern, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A design decomposition heuristic proves reliable after 2+ uses
 - A non-obvious approach to milestone/slice/task splitting resolved planning ambiguity
@@ -206,7 +206,7 @@ Format:
 **Lesson**: <one-sentence takeaway for future reference>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when:
 
 - A platform tool failed, timed out, or hung unexpectedly
 - A tool behaved contrary to expected behavior

@@ -85,7 +85,7 @@ At the end of each step, report:
 
 **When to document**: After 2+ iterations on the same cache/integration issue, a non-obvious retry or TTL pattern, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A cache invalidation pattern resolves a recurring data consistency problem after 2+ implementations
 - A retry/backoff configuration proves reliable for a class of external dependency
@@ -99,7 +99,7 @@ Format:
 **Lesson**: <one-sentence takeaway>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 

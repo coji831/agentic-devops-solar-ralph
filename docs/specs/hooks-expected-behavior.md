@@ -39,7 +39,7 @@ Use this as the verification spec when modifying hook scripts.
 **Fires on:** VS Code session open  
 **Input:** none (no stdin)  
 **Kill switches:** `solar.active: false` · `hooks.enabled: false` · `hooks.sessionStart.injectLearnings: false`  
-**Config flag:** `selfImprovement.learningsPath` (optional; defaults to `.github/solar-system/.learnings/`)
+**Config flag:** `selfImprovement.learningsPath` (optional; defaults to `.github/solar-system/learnings/`)
 
 ### Scenarios
 

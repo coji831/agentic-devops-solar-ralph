@@ -92,7 +92,7 @@ A key feature of SOLAR-Ralph v4 is the establishment of an isolated self-improve
 
 ### **The Self-Improvement Loop and Learning Persistence**
 
-The self-improvement cycle is a stateless but iterative process where the agent continuously picks tasks, writes code, runs tests, and updates its internal task list.28 Each successful task is committed to Git, providing an excellent audit trail and allowing for automated diff reviews.28 Learnings are persisted in markdown files within the .github/solar-system/ directory, specifically in .learnings/ERRORS.md, LEARNINGS.md, and FEATURE_REQUESTS.md.29 These files act as a long-term semantic memory, capturing "gotchas," project conventions, and non-obvious solutions.28
+The self-improvement cycle is a stateless but iterative process where the agent continuously picks tasks, writes code, runs tests, and updates its internal task list.28 Each successful task is committed to Git, providing an excellent audit trail and allowing for automated diff reviews.28 Learnings are persisted in markdown files within the .github/solar-system/ directory, specifically in learnings/ERRORS.md, LEARNINGS.md, and FEATURE_REQUESTS.md.29 These files act as a long-term semantic memory, capturing "gotchas," project conventions, and non-obvious solutions.28
 
 The "Compound Review" process runs periodically to review all recent threads, retroactively extracting patterns and context to update the AGENTS.md (or CLAUDE.md) handbook.28 This living knowledge base ensures that future iterations of the agent are guided by previous experiences, effectively "closing the loop" between planning, action, and analysis.28
 

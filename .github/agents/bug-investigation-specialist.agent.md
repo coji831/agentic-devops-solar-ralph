@@ -67,7 +67,7 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 <self_documentation>
 **When to document**: After 2+ investigation cycles to locate the same type of bug, a non-obvious debugging approach, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A non-obvious root cause pattern recurs across 2+ bug investigations
 - A reproduction script approach proves reliably faster for a class of bugs
@@ -81,7 +81,7 @@ Format:
 **Lesson**: <one-sentence takeaway for future investigations>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 
@@ -94,3 +94,10 @@ Format:
 
 **ERRORS.md writes are REQUIRED on platform failures — not optional.**
 </self_documentation>
+
+## Contract
+
+**Accepts**: `verification-artifacts/{task-id}-input.md` (input material, status: ready) + ledger with `stage: ASSIGNED` and `exit_criteria` defined
+**Produces**: `verification-artifacts/{task-id}-scout-findings.md` conforming to `scout-findings.schema.json`
+**Does NOT start if**: input material missing or ledger stage ≠ ASSIGNED or exit_criteria empty — emit MATERIAL_INSUFFICIENT to orchestrator instead
+**Cannot self-certify**: completion requires non-author verification before emitting TASK_COMPLETE

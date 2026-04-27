@@ -48,7 +48,7 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 <self_documentation>
 **When to document**: After 2+ test iteration cycles on the same behavior, a non-obvious testing pattern, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A testing pattern for a specific backend layer (service, repository, route) proves reliably useful after 2+ uses
 - A non-obvious mock or fixture approach resolves a test isolation problem
@@ -62,7 +62,7 @@ Format:
 **Lesson**: <one-sentence takeaway>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 

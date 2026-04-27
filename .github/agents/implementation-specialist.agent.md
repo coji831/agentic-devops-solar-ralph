@@ -100,7 +100,7 @@ Full rules: `.github/solar-system/patterns/output-position-contract.md`
 <self_documentation>
 **When to document**: After 2+ iterations on the same task, a struggle >1 hour, a non-obvious implementation pattern, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A problem required 2+ implementation attempts to resolve
 - A non-obvious cross-stack pattern proved reliable
@@ -115,7 +115,7 @@ Format:
 **Lesson**: <one-sentence takeaway for future reference>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when:
 
 - A platform tool failed, timed out, or hung unexpectedly
 - A tool behaved contrary to documented behavior
@@ -131,3 +131,10 @@ Format:
 
 **ERRORS.md writes are REQUIRED on platform failures — not optional.**
 </self_documentation>
+
+## Contract
+
+**Accepts**: `verification-artifacts/{task-id}-input.md` (input material, status: ready) + ledger with `stage: ASSIGNED` and `exit_criteria` defined
+**Produces**: `verification-artifacts/{task-id}-output.md` conforming to `implementer-handoff.schema.json`
+**Does NOT start if**: input material missing or ledger stage ≠ ASSIGNED or exit_criteria empty — emit MATERIAL_INSUFFICIENT to orchestrator instead
+**Cannot self-certify**: completion requires non-author verification before emitting TASK_COMPLETE

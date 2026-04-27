@@ -95,7 +95,7 @@ This is a **temporary file** — the bootstrap agent will read it and delete it 
 <self_documentation>
 **When to document**: Only on platform tool failures during scan operations.
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when:
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when:
 
 - A file scan or read tool fails unexpectedly
 - The JSON write to `.github/scan-raw-signals.json` fails

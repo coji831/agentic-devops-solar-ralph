@@ -125,7 +125,7 @@ If `verdict: PASS`: surface result to orchestrator for closure approval.
 <self_documentation>
 **When to document**: After 2+ documentation reviews with the same class of failure, a template gap discovered during review, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A recurring template violation type across multiple stories is identified
 - A class of AC item reliably fails clarity checks (e.g., performance criteria)
@@ -140,7 +140,7 @@ Format:
 **Lesson**: <one-sentence takeaway for future doc reviews>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 

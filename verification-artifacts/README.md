@@ -45,3 +45,22 @@ Examples:
 ## Integration with .github/AGENTS.md
 
 The **Verification Contract** in `.github/AGENTS.md` requires all verification evidence to be present before a `WORK_PACKAGE_COMPLETE` promise is written. Referencing the artifact path in the ledger Completion Notes section satisfies this requirement.
+
+---
+
+## Lifecycle
+
+Artifacts are created, used, and cleaned up per task. The ledger tracks their status.
+
+| Event                 | Action                                                           |
+| --------------------- | ---------------------------------------------------------------- |
+| Task assigned         | Create `{task-id}-input.md` stub (empty, status: pending)        |
+| Material ready        | Fill `{task-id}-input.md`, set status: ready in ledger           |
+| Work complete         | Fill `{task-id}-output.md`, set status: ready in ledger          |
+| Task closed in ledger | Archive or delete both input + output artifacts for that task-id |
+
+**Naming**: always `{task-id}-{type}.md` where type is one of: input, output, design, review-result, qa-result, scout-findings, handoff, criteria
+
+**Content**: follow schema in `.github/solar-system/schemas/{type}.schema.json` where a schema exists
+
+**Default state**: this folder is empty. Artifacts exist only while a task is active.

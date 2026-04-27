@@ -59,7 +59,7 @@ Search preference: Use `grep_search` and `file_search` by default. Only use `sem
 <self_documentation>
 **When to document**: After 2+ security review cycles on the same flow, a non-obvious vulnerability pattern found, or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A non-obvious OWASP Top 10 pattern recurs across 2+ audits in this codebase
 - A security boundary assumption proves consistently wrong for this stack
@@ -73,7 +73,7 @@ Format:
 **Lesson**: <one-sentence takeaway for future audits>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 
@@ -86,3 +86,10 @@ Format:
 
 **ERRORS.md writes are REQUIRED on platform failures — not optional.**
 </self_documentation>
+
+## Contract
+
+**Accepts**: `verification-artifacts/{task-id}-output.md` (implementation artifact, status: ready) + ledger with `stage: ASSIGNED` and `exit_criteria` defined
+**Produces**: `verification-artifacts/{task-id}-review-result.md` conforming to `review-result.schema.json` (security findings + residual risk)
+**Does NOT start if**: input material missing or ledger stage ≠ ASSIGNED or exit_criteria empty — emit MATERIAL_INSUFFICIENT to orchestrator instead
+**Cannot self-certify**: completion requires non-author verification before emitting TASK_COMPLETE

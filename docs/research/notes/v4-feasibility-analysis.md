@@ -230,7 +230,7 @@ Isolation: **SOLAR-only**
   - `solar.config.json` → `modes.bootstrap` — isolated mode for setup/recovery operations
 - Gap:
   - No `.github/solar-system/` directory exists — the concept of an isolated self-improvement subdirectory is entirely absent
-  - No `.learnings/ERRORS.md` — no persistent error log for agent-observed failures
+  - No `learnings/ERRORS.md` — no persistent error log for agent-observed failures
   - No `LEARNINGS.md` — no persistent learning extraction file
   - No `FEATURE_REQUESTS.md` — no mechanism to capture improvement ideas during execution
   - No Compound Review process or triggering prompt
@@ -240,11 +240,11 @@ Isolation: **SOLAR-only**
 
 Files to create or modify:
 
-- `.github/solar-system/.learnings/ERRORS.md` — persistent log of agent-observed errors and their corrections
-- `.github/solar-system/.learnings/LEARNINGS.md` — positive learnings: conventions confirmed, non-obvious solutions, project gotchas
-- `.github/solar-system/.learnings/FEATURE_REQUESTS.md` — improvement ideas captured during task execution
+- `.github/solar-system/learnings/ERRORS.md` — persistent log of agent-observed errors and their corrections
+- `.github/solar-system/learnings/LEARNINGS.md` — positive learnings: conventions confirmed, non-obvious solutions, project gotchas
+- `.github/solar-system/learnings/FEATURE_REQUESTS.md` — improvement ideas captured during task execution
 - `.github/solar-system/README.md` — explains the solar-system isolation boundary and what belongs here vs. `.github/`
-- `.github/hooks/session-start.cjs` — NEW: reads `.github/solar-system/.learnings/LEARNINGS.md`; outputs `{ "hookSpecificOutput": { "hookEventName": "SessionStart", "additionalContext": "<condensed LEARNINGS.md summary>" } }`
+- `.github/hooks/session-start.cjs` — NEW: reads `.github/solar-system/learnings/LEARNINGS.md`; outputs `{ "hookSpecificOutput": { "hookEventName": "SessionStart", "additionalContext": "<condensed LEARNINGS.md summary>" } }`
 - `.github/hooks/hooks.json` — add `SessionStart` and `PreCompact` hook entries:
 
   ```json
@@ -271,7 +271,7 @@ Folder changes (if any):
 .github/
   solar-system/
     README.md
-    .learnings/
+    learnings/
       ERRORS.md
       LEARNINGS.md
       FEATURE_REQUESTS.md
@@ -280,7 +280,7 @@ Folder changes (if any):
 Config / frontmatter fields needed:
 
 - `solar.config.json` → `selfImprovement.enabled: boolean` — global toggle for learning write-back behavior
-- `solar.config.json` → `selfImprovement.learningsPath: string` — path to solar-system learnings directory (default: `.github/solar-system/.learnings/`)
+- `solar.config.json` → `selfImprovement.learningsPath: string` — path to solar-system learnings directory (default: `.github/solar-system/learnings/`)
 - `solar.config.json` → `hooks.sessionStart.injectLearnings: boolean` — whether `session-start.cjs` reads and injects LEARNINGS.md summary
 - `solar.config.json` → `hooks.postToolUse.logErrorsToLearnings: boolean` — whether post-tool-use hook surfaces ERRORS.md write instruction on failure
 - VS Code settings → `chat.useCustomAgentHooks: true` — enables `hooks:` frontmatter in individual `.agent.md` files (preview feature)
@@ -558,7 +558,7 @@ Isolation: **SOLAR-only**
 
 Ranked by dependency, risk, and incremental value:
 
-1. **Section 4 — Isolated Self-Improvement** (`.github/solar-system/` structure + `.learnings/` files + hook modifications)
+1. **Section 4 — Isolated Self-Improvement** (`.github/solar-system/` structure + `learnings/` files + hook modifications)
    - Dependency: none; establishes the foundation directory used by all subsequent sections
    - Risk: low — additive only, no existing file modification except hooks
    - Value: immediately captures agent errors and learnings; closes the largest behavioral gap

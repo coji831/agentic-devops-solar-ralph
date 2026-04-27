@@ -67,7 +67,7 @@ Return the formatted Release Readiness Report to the governor.
 
 **When to document**: After a non-obvious release gate failure pattern or a platform/tool failure.
 
-**Write to PATTERNS.md** (`.github/solar-system/.learnings/PATTERNS.md`) when:
+**Write to PATTERNS.md** (`.github/solar-system/learnings/PATTERNS.md`) when:
 
 - A release gate failure type recurs across 2+ pipelines (e.g., always AC mismatch at close)
 - A verification check approach proves more reliable than expected
@@ -81,7 +81,7 @@ Format:
 **Lesson**: <one-sentence takeaway>
 ```
 
-**Write to ERRORS.md** (`.github/solar-system/.learnings/ERRORS.md`) when a platform tool failure occurs.
+**Write to ERRORS.md** (`.github/solar-system/learnings/ERRORS.md`) when a platform tool failure occurs.
 
 Format:
 
@@ -93,3 +93,10 @@ Format:
 ```
 
 **ERRORS.md writes are REQUIRED on platform failures \u2014 not optional.**
+
+## Contract
+
+**Accepts**: `verification-artifacts/{task-id}-output.md` + all lane artifacts (tests, review-results) + ledger with `stage: ASSIGNED` and `exit_criteria` defined
+**Produces**: `verification-artifacts/{task-id}-review-result.md` conforming to `dev-progress.schema.json` (Go/No-Go decision with evidence)
+**Does NOT start if**: input material missing or ledger stage != ASSIGNED or exit_criteria empty - emit MATERIAL_INSUFFICIENT to orchestrator instead
+**Cannot self-certify**: completion requires non-author verification before emitting TASK_COMPLETE

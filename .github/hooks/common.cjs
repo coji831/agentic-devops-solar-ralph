@@ -154,7 +154,7 @@ function resolveSessionLogDir(config) {
 function resolveLearningsDir(config) {
   return config.selfImprovement?.learningsPath
     ? path.resolve(__dirname, "../../", config.selfImprovement.learningsPath)
-    : path.resolve(__dirname, "../solar-system/.learnings/");
+    : path.resolve(__dirname, "../solar-system/learnings/");
 }
 
 /**

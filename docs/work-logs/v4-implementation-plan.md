@@ -132,7 +132,7 @@ phases build on.
 1. .github/solar-system/ directory exists with README.md explaining the isolation
    boundary.
 2. LEARNINGS.md, ERRORS.md, and FEATURE_REQUESTS.md exist under
-   solar-system/.learnings/.
+   solar-system/learnings/.
 3. session-start.cjs is registered in hooks.json and injects a LEARNINGS.md
    summary into at least one test session's additionalContext output.
 4. user-prompt-submit.cjs modification is live (learning-reminder injection removed;
@@ -677,12 +677,12 @@ Files to create or modify:
 - `.github/solar-system/logs/` — NEW directory (gitignored): holds per-session
   log files. Add `.github/solar-system/logs/*.json` to `.gitignore`.
 
-- `.github/solar-system/.learnings/LOG-SOURCES.md` — NEW: reference table for all
+- `.github/solar-system/learnings/LOG-SOURCES.md` — NEW: reference table for all
   available log sources and how to use them:
   | Source | Location | Access | Write-back target |
   |---|---|---|---|
   | Session Log | solar-system/logs/session-\*.json | read_file | ERRORS.md (on failure events) |
-  | ERRORS.md | solar-system/.learnings/ERRORS.md | Phase 1 auto | Self |
+  | ERRORS.md | solar-system/learnings/ERRORS.md | Phase 1 auto | Self |
   | Agent Debug Logs | VS Code Chat -> ... -> Show Agent Debug Logs | UI only | ERRORS.md (manual) |
   | MCP Output Log | Command Palette -> MCP: List Servers -> Show Output | UI only | ERRORS.md (manual) |
 
