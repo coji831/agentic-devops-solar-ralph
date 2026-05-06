@@ -1,8 +1,0 @@
-{
-  "adversarial": true,
-  "learning": false,
-  "logging": false,
-  "human_approval": true,
-  "parallel_dispatch": false,
-  "_ref": "Optional keys � move to root when activating components: learningsPath ('.github/solar-system/learnings/') when learning:true; logsPath ('.github/solar-system/logs/') when logging:true. See SOLAR-Ralph-implementation-guideline.md."
-}

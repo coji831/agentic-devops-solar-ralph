@@ -51,11 +51,11 @@ SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves e
 
 - `.github/agents/` — 7 agents: Governor, Data Collector, Design Planning Architect, Implementation Specialist, Test Specialist, Docs Curator, Review Auditor
 - `.github/skills/` — 7 skills: data-collection, design-planning, implementation, testing, doc-sync, review, recursive-remediation
-- `.github/hooks/` — 2 hooks: `post-tool-use` (adversarial VERIFY signal) + `stop` (completion gate)
+- `.github/hooks/` — 2 core hooks: `post-tool-use` (adversarial VERIFY signal) + `stop` (completion gate). Six optional hooks (`pre-tool-use`, `user-prompt-submit`, `session-start`, `subagent-start`, `subagent-stop`, `pre-compact`) can be added per project.
 - `.github/prompts/` — 2 prompts: `solar.prompt.md` (task entry) + `solar-registry-update.prompt.md`
 - `.github/AGENTS.md` — Orchestration manifest: agent registry, skill index, hook config, ledger template
-- `.github/.ai_ledger.md` — Persistent restart-safe state (Objective / Work Queue / Loop State / Materials / Decisions Log)
-- `.github/solar.config.json` — 5 behavior flags: `adversarial`, `learning`, `logging`, `human_approval`, `parallel_dispatch`
+- `.github/.ai_ledger.md` — Persistent restart-safe state (Objective / Work Queue / Loop State / Materials / Decisions Log). Governor resets from AGENTS.md Section 7 on TASK_COMPLETE.
+- `.github/solar.config.json` — 5 behavior flags: `adversarial`, `learning`, `logging`, `human_approval`, `hooks`
 - `.github/solar-system/` — Adversarial checklist, lifecycle protocols, handoff schemas
 
 **Everything is swappable.** Add a specialist by dropping a new `.agent.md` file; attach a different skill to an existing agent the same way. No wiring changes anywhere else — run `#solar-registry-update.prompt.md` and the governor syncs the registry automatically.

@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: Sync the SOLAR-Ralph registry in AGENTS.md after adding, swapping, or removing any component
 ---
 

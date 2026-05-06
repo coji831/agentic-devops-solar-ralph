@@ -13,12 +13,6 @@ const path = require("path");
 const common = require("./common.cjs");
 
 // [helper functions]
-function resolveSessionMode(cfg, ledger) {
-  const match = ledger.match(/Session-Type:\s*(\w+)/i);
-  const sessionType = match ? match[1].toLowerCase() : "chat";
-  return cfg.sessionTypes?.[sessionType] || "simple";
-}
-
 function finalizeSessionLog(cfg) {
   try {
     if (
@@ -57,32 +51,21 @@ function main() {
   const config = common.loadConfig();
   if (!config) process.exit(0);
 
-  if (!common.isSolarActive(config) || !config.hooks?.stop?.enabled) {
+  if (!common.isSolarActive(config)) {
     return;
   }
 
   common.logHookExecution("Stop", "ENTRY");
 
   const ledger = common.readLedger();
-  const currentMode = resolveSessionMode(config, ledger);
-
-  if (currentMode === "bootstrap") {
-    process.exit(0);
-  }
-
-  const activeModes = config.hooks.stop.activeModes || [];
-  if (!activeModes.includes(currentMode)) {
-    process.exit(0);
-  }
-
-  const modeConfig = config.modes?.[currentMode] || {};
-  const shouldEnforce =
-    modeConfig.enforceCompletion && config.hooks.stop.enforceLoopContinuation;
-
   const isPending = /Completion Promise:\s*pending/i.test(ledger);
   const isVerificationFailed = /Verification:\s*FAIL/i.test(ledger);
+  // Only block if there is an active Work Queue task — do not block casual sessions.
+  const hasActiveTask = /\|\s*(PENDING|IN_PROGRESS|ASSIGNED)\s*\|/i.test(
+    ledger,
+  );
 
-  if (!shouldEnforce || (!isPending && !isVerificationFailed)) {
+  if (!(isPending || isVerificationFailed) || !hasActiveTask) {
     finalizeSessionLog(config);
     common.logHookExecution("Stop", "ALLOW (no enforcement needed)");
     console.log(JSON.stringify({ continue: false }));

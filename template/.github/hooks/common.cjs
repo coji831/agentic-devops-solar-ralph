@@ -57,12 +57,13 @@ function rotateHookLogsDaily(logDir, retentionDays) {
  */
 function logHookExecution(eventName, message) {
   try {
+    const config = loadConfig();
+    if (!isSolarActive(config)) return; // hooks toggle off — skip all hook logging
     const logDir = path.resolve(__dirname, "../solar-system/logs");
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
 
-    const config = loadConfig();
     const retentionDays = getHookLogRetentionDays(config);
     rotateHookLogsDaily(logDir, retentionDays);
 
@@ -112,13 +113,13 @@ function getSessionType(ledger) {
 }
 
 /**
- * Check global SOLAR gate (master switch)
- * v4.1: Merged hooks.enabled into solar.active (Option A)
+ * Check global SOLAR gate (master switch).
+ * Hooks are on by default; set `"hooks": false` in solar.config.json to disable all hooks globally.
  * @param {object} config - SOLAR config object
- * @returns {boolean} True if SOLAR is active
+ * @returns {boolean} True if SOLAR hooks are active
  */
 function isSolarActive(config) {
-  return config && config.solar?.active === true;
+  return config?.hooks !== false;
 }
 
 /**

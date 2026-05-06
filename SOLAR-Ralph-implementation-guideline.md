@@ -99,16 +99,16 @@ For non-generic stacks (e.g. React + TypeScript, Node.js + Express), the install
 
 The 5 flags in `.github/solar.config.json`:
 
-| Flag                | Default | Effect                                                                                    |
-| ------------------- | ------- | ----------------------------------------------------------------------------------------- |
-| `adversarial`       | `true`  | Adversarial audit gate at VERIFY stage. Disable only for exploration tasks.               |
-| `learning`          | `false` | Learning system. Agents write patterns/errors to `learnings/`.                            |
-| `logging`           | `false` | Session logging. Hook writes activity logs to `logs/`.                                    |
-| `human_approval`    | `true`  | Governor waits for user confirmation before dispatching. Set `false` for unattended runs. |
-| `parallel_dispatch` | `false` | Governor dispatches multiple agents simultaneously. Set `true` for parallelisable tasks.  |
+| Flag             | Default | Effect                                                                                    |
+| ---------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `adversarial`    | `true`  | Adversarial audit gate at VERIFY stage. Disable only for exploration tasks.               |
+| `learning`       | `false` | Learning system. Agents write patterns/errors to `learnings/`.                            |
+| `logging`        | `false` | Session logging. Hook writes activity logs to `logs/`.                                    |
+| `human_approval` | `true`  | Governor waits for user confirmation before dispatching. Set `false` for unattended runs. |
+| `hooks`          | `true`  | All hooks active. Set `false` to disable globally.                                        |
 
-To disable all hooks globally without changing individual flags, add to `solar.config.json`:
+To disable all hooks globally, set in `solar.config.json`:
 
 ```json
-"hooks": { "enabled": false }
+"hooks": false
 ```

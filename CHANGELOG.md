@@ -5,6 +5,23 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v4.6 patch — May 6, 2026
+
+**Theme:** Template + install prompt alignment — consistency fixes across `template/`, `solar-install.prompt.md`, and all reference docs.
+
+### Changed
+
+- **`template/.github/solar.config.json`** — `hooks` default changed to `true` (hooks active on install). Removed `_ref` documentation comment key (clean JSON).
+- **`template/.github/AGENTS.md` Section 6** — Added optional hooks list (`pre-tool-use`, `user-prompt-submit`, `session-start`, `subagent-start`, `subagent-stop`, `pre-compact`) with instruction to register in `hooks.json`. Fixed toggle key `hooks.enabled` → `hooks`.
+- **`template/.github/AGENTS.md` Section 7** — Added `Completion Promise: pending` line to ledger template block (required for `stop.cjs` to fire correctly).
+- **`solar-install.prompt.md` Step 5D** — Added optional hooks paragraph listing the 6 non-core hooks and how to register them.
+- **`concept.md`** — Updated hooks default description: hooks are on by default (`"hooks": true`); set `false` to disable.
+- **`SOLAR-Ralph-implementation-guideline.md`** — Corrected hooks toggle syntax and noted hooks-on default. Replaced `parallel_dispatch` with `hooks` in config flags table.
+- **`template/.github/AGENTS.md` Section 8** — Removed `parallel_dispatch` flag (not implemented).
+- **Ledger reset protocol** — Governor now resets `.ai_ledger.md` from AGENTS.md Section 7 Ledger Template block (no separate `.ai_ledger.template.md` file required).
+
+---
+
 ## v4 — April 27, 2026
 
 **Theme:** Concept harness alignment — stripped v4-specific complexity back to minimal SOLAR harness.

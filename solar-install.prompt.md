@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: Install SOLAR-Ralph into any repository — one prompt, full scaffold, no extra downloads needed
 ---
 
@@ -30,9 +30,10 @@ Use the `vscode_askQuestions` tool to ask:
 
 **If user selects `available`:**
 
-- Fetch `https://agents.md` → note the current AGENTS.md format spec
-- Fetch `https://docs.github.com/en/copilot/customizing-copilot/` → note current `.agent.md` and `.prompt.md` frontmatter requirements
-- Use the fetched formats when generating all files
+- **Search step 1 — AGENTS.md spec**: Use `fetch_webpage` to search with keywords `agents.md format specification site:agents.md OR site:github.com OR site:code.visualstudio.com`. From results, select the URL that (a) is not a `github.io` legacy path and (b) contains "2026" or "Current" in its content. Fetch that URL → note the current format rules.
+- **Search step 2 — Copilot agent/prompt frontmatter**: Use `fetch_webpage` to search with keywords `GitHub Copilot custom agent prompt file frontmatter VS Code customization site:code.visualstudio.com OR site:docs.github.com`. Fetch the top result → note current `.agent.md` and `.prompt.md` YAML frontmatter requirements.
+- **Verification**: Confirm each fetched page contains "2026" or "Current" — if neither appears, discard and try the next result.
+- Use the fetched formats when generating all files.
 - Print: `MCP fetch available — using latest platform format as of {today's date}`
 
 **If user selects `not enabled`:**
@@ -102,7 +103,6 @@ Scan the repository for existing structure. Run all scans before generating any 
 - `README.md` (root) → note project name, description, any stack hints
 - `docs/` → list all `.md` files; note any architecture, conventions, API spec, guides
 - `.github/instructions/` → list all `*.instructions.md`; note names and `applyTo` values
-- `.github/workflows/` → list any GitHub Actions `.yml` files; note CI/CD pipeline names
 - `.github/agents/` → list any existing `.agent.md` files
 - `.github/skills/` → list any existing skill folders
 - `.github/AGENTS.md` → check if exists (conflict — see Step 4 Conflict Check)
@@ -115,7 +115,6 @@ Scan the repository for existing structure. Run all scans before generating any 
 Repo: {project name from README or folder name}
 Stack confirmed: {STACK}  |  Test runner: {TEST_RUNNER}
 Existing instructions: {file list or none}
-Existing CI/CD workflows: {pipeline names or none}
 Existing agent files: {file list or none}
 Existing docs: {doc list or none}
 ```
@@ -148,14 +147,14 @@ Create the following files. Use `{STACK}`, `{TEST_RUNNER}`, and the Repo Context
 **`.github/AGENTS.md`** — Full bootstrap manifest with these sections:
 
 1. **What is this file** (1 paragraph — SOLAR-Ralph + this repo's name from sweep)
-2. **Repository Context** (the Repo Context block from Step 3 — existing docs, instructions, CI workflows found in sweep)
+2. **Repository Context** (the Repo Context block from Step 3 — existing docs, instructions, and agent files found in sweep)
 3. **Agent Registry** (table: Name / Dev Stage / Role / Loads Skill / Accepts / Produces / Optional)
 4. **Skill Index** (table: Name / Dev Stage / Purpose / Path / Optional)
-5. **Workflow Index** (table: Name / Purpose / Path / Note — user-defined only; SOLAR does not generate these — list any found in sweep, marked Optional=Yes)
+5. **Playbook Index** (table: Name / Description / Path / Trigger — SOLAR-managed ordered step sequences the orchestrator follows; default playbooks listed here; custom playbooks added via `solar-registry-update`)
 6. **Hook Configuration** (table: 2 hooks — post-tool-use / stop)
 7. **Ledger Template** (verbatim from Step 5C)
 8. **Config Toggles** (5 toggles with defaults)
-9. **Usage** (1 paragraph explaining: orchestrator reads ledger stage → consults Agent Registry Dev Stage column → dispatches matching agent; agent reads Skill Index → loads matching SKILL.md before acting)
+9. **Usage** (1 paragraph explaining: orchestrator receives user prompt → matches intent to Playbook Index to select playbook → if ambiguous, uses `vscode_askQuestions` to confirm before dispatching; then follows playbook inline (never forked), dispatching each step as a forked specialist; agent reads Skill Index → loads matching SKILL.md before acting)
 
 Agent Registry column notes:
 
@@ -182,7 +181,7 @@ This repository uses the SOLAR-Ralph agent harness. Before every task:
   "learning": false,
   "logging": false,
   "human_approval": true,
-  "parallel_dispatch": false
+  "hooks": true
 }
 ```
 
@@ -194,14 +193,16 @@ Generate each agent as a `.agent.md` file with YAML frontmatter. Each agent must
 
 Full instructions (this is the only fully detailed agent):
 
+- **Always runs inline — never forked.** The governor is the only component that owns gates, adversarial dispatch, loop iteration, and ledger writes
 - Reads `.github/AGENTS.md` Agent Registry on every task — this is the sole routing source of truth
 - Reads `.github/.ai_ledger.md` before every action — current stage and any interrupted tasks
 - Never executes task content directly — only reads, dispatches, and updates ledger
 
 **On new task received:**
 
-- Write a new Work Queue row in `.github/.ai_ledger.md` immediately: id, task (from user prompt), status=PENDING, stage=SCAN, iteration=0
-- If the user prompt is unclear or under-specified: do not attempt to plan stages yet — dispatch the scan-stage agent from the registry first; it produces `verification-artifacts/{task-id}-scan.md`; use that output to decide the full stage breakdown
+- Match the user prompt intent against the **Playbook Index** in AGENTS.md. Select the closest matching playbook. If the prompt is ambiguous or matches multiple playbooks, use `vscode_askQuestions` to confirm which playbook to run — do not dispatch any specialist until the playbook is confirmed.
+- Write a new Work Queue row in `.github/.ai_ledger.md` immediately: id, task (from user prompt), selected playbook, status=PENDING, stage=SCAN, iteration=0
+- If the user prompt is unclear or under-specified: do not attempt to plan stages yet — dispatch the scan-stage agent from the registry first; it produces `verification-artifacts/{task-id}-scan.json`; use that output to decide the full stage breakdown
 - If an existing INTERRUPTED task is detected in the ledger: use `vscode_askQuestions` to ask "Previous task was interrupted at stage {stage}. Resume or discard?" before starting anything new
 - Define exit_criteria in the ledger before dispatching any specialist
 
@@ -211,6 +212,8 @@ Full instructions (this is the only fully detailed agent):
 - Add or update the Materials row for the output just produced: set status=ready, link the path in `verification-artifacts/`
 - Append to Decisions Log (append-only): `[{stage} done] {agent} → {artifact-path}`
 - Run the 4-gate pre-dispatch check before dispatching the next agent
+- **Dispatch prompt discipline**: the runSubagent prompt you pass MUST contain ONLY: (1) 2-3 sentence task description, (2) schema type and input file path(s) from Materials, (3) the result file path to write to (`verification-artifacts/{task-id}-{stage}-result.json`), (4) this return instruction verbatim: `"Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."`. Never embed raw file contents or ledger history in the dispatch prompt — specialists read files in their own isolated context.
+- **Materials index**: the governor owns the Materials table as a lightweight index only. It tracks file paths and status — it does NOT read the contents of specialist result files.
 
 **Adapts the cycle to the task** — after scan output is available, plan the minimal stage set. Examples:
 
@@ -225,9 +228,10 @@ Full instructions (this is the only fully detailed agent):
 **On task complete (TASK_COMPLETE confirmed):**
 
 - Append to Decisions Log: `[CLOSED] task-{id} — exit criteria met`
-- Delete all `verification-artifacts/{task-id}-*.md` files created for this task
+- Delete all `verification-artifacts/{task-id}-*` task artifact files (`.json` and `.md`)
 - Set Work Queue row status=CLOSED
 - Do NOT touch any row with status=INTERRUPTED — these are resume checkpoints
+- **Ledger archive + reset**: immediately after writing TASK_COMPLETE: (1) copy the full `.github/.ai_ledger.md` to `verification-artifacts/{YYYYMMDD}-{task-id}-ledger-archive.md` using `create_file`; (2) reset `.ai_ledger.md` to the default state by reading the Ledger Template block from `.github/AGENTS.md` Section 7 and overwriting `.ai_ledger.md` with that content. This ensures the ledger is clean before the next task begins.
 
 **On user interrupt / unexpected stop:**
 
@@ -236,7 +240,8 @@ Full instructions (this is the only fully detailed agent):
 - On next invocation: detect INTERRUPTED status, use `vscode_askQuestions` to ask before proceeding
 
 - 4 pre-dispatch gates must all pass before any dispatch: G1 materials-sufficient / G2 design-approved / G3 loop-bounds-ok / G4 previous-verified
-- On → VERIFY stage (adversarial audit): select a non-author specialist from the Agent Registry that did NOT produce the artifact under review. Selection rule: prefer the specialist whose domain best matches the output type — e.g. dispatch `review-auditor` to audit implementation output; dispatch `test-specialist` to audit a design artifact; dispatch `design-planning-architect` to audit test coverage. The selected auditor reads `verification-artifacts/{task-id}-{type}.md`, challenges assumptions and completeness, and produces `verification-artifacts/{task-id}-verify.md` with verdict `APPROVED` or `REJECTED` + specific reasoning. Append the verdict line to Decisions Log. Do not advance to COMPLETE if verdict = REJECTED — return the task to the producing agent for remediation.
+- **G2 — design approval gate**: when `config.human_approval = true`, use `vscode_askQuestions` to pause and ask: "Review design artifact at `verification-artifacts/{task-id}-design.json`. Approve to proceed to implement?" (options: `Approve` / `Request changes`). Do not dispatch the implement stage until `Approve` is selected. If `Request changes`: re-dispatch design-planning-architect with feedback (Ralph loop, max 3 iterations). When `config.human_approval = false`, gate passes automatically if design artifact exists.
+- On → VERIFY stage (adversarial audit): select a non-author specialist from the Agent Registry that did NOT produce the artifact under review. Selection rule: prefer the specialist whose domain best matches the output type — e.g. dispatch `review-auditor` to audit implementation output; dispatch `test-specialist` to audit a design artifact; dispatch `design-planning-architect` to audit test coverage. The selected auditor reads `verification-artifacts/{task-id}-{type}.json`, challenges assumptions and completeness, and produces `verification-artifacts/{task-id}-verify.json` with verdict `APPROVED` or `REJECTED` + specific reasoning. Append the verdict line to Decisions Log. Do not advance to COMPLETE if verdict = REJECTED — return the task to the producing agent for remediation.
 
 **Required specialist agents (always generate, minimal stubs, tailored to `{STACK}`):**
 
@@ -266,10 +271,11 @@ Before acting: read `.github/AGENTS.md` Skill Index → find this agent's row �
 ## Contract
 **Dev Stage**: {Scan | Plan | Design | Implement | Test | Document | Review}
 **Loads Skill**: `{skill-name}` — path: `.github/skills/{skill-name}/SKILL.md`
-**Accepts**: `verification-artifacts/{task-id}-input.md` (status: ready) + ledger stage=ASSIGNED + exit_criteria defined
-**Produces**: `verification-artifacts/{task-id}-{type}.md`
+**Accepts**: `verification-artifacts/{task-id}-input.json` (status: ready) + ledger stage=ASSIGNED + exit_criteria defined
+**Produces**: `verification-artifacts/{task-id}-{type}.json`
 **Does NOT start if**: input material not ready OR exit_criteria empty → emit MATERIAL_INSUFFICIENT to orchestrator
 **Cannot self-certify**: requires non-author verification before emitting TASK_COMPLETE
+**Return format**: Return EXACTLY: `{status: completed|partial|blocked}. Result: {artifact-path}. Summary: {2 sentences — key findings only. No raw file contents.}`
 ```
 
 ### 5C — Ledger template
@@ -292,12 +298,16 @@ Before acting: read `.github/AGENTS.md` Skill Index → find this agent's row �
 | -------------- | ------- | --------------------------- |
 | 5              | 0       | [define before loop starts] |
 
+Completion Promise: pending
+
 ## Materials
 
-| role   | path                                       | schema   | status  |
-| ------ | ------------------------------------------ | -------- | ------- |
-| input  | verification-artifacts/[task-id]-input.md  | [schema] | pending |
-| output | verification-artifacts/[task-id]-output.md | [schema] | empty   |
+<!-- Governor-owned index: tracks file paths + status only. Contents live in the files themselves. -->
+
+| role   | path                                         | schema   | status  |
+| ------ | -------------------------------------------- | -------- | ------- |
+| input  | verification-artifacts/[task-id]-input.json  | [schema] | pending |
+| output | verification-artifacts/[task-id]-result.json | [schema] | empty   |
 
 ## Decisions Log
 
@@ -308,40 +318,170 @@ Before acting: read `.github/AGENTS.md` Skill Index → find this agent's row �
 
 Hooks are infrastructure components that share gate-enforcement workload with the Governor. They are event listeners — not agents, not the adversarial layer. They read ledger state and emit signals; the Governor acts on those signals.
 
-All hooks read `hooks.enabled` from `solar.config.json`. Set `false` to disable all hooks globally.
+**Before generating any hook files:** search for and fetch the current VS Code agent hooks documentation:
 
-**`.github/hooks/hooks.json`**:
+- Use `fetch_webpage` with keywords `VS Code GitHub Copilot agent hooks customization Preview site:code.visualstudio.com OR site:docs.github.com`. Select the URL that is NOT a `github.io` legacy path and contains "2026" or "Preview" or "Current" in its content. Fetch that URL → note current field names and output shapes.
+- **Verification**: If the fetched page does not contain "2026", "Preview", or "Current", discard and try the next result. If no valid result is found, fall back to built-in knowledge and note: `hooks schema unverified — using built-in knowledge`.
+- Hooks are a Preview feature; the schema can change between VS Code releases. Use the fetched docs as the authoritative reference for all field names and output shapes when generating the files below.
+
+All hooks read `hooks` from `.github/solar.config.json`. Set `"hooks": false` to disable all hooks globally — this is the single toggle for the entire hook system.
+
+---
+
+**`.github/hooks/hooks.json`** — VS Code agent hook registration:
 
 ```json
 {
-  "hooks": [
-    {
-      "name": "post-tool-use",
-      "trigger": "PostToolUse",
-      "script": ".github/hooks/post-tool-use.cjs",
-      "purpose": "write-op guard → ADVERSARIAL_VERIFY_REQUIRED signal on VERIFY stage"
-    },
-    {
-      "name": "stop",
-      "trigger": "Stop",
-      "script": ".github/hooks/stop.cjs",
-      "purpose": "block premature exit when Completion Promise: pending in ledger"
-    }
-  ]
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/post-tool-use.cjs",
+        "timeout": 20
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/stop.cjs",
+        "timeout": 10
+      }
+    ]
+  }
 }
 ```
 
-**`.github/hooks/post-tool-use.cjs`** — loop mode only; write-op guard first:
+---
 
-- If `toolName` does not match `edit|creat|appl|insert|delet|writ|replac` → emit `{ continue: true }` immediately (no I/O cost)
-- If ledger stage transitions to VERIFY → emit `ADVERSARIAL_VERIFY_REQUIRED` signal to Governor
+**`.github/hooks/common.cjs`** — shared utilities (required by all hook scripts):
 
-**`.github/hooks/stop.cjs`** — loop mode only:
+```js
+"use strict";
+const fs = require("fs"),
+  path = require("path");
+function loadConfig() {
+  try {
+    return JSON.parse(
+      fs.readFileSync(
+        path.resolve(__dirname, "..", "solar.config.json"),
+        "utf8",
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+function readLedger() {
+  try {
+    return fs.readFileSync(
+      path.resolve(__dirname, "..", ".ai_ledger.md"),
+      "utf8",
+    );
+  } catch {
+    return "";
+  }
+}
+// Hooks are on when config.hooks is absent or true; off only when explicitly false.
+function isSolarActive(config) {
+  return config?.hooks !== false;
+}
+module.exports = { loadConfig, readLedger, isSolarActive };
+```
 
-- Read ledger for `Completion Promise: pending` and `Verification: FAIL`
-- If pending and `enforceCompletion: true` → emit `{ continue: true, systemMessage: "..." }` (blocks stop, shows valid promise values: WORK_PACKAGE_COMPLETE, WORK_PACKAGE_BLOCKED, ESCALATION_REQUIRED)
-- If verification FAIL → emit continuation reminder to fix failures
-- If no pending promise → emit `{ continue: false }` (allows stop; note: `false` = allow for Stop hook)
+---
+
+**`.github/hooks/post-tool-use.cjs`** — write-op guard; injects ADVERSARIAL_VERIFY_REQUIRED when ledger is in VERIFY stage.
+
+Hook scripts are standalone Node.js child processes. Input arrives via stdin as JSON; output is JSON written to stdout before `process.exit(0)`. Exit code `2` blocks and feeds stderr to the model.
+
+```js
+"use strict";
+const common = require("./common.cjs");
+let raw = "";
+process.stdin.on("data", (c) => {
+  raw += c;
+});
+process.stdin.on("end", () => {
+  const config = common.loadConfig();
+  if (!config || !common.isSolarActive(config)) process.exit(0);
+  const input = (() => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  })();
+  // VS Code tool names use camelCase (e.g. editFiles, createFile). Match write ops:
+  const writePattern = /edit|creat|insert|delet|writ|replac/i;
+  if (!writePattern.test(input.tool_name || "")) process.exit(0);
+  const ledger = common.readLedger();
+  if (/\|\s*VERIFY\s*\|/.test(ledger)) {
+    process.stdout.write(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "PostToolUse",
+          additionalContext:
+            "ADVERSARIAL_VERIFY_REQUIRED: ledger stage=VERIFY — Governor must dispatch a non-author specialist for adversarial audit before proceeding.",
+        },
+      }),
+    );
+  }
+  process.exit(0);
+});
+```
+
+---
+
+**`.github/hooks/stop.cjs`** — loop-continuation guard; blocks premature exit when Completion Promise is pending or Verification failed.
+
+Always check `stop_hook_active` from stdin JSON to prevent infinite loop.
+
+```js
+"use strict";
+const common = require("./common.cjs");
+let raw = "";
+process.stdin.on("data", (c) => {
+  raw += c;
+});
+process.stdin.on("end", () => {
+  const config = common.loadConfig();
+  if (!config || !common.isSolarActive(config)) process.exit(0);
+  const input = (() => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  })();
+  if (input.stop_hook_active) process.exit(0); // prevent infinite loop
+  const ledger = common.readLedger();
+  const hasPending = /Completion Promise:\s*pending/i.test(ledger);
+  const hasFail = /Verification:\s*FAIL/i.test(ledger);
+  // Only block if there is an active Work Queue task — do not block casual sessions.
+  const hasActiveTask = /\|\s*(PENDING|IN_PROGRESS|ASSIGNED)\s*\|/i.test(
+    ledger,
+  );
+  if ((hasPending || hasFail) && hasActiveTask) {
+    const reason = hasFail
+      ? "Verification FAIL in ledger — fix failures before stopping."
+      : "Completion Promise pending — valid values: WORK_PACKAGE_COMPLETE, WORK_PACKAGE_BLOCKED, ESCALATION_REQUIRED.";
+    process.stdout.write(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "Stop",
+          decision: "block",
+          reason,
+        },
+      }),
+    );
+  }
+  process.exit(0);
+});
+```
+
+**Config note**: Hooks are **on by default** (`"hooks": true` in `solar.config.json`). Set `"hooks": false` to disable all hooks globally — one toggle controls everything.
+
+**Optional hooks** (not generated by default — add as needed): `pre-tool-use`, `user-prompt-submit`, `session-start`, `subagent-start`, `subagent-stop`, `pre-compact`. For each: create the `.cjs` script in `.github/hooks/` and register it in `.github/hooks/hooks.json` following the same pattern as the two core hooks above.
 
 ### 5E — Instructions (minimal)
 
@@ -396,7 +536,7 @@ Generate one `SKILL.md` per dev lifecycle step. Skills are loaded by agents at t
 
 For `{STACK}` ≠ generic: prefix the `implementation`, `testing`, and `review` folder names with the stack slug (e.g. `react-ts-implementation/`) and register them in the Skill Index alongside the generic counterparts.
 
-**Minimal SKILL.md stub template:**
+**Minimal SKILL.md stub template (skill — domain knowledge):**
 
 ```markdown
 # {Skill Name}
@@ -407,11 +547,56 @@ For `{STACK}` ≠ generic: prefix the `implementation`, `testing`, and `review` 
 
 ## Steps
 
-1. Read `verification-artifacts/{task-id}-input.md`
+1. Read `verification-artifacts/{task-id}-input.json`
 2. {Core action for this skill — 1–3 bullets, stack-tailored if {STACK} provided}
-3. Write output to `verification-artifacts/{task-id}-{type}.md`
+3. Write output to `verification-artifacts/{task-id}-{type}.json`
 4. Append result summary to ledger Decisions Log
 ```
+
+**Note — Playbooks also use SKILL.md format** but have a different body style:
+
+- Skills = domain knowledge and tool patterns for a specialist (reference bullets, not steps)
+- Playbooks = ordered numbered steps with gate conditions for the governor to follow inline
+
+See the Playbook SKILL.md stub template in Step 5F-Playbooks below.
+
+### 5F-Playbooks — Default playbooks (always generate)
+
+Generate the following default playbook SKILL.md files. Register each in the AGENTS.md Playbook Index.
+
+**Playbook SKILL.md stub template:**
+
+```markdown
+---
+name: { playbook-name }
+description:
+  { one sentence — semantic trigger for VS Code auto-match; be precise }
+---
+
+# {Playbook Name}
+
+**Type**: Playbook (governor follows inline; each step dispatches a forked specialist)
+**Trigger**: {describe the user prompt pattern that activates this playbook}
+
+## Steps
+
+1. **[Gate: material check]** Verify input materials are ready in ledger. If not → emit MATERIAL_INSUFFICIENT, do not proceed.
+2. **[Dispatch: {specialist-name}]** Dispatch `{agent-file}.agent.md` as a subagent. Await artifact → `verification-artifacts/{task-id}-{type}.json`.
+3. **[Gate: design approval]** Governor checks design output. If `config.human_approval = true` → use `vscode_askQuestions` to get user confirmation before proceeding. If rejected or changes requested → re-dispatch with feedback (Ralph loop, max 3 iterations).
+4. **[Dispatch: {next-specialist}]** ...
+5. **[Gate: adversarial verify]** Governor selects non-author specialist from Agent Registry (domain match) → dispatch for adversarial audit → verdict APPROVED or REJECTED.
+6. **[Exit]** If APPROVED → update ledger CLOSED, clean up task artifacts. If REJECTED → return to producing agent.
+```
+
+**Required default playbooks:**
+
+| Playbook name       | Description / semantic trigger                                     | Folder                              |
+| ------------------- | ------------------------------------------------------------------ | ----------------------------------- |
+| `implement-feature` | Triggered when user asks to implement, build, or add a feature     | `.github/skills/implement-feature/` |
+| `bug-fix`           | Triggered when user asks to fix, debug, or resolve a bug or error  | `.github/skills/bug-fix/`           |
+| `create-doc`        | Triggered when user asks to write, create, or update documentation | `.github/skills/create-doc/`        |
+
+Generate a SKILL.md for each using the playbook stub above, with numbered steps tailored to the playbook's purpose and the detected `{STACK}`.
 
 ### 5G — Prompts (2 only)
 
@@ -419,7 +604,7 @@ For `{STACK}` ≠ generic: prefix the `implementation`, `testing`, and `review` 
 
 ```
 ---
-mode: agent
+agent: agent
 description: Start a SOLAR-managed task — orchestrator reads registry and dispatches the right specialist
 ---
 You are the Orchestration Governor.
@@ -428,20 +613,23 @@ You are the Orchestration Governor.
 2. Read `.github/.ai_ledger.md` — check for active or interrupted tasks.
    - INTERRUPTED row found → use `vscode_askQuestions`: "Previous task interrupted at stage {stage}. Resume or discard?"
    - No active task → continue.
-3. Write a new Work Queue row immediately: task (from user prompt), status=PENDING, stage=SCAN, exit_criteria=TBD.
+3. Match the user prompt intent against the **Playbook Index** in AGENTS.md to select the playbook to follow.
+   - Ambiguous or matches multiple playbooks → use `vscode_askQuestions` to confirm which playbook the user wants before dispatching anything.
+   - Clear match → proceed with selected playbook inline.
+4. Write a new Work Queue row immediately: task (from user prompt), selected playbook, status=PENDING, stage=SCAN, exit_criteria=TBD.
    - Prompt unclear → dispatch the Scan-stage agent from the registry first; use its output artifact to plan the stage sequence.
    - Prompt clear → plan the stage sequence in the ledger, then dispatch the first agent.
-4. After each agent completes: mark current stage done in the Work Queue → add/update the Materials row with the output artifact path and status=ready → append a summary line to Decisions Log → advance stage.
-5. Before each dispatch: run the 4-gate check (G1 materials-sufficient / G2 design-approved / G3 loop-bounds-ok / G4 previous-verified).
-6. When all stages done: transition to VERIFY (adversarial audit) → select a non-author specialist from the Agent Registry that did NOT produce the output under review (prefer domain match: review-auditor for code, test-specialist for design, design-planning-architect for test coverage) → dispatch with output artifact as input → auditor produces `{task-id}-verify.md` (verdict: APPROVED or REJECTED + reasoning) → append verdict to Decisions Log → if REJECTED: return task to producing agent for remediation → emit TASK_COMPLETE only after APPROVED verdict is recorded.
-7. On TASK_COMPLETE: delete `verification-artifacts/{task-id}-*.md`, set ledger row to CLOSED. Never touch rows marked INTERRUPTED.
+5. After each agent completes: mark current stage done in the Work Queue → add/update the Materials row with the output artifact path and status=ready → append a summary line to Decisions Log → advance stage.
+6. Before each dispatch: run the 4-gate check (G1 materials-sufficient / G2 design-approved / G3 loop-bounds-ok / G4 previous-verified).
+7. When all stages done: transition to VERIFY (adversarial audit) → select a non-author specialist from the Agent Registry that did NOT produce the output under review (prefer domain match: review-auditor for code, test-specialist for design, design-planning-architect for test coverage) → dispatch with output artifact as input → auditor produces `{task-id}-verify.json` (verdict: APPROVED or REJECTED + reasoning) → append verdict to Decisions Log → if REJECTED: return task to producing agent for remediation → emit TASK_COMPLETE only after APPROVED verdict is recorded.
+8. On TASK_COMPLETE: (1) copy `.github/.ai_ledger.md` to `verification-artifacts/{YYYYMMDD}-{task-id}-ledger-archive.md` using `create_file`; (2) reset `.ai_ledger.md` from the Ledger Template block in `.github/AGENTS.md` Section 7; (3) delete `verification-artifacts/{task-id}-*` task artifact files; (4) set ledger row to CLOSED. Never touch rows marked INTERRUPTED.
 ```
 
 **`.github/prompts/solar-registry-update.prompt.md`** — update AGENTS.md when components change:
 
 ```
 ---
-mode: agent
+agent: agent
 description: Sync the SOLAR-Ralph registry in AGENTS.md after adding, swapping, or removing any component
 ---
 You are updating the SOLAR-Ralph component registry.
@@ -454,7 +642,7 @@ Use the vscode_askQuestions tool to ask:
 Then:
 - ADD agent: read the file → add a row to Agent Registry with Dev Stage + Loads Skill columns filled
 - ADD skill: read the file → add a row to Skill Index with Dev Stage column filled
-- ADD workflow: read the file → add a row to Workflow Index with Note: "user-defined"
+- ADD playbook: read the file → add a row to Playbook Index with Name, Description, Path, Trigger filled
 - SWAP: read new file → update the existing row (Name, Dev Stage, Loads Skill, Accepts, Produces)
 - REMOVE: confirm file deleted → remove the row
 - Optional component: add row with Optional=Yes + enable instruction
@@ -483,7 +671,7 @@ Each schema: `{ "$schema": "http://json-schema.org/draft-07/schema#", "type": "o
 
 ### 5I — Verification artifacts scaffold
 
-- `verification-artifacts/README.md` — lifecycle rules: create `{task-id}-input.md` on assign; fill on ready; clean up on close; naming: `{task-id}-{type}.md`; default state: empty
+- `verification-artifacts/README.md` — lifecycle rules: create `{task-id}-input.json` on assign; fill on ready; clean up on close; naming: `{task-id}-{type}.json`; default state: empty
 - `verification-artifacts/.gitkeep`
 
 ---
@@ -519,7 +707,6 @@ Instructions: solar, {stack}
 Repository Context registered in AGENTS.md:
   Existing docs: {list or none}  ← available as Materials input for any task
   Existing instructions: {list or none}
-  Existing CI workflows: {list or none}
 
 Next steps:
   - Run the `solar` prompt to start your first task
@@ -530,12 +717,13 @@ Next steps:
 
 ## Reference: Swapping Components
 
-| Action              | Steps                                                                                                                               |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Swap / add agent    | Create or replace `.github/agents/{name}.agent.md` → run `solar-registry-update`; ensure Dev Stage + Loads Skill columns are filled |
-| Remove agent        | Delete file → run `solar-registry-update`                                                                                           |
-| Swap / add skill    | Create or replace `.github/skills/{name}/SKILL.md` → run `solar-registry-update`                                                    |
-| Swap instruction    | Replace `.github/instructions/{name}.instructions.md` (auto-applied; no registry row needed)                                        |
-| Add custom workflow | Create `.github/workflows/{name}.workflow.md` → run `solar-registry-update` to add to Workflow Index with Note: "user-defined"      |
+| Action              | Steps                                                                                                                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Swap / add agent    | Create or replace `.github/agents/{name}.agent.md` → run `solar-registry-update`; ensure Dev Stage + Loads Skill columns are filled                                          |
+| Remove agent        | Delete file → run `solar-registry-update`                                                                                                                                    |
+| Swap / add playbook | Create or replace `.github/skills/{name}/SKILL.md` with numbered steps + gate conditions (playbook format) → run `solar-registry-update` to add/update row in Playbook Index |
+| Remove playbook     | Delete `.github/skills/{name}/SKILL.md` → run `solar-registry-update` to remove the row from Playbook Index                                                                  |
+| Swap / add skill    | Create or replace `.github/skills/{name}/SKILL.md` → run `solar-registry-update`                                                                                             |
+| Swap instruction    | Replace `.github/instructions/{name}.instructions.md` (auto-applied; no registry row needed)                                                                                 |
 
-Rule: AGENTS.md Agent Registry is the single source of routing truth. Every component change ends with `solar-registry-update`.
+Rule: AGENTS.md Agent Registry and Playbook Index are the sources of routing truth. Every component change ends with `solar-registry-update`.

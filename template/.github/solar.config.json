@@ -1,0 +1,7 @@
+{
+  "adversarial": true,
+  "learning": false,
+  "logging": false,
+  "human_approval": true,
+  "hooks": true
+}
