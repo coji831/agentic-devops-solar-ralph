@@ -1,27 +1,21 @@
----
-name: doc-sync
-description: "Use when syncing rollout docs, BR docs, implementation docs, review checklists, and knowledge base notes after code or process changes."
-argument-hint: "Docs or feature area to synchronize"
-user-invocable: true
----
+﻿# Doc Sync
 
-# Documentation Sync
+**Dev Stage**: Document
+**Purpose**: Sync and update documentation to reflect completed implementation changes.
+**Loaded by**: `docs-curator` when ledger stage = Document
 
-## When to Use
+## Steps
 
-- After implementation changes
-- When rollout docs and governance docs drift
-- When knowledge-base extraction is needed
-
-## Procedure
-
-1. Identify the source-of-truth docs for the task.
-2. Update only the required docs and preserve template structure.
-3. Align `.github/.ai_ledger.md`, `.github/instructions/`, and permanent docs without duplicating content.
-4. Summarize any remaining documentation gaps.
-
-## Output
-
-- Docs updated
-- Alignment decisions
-- Remaining gaps
+1. Read the relevant implementation artifact from `verification-artifacts/` — confirm status=ready; note files changed and summary.
+2. Identify documentation targets (populate from sweep findings):
+   - [FILL IN: task/story tracking doc, e.g. story BR] — mark completed acceptance criteria.
+   - [FILL IN: implementation notes doc] — update with decisions and data shape changes.
+   - [FILL IN: architecture overview, e.g. `docs/architecture.md`] — update only if cross-cutting architecture changed.
+   - [FILL IN: feature/module design doc] — update if feature logic or data flow changed.
+   - [FILL IN: API spec doc] — update if endpoints or contracts changed.
+3. Update documentation:
+   - Record implementation decisions and data shape changes in relevant docs.
+   - Update any "Last Updated" dates in modified docs.
+   - Do not add documentation for unchanged code.
+4. Write output to `verification-artifacts/{task-id}-docs.json` with schema: `{ "task_id": "", "docs_updated": [], "summary": "" }`.
+5. Append result summary to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: Documentation complete — {2-sentence summary of docs updated}`.

@@ -1,34 +1,48 @@
----
+﻿---
 name: bug-fix
-description: >-
-  Triggered when user asks to fix, debug, or resolve a bug or error
+description: Scan → Design → Implement → Test pipeline to locate and resolve a specific bug, error, or regression in the codebase.
 ---
 
-# Bug Fix Playbook
+# Bug Fix
 
-**Type**: Playbook — the governor follows this inline; each step dispatches a forked specialist
-**Trigger**: User asks to fix, debug, or resolve a bug, error, failure, or unexpected behaviour
+**Type**: Playbook (governor follows inline; each step dispatches a forked specialist)
+**Trigger**: User asks to fix, debug, or resolve a bug or error
 
 ## Steps
 
-1. **[Gate: material check]** Confirm a bug description or error trace exists (user prompt, error message, failing test output). If not → use `vscode_askQuestions` to ask for reproduction steps or error details before proceeding.
+1. **[Gate: material check]** Verify input materials are ready in ledger. Confirm `exit_criteria` includes the bug reproduction case or error description. If not → emit MATERIAL_INSUFFICIENT, do not proceed.
 
-2. **[Dispatch: data-collector-specialist]** Fork. Task: scan the relevant source paths and any error trace to produce `verification-artifacts/{task-id}-scan.md` (suspected root cause area, affected files, related tests, recent changes). Await artifact.
+2. **[Dispatch: Data Collector Specialist]** Dispatch `data-collector-specialist.agent.md` as a subagent to locate the bug.
+   - Input: `verification-artifacts/{task-id}-input.json` (status: ready, includes error description/reproduction steps)
+   - SKILL: `.github/skills/data-collection/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-scan.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
+   - Await artifact → `verification-artifacts/{task-id}-scan.json` (must include root cause hypothesis).
 
-3. **[Gate: root cause clarity]** Governor reads scan output. If root cause is still ambiguous → dispatch `design-planning-architect` for a short root cause analysis (step 3a). If clear → skip to step 4.
+3. **[Dispatch: Design Planning Architect]** Dispatch `design-planning-architect.agent.md` as a subagent with the root cause from scan.
+   - Input: `verification-artifacts/{task-id}-scan.json` (status: ready, root cause identified)
+   - SKILL: `.github/skills/design-planning/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-design.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
+   - Design artifact must include the fix plan and rationale.
 
-   3a. **[Dispatch: design-planning-architect]** Fork. Task: analyse the scan artifact and produce `verification-artifacts/{task-id}-root-cause.md` (confirmed root cause, reproduction path, change boundary). Await artifact.
+4. **[Gate: design approval]** Governor checks fix plan. If `config.human_approval = true` → use `vscode_askQuestions` to confirm before proceeding. If rejected or changes requested → re-dispatch `design-planning-architect` with feedback (Ralph loop, max 3 iterations per `recursive-remediation` SKILL.md).
 
-4. **[Gate: fix scope approval]** Governor presents the proposed fix scope (one sentence) to the user via `vscode_askQuestions`. If the scope is wrong → return to step 3a with feedback. If approved → record in ledger.
+5. **[Dispatch: Implementation Specialist]** Dispatch `implementation-specialist.agent.md` as a subagent to apply the fix.
+   - Input: `verification-artifacts/{task-id}-design.json` (status: ready, verdict: APPROVED)
+   - SKILL: `.github/skills/implementation/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-impl.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
 
-5. **[Dispatch: implementation-specialist]** Fork. Task: apply the minimal fix inside the confirmed change boundary; produce `verification-artifacts/{task-id}-fix.md` (files changed, line-level description of change). Do not refactor or improve code beyond the fix boundary. Await artifact.
+6. **[Gate: adversarial verify — fix]** Governor dispatches `review-auditor.agent.md` → verify implementation artifact → verdict APPROVED or REJECTED. On REJECTED → re-dispatch with feedback via `recursive-remediation` SKILL.md.
 
-6. **[Dispatch: test-specialist]** Fork. Task: add a regression test that would have caught this bug, and confirm all existing related tests pass; produce `verification-artifacts/{task-id}-tests.md` (test added + pass confirmation). Await artifact.
+7. **[Dispatch: Test Specialist]** Dispatch `test-specialist.agent.md` as a subagent to confirm the fix and add a regression test.
+   - Input: `verification-artifacts/{task-id}-impl.json` (status: ready, verdict: APPROVED)
+   - SKILL: `.github/skills/testing/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-test.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
+   - Test must include a regression test that would have caught the original bug.
 
-7. **[Gate: test pass check]** If tests fail → re-dispatch `implementation-specialist` or `test-specialist` with failure details (Ralph loop, max 3 iterations per lane).
+8. **[Gate: adversarial verify — tests]** Governor dispatches `review-auditor.agent.md` → verify test artifact → verdict APPROVED or REJECTED. On REJECTED → remediate via `recursive-remediation` SKILL.md.
 
-8. **[Gate: adversarial verify]** Governor selects a non-author specialist by domain match (prefer `review-auditor`). Fork. Task: verify the fix is complete, does not introduce regressions, and the regression test is meaningful; produce `verification-artifacts/{task-id}-verify.md` (verdict: `APPROVED` or `REJECTED` + reasoning). Await artifact.
-
-9. **[Gate: verdict check]** If `REJECTED` → return to `implementation-specialist` with findings (Ralph loop, max 3 iterations). If `APPROVED` → continue.
-
-10. **[Exit]** Append `[CLOSED] bug-fix — exit criteria met` to ledger Decisions Log. Delete `verification-artifacts/{task-id}-*.md`. Set Work Queue row to `CLOSED`.
+9. **[Exit]** If all stages APPROVED → update ledger CLOSED. Archive ledger. Reset from template. Clean up `verification-artifacts/{task-id}-*` task files. If any stage REJECTED × 3 → append `BLOCKED: ESCALATION_REQUIRED` to Decisions Log and pause for human review.

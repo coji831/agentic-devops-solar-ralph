@@ -1,34 +1,23 @@
----
-name: testing
-description: "Use when adding or repairing tests — unit, integration, or component. Generic — no stack assumptions. Stack context loaded from the project's .instructions.md at runtime."
-argument-hint: "Implementation artifact path and task-id to test"
-user-invocable: false
----
-
-# Testing
+﻿# Testing
 
 **Dev Stage**: Test
-**Purpose**: Write or repair tests to verify the implementation against the exit criteria in the ledger.
+**Purpose**: Write and run tests for implemented changes.
 **Loaded by**: `test-specialist` when ledger stage = Test
 
-## When to Use
+⚠️ **Requires `{TEST_RUNNER}` configuration before use.** Verify test config file is present and `execute` tool can run `{TEST_RUNNER}` before dispatching.
 
-- After an implementation artifact has been produced
-- When new behavior requires test coverage before the VERIFY stage
-- When existing tests fail after implementation and must be repaired
+## Steps
 
-## Procedure
-
-1. Read `verification-artifacts/{task-id}-impl.md` (status: ready) to know what changed.
-2. Load any path-specific `.instructions.md` files that specify test runner, conventions, or file paths.
-3. Identify the changed behavior to verify — map each exit criterion to at least one test case.
-4. Write tests for: happy path + at least one edge case per exit criterion.
-5. Run tests; record results (pass / fail / error) and the exact command used.
-6. Do not modify source code to make tests pass — if source must change, emit ESCALATION_REQUIRED to the orchestrator.
-7. Write output to `verification-artifacts/{task-id}-qa.md` — verdict (PASS / FAIL), test command, counts, any failures.
-8. Append result summary to ledger Decisions Log.
-
-## Output
-
-- New or updated test files
-- `verification-artifacts/{task-id}-qa.md` — verdict, test command, pass/fail counts, failure details if any
+1. Read `verification-artifacts/{task-id}-impl.json` — confirm status=ready; note files changed.
+2. Identify test targets:
+   - For each changed file, locate or create the corresponding test file using `{TEST_RUNNER}` naming conventions.
+   - Review existing tests to avoid duplication and match existing test style.
+3. Write tests:
+   - Cover the happy path for each changed function/component.
+   - Add at least one edge case per Acceptance Criterion from the Work Package.
+   - Add framework-specific patterns at install time (e.g. RTL role/text queries for React, mock patterns for the stack).
+4. Run tests:
+   - Execute: `npx {TEST_RUNNER} run` (or the framework's equivalent run command).
+   - If tests fail: attempt one fix pass → if still failing, emit `BLOCKED: test failures — remediation needed` and return to Governor.
+5. Write output to `verification-artifacts/{task-id}-test.json` with schema: `{ "task_id": "", "tests_added": [], "tests_passed": 0, "tests_failed": 0, "coverage_notes": "", "status": "pass|fail|partial" }`.
+6. Append result summary to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: Testing complete — {pass/fail counts and key coverage note}`.

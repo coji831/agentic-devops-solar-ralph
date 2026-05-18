@@ -1,28 +1,32 @@
----
+﻿---
 name: create-doc
-description: >-
-  Triggered when user asks to write, create, or update documentation
+description: Plan + Design → Document pipeline for writing, creating, or updating documentation — BR files, implementation docs, architecture overviews, guides, or knowledge base articles.
 ---
 
-# Create Doc Playbook
+# Create Doc
 
-**Type**: Playbook — the governor follows this inline; each step dispatches a forked specialist
-**Trigger**: User asks to write, create, update, or improve documentation (architecture docs, guides, API specs, README, design docs, knowledge base articles)
+**Type**: Playbook (governor follows inline; each step dispatches a forked specialist)
+**Trigger**: User asks to write, create, or update documentation
 
 ## Steps
 
-1. **[Gate: material check]** Confirm the doc subject and target location are clear (user prompt, linked file, or feature context). If not → use `vscode_askQuestions` to ask: (a) what is the subject? (b) does a template or existing doc exist that should be used or updated?
+1. **[Gate: material check]** Verify input materials are ready in ledger. Confirm `exit_criteria` specifies the target doc type and the target file path or topic. If not → emit MATERIAL_INSUFFICIENT, do not proceed.
 
-2. **[Dispatch: data-collector-specialist]** Fork. Task: scan for (a) an existing doc at the target path, (b) a template that applies, (c) any source material (design artifacts, implementation files, API specs) relevant to the doc; produce `verification-artifacts/{task-id}-scan.md`. Await artifact.
+2. **[Dispatch: Design Planning Architect]** Dispatch `design-planning-architect.agent.md` as a subagent to outline the documentation structure.
+   - Input: `verification-artifacts/{task-id}-input.json` (status: ready, includes doc type + topic + context)
+   - SKILL: `.github/skills/design-planning/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-design.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
+   - Design artifact must include: target file path, section outline, template to follow (if any).
 
-3. **[Gate: template + source check]** Governor reads scan. If a template was found → record its path in ledger Materials (status: ready). If an existing doc was found → record its path (status: ready, note: update, not create). If neither → confirm with user via `vscode_askQuestions` before continuing.
+3. **[Gate: design approval]** Governor checks doc outline. If `config.human_approval = true` → use `vscode_askQuestions` to get user confirmation before writing. If rejected → re-dispatch with feedback (Ralph loop, max 3 iterations).
 
-4. **[Dispatch: docs-curator]** Fork. Task: produce or update the document at the target path using the template (if available) and source materials; write the final doc in-place and produce `verification-artifacts/{task-id}-doc-output.md` (path written, sections changed, and any decisions made). Await artifact.
+4. **[Dispatch: Docs Curator]** Dispatch `docs-curator.agent.md` as a subagent to write or update the documentation.
+   - Input: `verification-artifacts/{task-id}-design.json` (status: ready, verdict: APPROVED)
+   - SKILL: `.github/skills/doc-sync/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-docs.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
 
-5. **[Gate: content review]** Governor reads the doc-output artifact summary. If the doc deviates from the template structure or is missing sections → re-dispatch `docs-curator` with specific corrections (Ralph loop, max 3 iterations).
+5. **[Gate: adversarial verify — documentation]** Governor dispatches `design-planning-architect.agent.md` as non-author challenger → verify doc artifact against template compliance and content accuracy → verdict APPROVED or REJECTED. On REJECTED → return to Docs Curator with rejection reasons.
 
-6. **[Gate: adversarial verify]** Governor selects a non-author specialist by domain match (prefer `review-auditor` for technical docs; `design-planning-architect` for architecture or design docs). Fork. Task: review the written doc for accuracy, completeness, and template compliance; produce `verification-artifacts/{task-id}-verify.md` (verdict: `APPROVED` or `REJECTED` + specific findings). Await artifact.
-
-7. **[Gate: verdict check]** If `REJECTED` → return to `docs-curator` with specific findings (Ralph loop, max 3 iterations). If `APPROVED` → continue.
-
-8. **[Exit]** Append `[CLOSED] create-doc — exit criteria met` to ledger Decisions Log. Delete `verification-artifacts/{task-id}-*.md`. Set Work Queue row to `CLOSED`.
+6. **[Exit]** If APPROVED → update ledger CLOSED. Archive ledger. Reset from template. Clean up `verification-artifacts/{task-id}-*` task files. If REJECTED × 3 → append `BLOCKED: ESCALATION_REQUIRED` to Decisions Log and pause for human review.

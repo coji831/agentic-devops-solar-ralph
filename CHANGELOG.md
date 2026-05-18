@@ -5,6 +5,16 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+<!-- RELEASE CHECKLIST (run before each release):
+  1. Re-verify tool-set names in all template `*.agent.md` `tools:` frontmatter against VS Code Copilot docs:
+     https://code.visualstudio.com/docs/copilot/customization/custom-agents
+     Update if any name changed between VS Code releases.
+  2. Re-verify hook field names against: https://code.visualstudio.com/docs/copilot/customization/hooks
+  3. Bump version in this file and in solar-install.prompt.md header.
+-->
+
+---
+
 ## v4.6 patch — May 6, 2026
 
 **Theme:** Template + install prompt alignment — consistency fixes across `template/`, `solar-install.prompt.md`, and all reference docs.

@@ -1,36 +1,55 @@
----
+﻿---
 name: implement-feature
-description: >-
-  Triggered when user asks to implement, build, or add a feature
+description: Full Scan → Plan + Design → Implement → Test → Document pipeline for implementing a new feature or adding functionality to the codebase.
 ---
 
-# Implement Feature Playbook
+# Implement Feature
 
-**Type**: Playbook — the governor follows this inline; each step dispatches a forked specialist
-**Trigger**: User asks to implement, build, or add a feature or capability
+**Type**: Playbook (governor follows inline; each step dispatches a forked specialist)
+**Trigger**: User asks to implement, build, or add a feature
 
 ## Steps
 
-1. **[Gate: material check]** Confirm a clear feature description exists (user prompt or linked doc). If not → emit `MATERIAL_INSUFFICIENT` to governor; do not proceed.
+1. **[Gate: material check]** Verify input materials are ready in ledger. Confirm `exit_criteria` is defined in Work Queue. If not → emit MATERIAL_INSUFFICIENT, do not proceed.
 
-2. **[Dispatch: data-collector-specialist]** Fork. Task: scan the relevant source paths to produce `verification-artifacts/{task-id}-scan.md` (existing structure, dependencies, affected files, potential conflicts). Await artifact.
+2. **[Dispatch: Data Collector Specialist]** Dispatch `data-collector-specialist.agent.md` as a subagent.
+   - Input: `verification-artifacts/{task-id}-input.json` (status: ready)
+   - SKILL: `.github/skills/data-collection/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-scan.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
+   - Await artifact → `verification-artifacts/{task-id}-scan.json`.
 
-3. **[Gate: scan review]** Governor reads scan output. If scope is too large or blockers are found → use `vscode_askQuestions` to clarify with user before continuing.
+3. **[Dispatch: Design Planning Architect]** Dispatch `design-planning-architect.agent.md` as a subagent.
+   - Input: `verification-artifacts/{task-id}-scan.json` (status: ready)
+   - SKILL: `.github/skills/design-planning/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-design.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
+   - Await artifact → `verification-artifacts/{task-id}-design.json`.
 
-4. **[Dispatch: design-planning-architect]** Fork. Task: produce `verification-artifacts/{task-id}-design.md` (file-level change plan, interfaces, no-scope list). Await artifact.
+4. **[Gate: design approval]** Governor checks design output. If `config.human_approval = true` → use `vscode_askQuestions` to get user confirmation before proceeding. If rejected or changes requested → re-dispatch `design-planning-architect` with feedback (Ralph loop, max 3 iterations per `recursive-remediation` SKILL.md).
 
-5. **[Gate: design approval]** Governor presents design summary to user via `vscode_askQuestions`. If rejected → re-dispatch `design-planning-architect` with feedback (Ralph loop, max 3 iterations). If approved → record `APPROVED` in ledger.
+5. **[Gate: adversarial verify — design]** Governor dispatches `design-planning-architect` as non-author auditor (alternate approach challenge) → verify design artifact → verdict APPROVED or REJECTED. On REJECTED → return to design agent with rejection reasons.
 
-6. **[Dispatch: implementation-specialist]** Fork. Task: execute the design artifact change plan; produce `verification-artifacts/{task-id}-impl.md` (files changed + brief description). Await artifact.
+6. **[Dispatch: Implementation Specialist]** Dispatch `implementation-specialist.agent.md` as a subagent.
+   - Input: `verification-artifacts/{task-id}-design.json` (status: ready, verdict: APPROVED)
+   - SKILL: `.github/skills/implementation/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-impl.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
 
-7. **[Dispatch: test-specialist]** Fork. Task: write or update tests covering the new behaviour; produce `verification-artifacts/{task-id}-tests.md` (test files created/updated + pass confirmation). Await artifact.
+7. **[Gate: adversarial verify — implementation]** Governor dispatches `review-auditor.agent.md` → verify implementation artifact → verdict APPROVED or REJECTED. On REJECTED → re-dispatch with feedback via `recursive-remediation` SKILL.md.
 
-8. **[Gate: test pass check]** If tests fail → re-dispatch `implementation-specialist` or `test-specialist` with failure details (Ralph loop, max 3 iterations per lane).
+8. **[Dispatch: Test Specialist]** Dispatch `test-specialist.agent.md` as a subagent.
+   - Input: `verification-artifacts/{task-id}-impl.json` (status: ready, verdict: APPROVED)
+   - SKILL: `.github/skills/testing/SKILL.md`
+   - Result path: `verification-artifacts/{task-id}-test.json`
+   - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
 
-9. **[Dispatch: docs-curator]** Fork. Task: update file headers, design docs, or architecture notes affected by the change; produce `verification-artifacts/{task-id}-docs.md`. Await artifact.
+9. **[Gate: adversarial verify — tests]** Governor dispatches `review-auditor.agent.md` → verify test artifact → verdict APPROVED or REJECTED. On REJECTED → remediate via `recursive-remediation` SKILL.md.
 
-10. **[Gate: adversarial verify]** Governor selects a non-author specialist from the Agent Registry by domain match (prefer `review-auditor` for code output). Fork. Task: challenge assumptions, completeness, and edge cases in `{task-id}-impl.md` and `{task-id}-tests.md`; produce `verification-artifacts/{task-id}-verify.md` (verdict: `APPROVED` or `REJECTED` + specific reasoning). Await artifact.
+10. **[Dispatch: Docs Curator]** Dispatch `docs-curator.agent.md` as a subagent.
+    - Input: `verification-artifacts/{task-id}-impl.json` (status: ready, verdict: APPROVED)
+    - SKILL: `.github/skills/doc-sync/SKILL.md`
+    - Result path: `verification-artifacts/{task-id}-docs.json`
+    - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
 
-11. **[Gate: verdict check]** If `REJECTED` → governor returns the task to the producing agent with the specific review findings (Ralph loop, max 3 iterations). If `APPROVED` → continue.
-
-12. **[Exit]** Append `[CLOSED] implement-feature — exit criteria met` to ledger Decisions Log. Delete `verification-artifacts/{task-id}-*.md`. Set Work Queue row to `CLOSED`.
+11. **[Exit]** If all stages APPROVED → update ledger CLOSED. Archive ledger. Reset from template. Clean up `verification-artifacts/{task-id}-*` task files. If any stage REJECTED × 3 → append `BLOCKED: ESCALATION_REQUIRED` to Decisions Log and pause for human review.

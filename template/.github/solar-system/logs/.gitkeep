@@ -1,3 +1,0 @@
-# This directory holds per-session SOLAR activity log files.
-# Files matching *.json are gitignored (see /.gitignore).
-# The .current-session file is also gitignored.
