@@ -27,7 +27,7 @@ The base installation generates the following files:
 | Orchestration manifest       | 1     | `.github/AGENTS.md`                                                      |
 | Agents                       | 7     | `.github/agents/*.agent.md`                                              |
 | Skills                       | 7     | `.github/skills/*/SKILL.md`                                              |
-| Hooks                        | 2     | `.github/hooks/hooks.json` + `post-tool-use.cjs` + `stop.cjs`            |
+| Hooks                        | 1     | `.github/hooks/hooks.json` + `post-tool-use.cjs`                         |
 | Prompts                      | 2     | `.github/prompts/solar.prompt.md` + `solar-registry-update.prompt.md`    |
 | Instructions                 | 2     | `.github/instructions/solar.instructions.md` + `{stack}.instructions.md` |
 | System config                | 1     | `.github/solar.config.json`                                              |
@@ -39,7 +39,7 @@ The base installation generates the following files:
 
 **Skills (7):** `data-collection`, `design-planning`, `implementation`, `testing`, `doc-sync`, `review`, `recursive-remediation`.
 
-**Hooks (2):** `post-tool-use` (write-op guard — ADVERSARIAL_VERIFY_REQUIRED signal at VERIFY stage), `stop` (blocks exit when Completion Promise: pending).
+**Hooks (1):** `post-tool-use` (write-op guard — ADVERSARIAL_VERIFY_REQUIRED signal at VERIFY stage).
 
 ---
 

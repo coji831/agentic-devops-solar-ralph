@@ -15,6 +15,78 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.0.0 — July 10, 2026
+
+**Theme:** Lightweight simplification — stripped v4.6.3's token-efficiency machinery in favor of a simpler, cheaper-model-optimized harness.
+
+### Removed
+
+- **PreToolUse hook** (`pre-tool-use.cjs`) — baton field enforcement, signal routing, DISPATCH_TOO_LARGE gate, and DUPLICATE_READ_DETECTED tracking removed. These optimized for expensive tokens ($/token); with DeepSeek V4 Flash at ~$0.15/M input, the savings no longer justify the complexity.
+- **Stop hook** (`stop.cjs`) — Completion Promise enforcement removed. The Ralph loop state machine is simplified; a simple max-iteration guard in the governor suffices.
+- **Read tracker + telemetry** (`common.cjs` functions `loadReadTracker`, `saveReadTracker`, `appendTelemetry`, `collectPreToolUseSignals`) — stripped. All tracker/telemetry infrastructure removed.
+- **Dispatch Payload Contract** — the 4-field baton enrichment (`ledger_stage`, `artifact_refs`, `agents_md_section`, `input_refs[]`) removed from docs, governor, and enforcement. Pre-loading saved 1-2 turns at pennies each — not worth the gate infrastructure.
+- **Config expansion fields** — `solar.config.json` reduced from 14 to 5 flags: `adversarial`, `learning`, `logging`, `human_approval`, `hooks`. Removed: `maxDispatchInputTokens`, `maxHighCostDispatchTokens`, `maxReadWindowLines`, `maxReadsPerFilePerSession`, `requireArtifactRefForHighCost`, `enforceDeltaForRedispatch`, `artifactizationThresholdTokens`, `hardFailSignals`, `ledgerCompactionThreshold`, `telemetry`.
+- **Model tiering** — all agents now default to single-model assignment (DeepSeek V4 Flash). Removed the 3-tier model policy (GPT-5 mini / GPT-4o / Claude Sonnet 4.5). Premium model is optional for architect/security roles.
+
+### Changed
+
+- **`common.cjs`** — reduced from 5 exported functions to 3 (`loadConfig`, `readLedger`, `isSolarActive`). All tracker, telemetry, and signal collection code removed.
+- **`hooks.json`** — reduced from 3 hooks to 1: only `PostToolUse` remains. `PreToolUse` and `Stop` entries removed.
+- **`orchestration-governor.agent.md`** — removed Dispatch Baton Rule, Task Tracker Initialisation, and Proactive Compaction sections. Model changed from `Claude Sonnet 4.6 (copilot)` to `DeepSeek V4 Flash (deepseek)`.
+- **`.ai_ledger.md` template** — simplified from 5 sections to 3: `Objective`, `Work Queue`, `Decisions Log`. Removed Loop State, Materials table, Completion Promise.
+- **`AGENTS.md`** — ledger template simplified, hook config reduced, model version bumped to `5.0.0`.
+- **`docs/solar-ralph-reference.md`** — removed Dispatch Payload Contract, Pre-Tool-Use Signals, Artifact-Scoped Tracker, and tiered Model Policy sections. Layer 3 hooks simplified. Layer 11 ledger template simplified.
+- **`docs/solar-ralph-concept.md`** — removed Materials section from sparse document, simplified dispatch baton description, removed iteration column from Work Queue.
+
+### Added
+
+- **Direct context dispatch** replaces baton enforcement: "include the current stage, relevant artifact paths, and the specialist's registry entry" — guidance, not gates.
+
+---
+
+## v4.6.3 — May 24, 2026
+
+**Theme:** Token-efficiency hardening — baton enrichment, compact-handoff schema, pre-tool-use gate, config expansion.
+
+### Added
+
+- **Dispatch Payload Contract** (`docs/solar-ralph-reference.md`) — new `## Dispatch Payload Contract` section defines the four universal baton fields (`ledger_stage`, `artifact_refs`, `agents_md_section`, `input_refs[]`) required in every `runSubagent` call. Previously undocumented; absence caused project-specific fields to leak into generic dispatch patterns.
+- **`compact-handoff-packet.schema.json`** — new schema added to both `template/.github/solar-system/schemas/` and as verbatim installer output (step 5H). All specialist artifact write-output steps now reference this schema for required envelope fields (`schema_version`, `task_id`, `stage`, `changed_items`, `decisions_delta`, `blockers_delta`, `acceptance_criteria_delta`, `artifact_refs`, `author`, `written_at`).
+- **`collectPreToolUseSignals()`** (`template/.github/hooks/common.cjs`) — new hook function enforcing baton field presence on every `runSubagent` dispatch. Emits `DELTA_HANDOFF_SCHEMA_MISSING` when `ledger_stage` or `artifact_refs` are absent from the dispatch prompt. Added as 4th export alongside `loadConfig`, `readLedger`, `isSolarActive`.
+- **`solar_version: "4.6.3"`** field added to `template/.github/AGENTS.md` §1 and installer AGENTS.md §1 output.
+
+### Changed
+
+- **`solar.config.json`** (template + installer) — expanded from 5 to 14 fields: added `maxDispatchInputTokens`, `maxHighCostDispatchTokens`, `maxReadWindowLines`, `maxReadsPerFilePerSession`, `requireArtifactRefForHighCost`, `enforceDeltaForRedispatch`, `artifactizationThresholdTokens`, `hardFailSignals`, `telemetry`.
+- **`orchestration-governor.agent.md`** (template + installer) — added `## Dispatch Baton Rule` section: four required baton fields, enforcement rule, material gate linkage. Governor now fails G1 gate if any baton field cannot be populated.
+- **All 10 `SKILL.md` files** (template + installer) — write-output steps updated to reference compact-handoff schema required fields. Playbook skills (implement-feature, bug-fix, create-doc) include trailing `**Compact-handoff contract**` note; recursive-remediation includes all-artifact coverage note.
+- **`docs/solar-ralph-concept.md`** — added Dispatch baton bullet under Orchestrator section: Governor Baton Enrichment pattern now documented as a first-class orchestration behaviour.
+
+### Fixed
+
+- **Baton field universality** (`docs/work-logs/solar-token-optimization-proposal.md` §5C) — removed `story_br_path` and `story_impl_path` (mandarin-specific fields that leaked into the universal spec). Replaced with `input_refs[]` — a generic array populated project-specifically.
+- **`collectPreToolUseSignals` was dead-wired** — the function existed in `common.cjs` but was never invoked because no `pre-tool-use.cjs` script existed and `PreToolUse` was not registered in `hooks.json`. `DELTA_HANDOFF_SCHEMA_MISSING` could never fire. Fixed by: creating `pre-tool-use.cjs` in both `template/` and installed repos; registering `PreToolUse` in `hooks.json`; updating installer to generate the script as a core hook (removed from Optional list); updating §6 hook table.
+
+---
+
+## v4.6.3 addendum — May 30, 2026
+
+**Theme:** Dispatch telemetry, artifact-scoped tracker, oversized-dispatch gate, and installer split.
+
+### Added
+
+- **`DISPATCH_TOO_LARGE` hard-fail signal** (`template/.github/hooks/pre-tool-use.cjs` + `common.cjs`) — fires when `JSON.stringify(tool_input).length > maxDispatchInputTokens × 4`; hard-fail exit 2 message: "Move artifact bodies to `verification-artifacts/` and pass paths only, then retry." Added to `hardFailSignals` array in `solar.config.json`.
+- **`appendTelemetry()`** (`template/.github/hooks/common.cjs`) — new helper; appends one JSONL entry per `runSubagent` dispatch to `verification-artifacts/{task_id}-telemetry.jsonl`. Entry shape: `{ ts, sessionId, task_id, tool, input_chars, est_tokens }`. Guarded by tracker-file existence — no-op when no active SOLAR task.
+- **`## Task Tracker Initialisation`** section (`template/.github/agents/orchestration-governor.agent.md`) — Governor must write `{ "task_id": "<id>", "reads": {} }` to `verification-artifacts/<task-id>-tracker.json` before the first dispatch of any new task. Until the file exists all hook read-tracking and telemetry are silently inactive.
+- **`solar-install-inventory.md`** — new 1306-line verbatim inventory file; 31 `## INV:<slug>` sections each containing `<!-- Target: <path> -->` and a verbatim fenced code block. Separates all file bodies from orchestration logic.
+
+### Changed
+
+- **Artifact-scoped tracker** (`template/.github/hooks/common.cjs`) — tracker path moved from `.github/.read-tracker.json` (caused VS Code JSON-schema validation errors) to `verification-artifacts/{task_id}-tracker.json`. `loadReadTracker()` returns `null` when file absent — hook skips all tracker logic silently. `saveReadTracker()` is a no-op when file absent. Orchestrator creates the file to arm enforcement; hook never auto-creates it.
+- **`solar-install.prompt.md`** — split from 1615-line monolith to 449-line lean orchestration prompt. All verbatim file bodies moved to `solar-install-inventory.md`; installer references them via `→ Read INV:<slug> from solar-install-inventory.md and write verbatim to <path>.` directives.
+
+---
+
 ## v4.6 patch — May 6, 2026
 
 **Theme:** Template + install prompt alignment — consistency fixes across `template/`, `solar-install.prompt.md`, and all reference docs.

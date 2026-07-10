@@ -53,3 +53,5 @@ description: Full Scan → Plan + Design → Implement → Test → Document pip
     - Return instruction: "Return only: status (completed|partial|blocked), result file path written, and a 2-sentence summary. Do NOT embed raw file contents in your return message."
 
 11. **[Exit]** If all stages APPROVED → update ledger CLOSED. Archive ledger. Reset from template. Clean up `verification-artifacts/{task-id}-*` task files. If any stage REJECTED × 3 → append `BLOCKED: ESCALATION_REQUIRED` to Decisions Log and pause for human review.
+
+**Compact-handoff contract**: all specialist artifacts produced during this playbook must conform to `.github/solar-system/schemas/compact-handoff-packet.schema.json`.

@@ -62,12 +62,11 @@ graph LR
 
         AGENTSMD[".github/AGENTS.md\n──────────────────────\nAgent Registry · Skill Index\nWorkflow Index · Hook Config\nRepository Context\nLedger Template · Config Toggles"]
 
-        LEDGER[".github/.ai_ledger.md\n──────────────────────\nWork Queue\nLoop State\nMaterials\nDecisions Log  (append-only)"]
+        LEDGER[".github/.ai_ledger.md\n──────────────────────\nWork Queue\nDecisions Log  (append-only)"]
 
         subgraph HOOK_G ["Infrastructure Support — Hooks"]
             direction TB
             POST["post-tool-use.cjs\nPostToolUse\nVERIFY stage trigger signal"]
-            STP["stop.cjs\nStop\nblock exit when Completion Promise: pending"]
         end
     end
 

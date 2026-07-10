@@ -20,4 +20,5 @@
    - **APPROVED**: all checks pass — write `{ "verdict": "APPROVED", "task_id": "", "checks_passed": [], "notes": "" }`.
    - **REJECTED**: one or more checks fail — write `{ "verdict": "REJECTED", "task_id": "", "failures": [], "remediation_required": "" }`.
 5. Write output to `verification-artifacts/{task-id}-verify.json`.
+   - Required compact-handoff fields: `schema_version`, `task_id`, `stage`, `artifact_refs`, `author`, `written_at`. Full schema: `.github/solar-system/schemas/compact-handoff-packet.schema.json`.
 6. Append verdict to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: VERIFY {APPROVED|REJECTED} — {1-sentence reason}`.

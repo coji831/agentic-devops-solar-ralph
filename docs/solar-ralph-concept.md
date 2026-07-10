@@ -38,6 +38,7 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 - Four read-only checks before any dispatch: (1) materials-sufficient? (2) design-approved? (3) loop bounds ok? (4) previous stage verified?
 - **Always runs inline** — never forked. Owns all gates, adversarial dispatch, loop iteration, and ledger writes
 - **Playbook selection**: semantically matches user prompt to Playbook Index; ambiguous match → `askQuestion` before dispatch — never assumes
+- **Dispatch context**: every `runSubagent` call should include the current stage, relevant artifact paths, and the specialist's registry entry for context — keeping the dispatch prompt self-contained.
 - Parallel dispatch: queue independent tasks in ledger Work Queue with `status: PENDING`; fires in parallel when no inter-dependency
 - Resume: reads ledger cold on restart → identifies last `DONE` step → re-dispatches from next `PENDING`; no restart from scratch
 
@@ -46,16 +47,11 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 ```
 ## Objective
 ## Work Queue
-| id | task | agent | status | stage | iteration |
-## Loop State
-| max_iterations | current | timeout | exit_criteria |
-## Materials
-| role | path (verification-artifacts/) | schema | status |
+| id | task | agent | status | stage |
 ## Decisions Log (append-only)
 ```
 
 - Sparse: fields only populated when content exists
-- Materials = links only, never embedded content
 - Blockers appended to Decisions Log as `BLOCKED: <reason>` — no separate `## Active Blockers` section
 
 ### Adversarial
@@ -71,7 +67,7 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 - Entry gate: materials-sufficient + exit_criteria defined — if either missing, loop does not start
 - Exit (OR logic): `TextMentionTermination("TASK_COMPLETE")` OR `FunctionCallTermination("approve")` OR `MaxIterationTermination(n)`
 - Specialists cannot emit `TASK_COMPLETE` without adversarial verification passing first
-- Loop state in ledger: `iteration/max` + `timeout_at`
+- Loop bounds: governor tracks `max_iterations` as a simple guard against infinite loops
 - **Macro-cycle stage order**: Scan → Plan+Design → Implement → Test → Document (individual playbooks may omit stages)
 - **Micro-cycle**: READ input → PLAN dispatch → EXECUTE specialist → VERIFY output → ARTIFACT ledger update
 
@@ -179,7 +175,7 @@ All inter-component communication is **mediated through the ledger and `verifica
 | Failure Mode                  | Guard                                                     | Behavior                                                       |
 | ----------------------------- | --------------------------------------------------------- | -------------------------------------------------------------- |
 | Insufficient input            | Material gate (`input_material: ready` check)             | Emit `MATERIAL_INSUFFICIENT`; do not start                     |
-| Infinite loop                 | `MaxIterationTermination(n)` cap in ledger Loop State     | Hard stop at iteration limit; surface to user                  |
+| Infinite loop                 | Governor `max_iterations` guard                           | Hard stop at iteration limit; surface to user                  |
 | Silent failure                | Specialist writes `status: INTERRUPTED` before any return | Orchestrator detects incomplete step on next read              |
 | Bad output advancing pipeline | Adversarial VERIFY gate                                   | `FAIL` verdict blocks stage transition                         |
 | Scope creep in specialist     | `tier_restrictions` in specialist contract                | Append `BLOCKED: OUT_OF_SCOPE: <description>` to Decisions Log |

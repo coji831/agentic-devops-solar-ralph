@@ -17,4 +17,5 @@
    - Describe component/module interaction changes if any.
    - Flag alternatives considered and the chosen approach with rationale.
 4. Write output to `verification-artifacts/{task-id}-design.json` with schema: `{ "task_id": "", "design_summary": "", "files_to_change": [], "data_shapes": {}, "alternatives_considered": [], "rationale": "" }`.
+   - Required compact-handoff fields alongside task-specific fields: `schema_version`, `task_id`, `stage`, `artifact_refs`, `author`, `written_at`. Full schema: `.github/solar-system/schemas/compact-handoff-packet.schema.json`.
 5. Append result summary to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: Design complete — {2-sentence summary of approach}`.

@@ -1,7 +1,7 @@
 ﻿---
 name: Orchestration Governor
-description: SOLAR-Ralph orchestrator — reads registry, dispatches specialists, enforces gates, manages the ledger. Always runs inline, never forked.
-model: Claude Sonnet 4.6 (copilot)
+description: SOLAR orchestrator — reads registry, dispatches specialists, enforces gates, manages the ledger. Always runs inline, never forked.
+model: DeepSeek V4 Flash (deepseek)
 tools: [vscode/askQuestions, agent/runSubagent, read, search, edit]
 user-invocable: true
 ---

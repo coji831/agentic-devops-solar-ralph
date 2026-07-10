@@ -18,3 +18,5 @@
 7. On APPROVED: update Work Queue row `status` = COMPLETE, `iteration` = final count. Continue pipeline.
 8. On REJECTED again: return to step 2 (loop continues until iteration ≥ 3 or APPROVED).
 9. Append each iteration outcome to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: Remediation iteration {n} — {APPROVED|REJECTED} — {1-sentence reason}`.
+
+**Compact-handoff contract**: all artifacts dispatched and received during remediation must conform to `.github/solar-system/schemas/compact-handoff-packet.schema.json`.

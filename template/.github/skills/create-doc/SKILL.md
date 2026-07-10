@@ -30,3 +30,5 @@ description: Plan + Design → Document pipeline for writing, creating, or updat
 5. **[Gate: adversarial verify — documentation]** Governor dispatches `design-planning-architect.agent.md` as non-author challenger → verify doc artifact against template compliance and content accuracy → verdict APPROVED or REJECTED. On REJECTED → return to Docs Curator with rejection reasons.
 
 6. **[Exit]** If APPROVED → update ledger CLOSED. Archive ledger. Reset from template. Clean up `verification-artifacts/{task-id}-*` task files. If REJECTED × 3 → append `BLOCKED: ESCALATION_REQUIRED` to Decisions Log and pause for human review.
+
+**Compact-handoff contract**: all specialist artifacts produced during this playbook must conform to `.github/solar-system/schemas/compact-handoff-packet.schema.json`.

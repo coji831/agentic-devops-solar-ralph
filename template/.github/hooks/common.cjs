@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("fs"),
   path = require("path");
+
 function loadConfig() {
   try {
     return JSON.parse(
@@ -13,6 +14,7 @@ function loadConfig() {
     return null;
   }
 }
+
 function readLedger() {
   try {
     return fs.readFileSync(
@@ -23,8 +25,14 @@ function readLedger() {
     return "";
   }
 }
+
 // Hooks are on when config.hooks is absent or true; off only when explicitly false.
 function isSolarActive(config) {
   return config?.hooks !== false;
 }
-module.exports = { loadConfig, readLedger, isSolarActive };
+
+module.exports = {
+  loadConfig,
+  readLedger,
+  isSolarActive,
+};

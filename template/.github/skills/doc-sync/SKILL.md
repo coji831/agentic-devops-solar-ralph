@@ -18,4 +18,5 @@
    - Update any "Last Updated" dates in modified docs.
    - Do not add documentation for unchanged code.
 4. Write output to `verification-artifacts/{task-id}-docs.json` with schema: `{ "task_id": "", "docs_updated": [], "summary": "" }`.
+   - Required compact-handoff fields alongside task-specific fields: `schema_version`, `task_id`, `stage`, `artifact_refs`, `author`, `written_at`. Full schema: `.github/solar-system/schemas/compact-handoff-packet.schema.json`.
 5. Append result summary to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: Documentation complete — {2-sentence summary of docs updated}`.

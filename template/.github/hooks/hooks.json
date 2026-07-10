@@ -6,13 +6,6 @@
         "command": "node .github/hooks/post-tool-use.cjs",
         "timeout": 20
       }
-    ],
-    "Stop": [
-      {
-        "type": "command",
-        "command": "node .github/hooks/stop.cjs",
-        "timeout": 10
-      }
     ]
   }
 }

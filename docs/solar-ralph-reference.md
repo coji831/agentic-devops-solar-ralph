@@ -6,9 +6,7 @@ Deep-reference catalog for the SOLAR-Ralph framework. Use this alongside the [in
 
 ## Layer 1: Agent Roster
 
-All agents live in `.github/agents/`. Each uses a specific model tier (see [Model Policy](#model-policy) below).
-
-### Tier 1 — Free (GPT-5 mini)
+All agents live in `.github/agents/`. All agents use the same model tier by default (see [Model Policy](#model-policy) below).
 
 | File                                             | Role                                                                           |
 | ------------------------------------------------ | ------------------------------------------------------------------------------ |
@@ -18,23 +16,13 @@ All agents live in `.github/agents/`. Each uses a specific model tier (see [Mode
 | `frontend-test-specialist.agent.md`              | Vitest, RTL, reducer, hook, component tests **[POST-IMPLEMENT]**               |
 | `backend-test-specialist.agent.md`               | Backend service, repository, integration, Prisma tests **[POST-IMPLEMENT]**    |
 | `docs-curator.agent.md`                          | Documentation and template compliance **[POST-IMPLEMENT]**                     |
-| `bug-investigation-specialist.agent.md`          | Root-cause classification; writes repro script; uses Claude Haiku 4.5          |
+| `bug-investigation-specialist.agent.md`          | Root-cause classification; writes repro script                                 |
 | `cache-external-integration-specialist.agent.md` | Redis, external APIs, TTL, retry, circuit-breaker **[POST-IMPLEMENT]**         |
-
-### Tier 2 — Reduced cost (GPT-4o)
-
-| File                                    | Role                                                       |
-| --------------------------------------- | ---------------------------------------------------------- |
-| `frontend-review-auditor.agent.md`      | Adversarial frontend review with ARA code-gaming detection |
-| `backend-review-auditor.agent.md`       | Adversarial backend review with ARA code-gaming detection  |
-| `release-readiness-specialist.agent.md` | Go/No-Go gate before governor writes WORK_PACKAGE_COMPLETE |
-
-### Tier 3 — Premium (Claude Sonnet 4.5)
-
-| File                                 | Role                                                            |
-| ------------------------------------ | --------------------------------------------------------------- |
-| `design-planning-architect.agent.md` | Solution shaping, decomposition, spec-first artifact production |
-| `security-auditor.agent.md`          | Auth, JWT, CORS, cookies, input validation, rate limiting       |
+| `frontend-review-auditor.agent.md`               | Adversarial frontend review                                                    |
+| `backend-review-auditor.agent.md`                | Adversarial backend review                                                     |
+| `release-readiness-specialist.agent.md`          | Go/No-Go gate before governor writes WORK_PACKAGE_COMPLETE                     |
+| `design-planning-architect.agent.md`             | Solution shaping, decomposition, spec-first artifact production                |
+| `security-auditor.agent.md`                      | Auth, JWT, CORS, cookies, input validation, rate limiting                      |
 
 > **Note on [POST-IMPLEMENT] agents**: The implementation agents need to know your stack. Update the "Tech Stack" and "Constraints" sections to match your repo's language, framework, ORM, and test runner. The governance agents (governor, architect, auditors, security) are largely universal.
 
@@ -79,11 +67,11 @@ All skills live in `.github/skills/<name>/SKILL.md`. Load with `#<skill-name>` o
 
 ## Layer 3: Lifecycle Hooks
 
-| File                       | Contents                                                                                                                                                                                         | Tag                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
-| `.github/hooks/hooks.json` | Three hooks: `PostToolUse` (type-check backpressure on writes in loop mode), `stopHook` (reads Session-Type from ledger; blocks only in `loop` mode), `errorOccurred` (ledger update on failure) | **[POST-IMPLEMENT]** |
+| File                       | Contents                                                                                                  | Tag                  |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------- |
+| `.github/hooks/hooks.json` | One hook: `PostToolUse` (write-op guard → emits `ADVERSARIAL_VERIFY_REQUIRED` when ledger stage = VERIFY) | **[POST-IMPLEMENT]** |
 
-**Customize**: Replace `npx tsc --noEmit` in PostToolUse with your stack's check command (e.g., `python -m mypy`, `dotnet build`, `cargo check`). The Session-Type logic and error hook are universal.
+**Customize**: Replace `npx tsc --noEmit` in PostToolUse with your stack's check command (e.g., `python -m mypy`, `dotnet build`, `cargo check`).
 
 ---
 
@@ -191,38 +179,25 @@ Files written here at runtime (e.g., `target-<slug>.json` from Design Planning A
 
 ## Layer 11: Ledger State File
 
-| File                    | Purpose                                                                               | Tag                  |
-| ----------------------- | ------------------------------------------------------------------------------------- | -------------------- |
-| `.github/.ai_ledger.md` | Active work queue, session type, blockers, verification failures, completion evidence | **[POST-IMPLEMENT]** |
+| File                    | Purpose                                            | Tag                  |
+| ----------------------- | -------------------------------------------------- | -------------------- |
+| `.github/.ai_ledger.md` | Active work queue, blockers, verification failures | **[POST-IMPLEMENT]** |
 
 Start with the template structure below. Do not copy content from another project's ledger.
 
 ```markdown
-# AI Ledger
+## Objective
 
-## Current Objective
-
-- Pipeline: (none)
-- Pipeline Stage: (none)
-- Session-Type: chat
-- VerificationTarget: (none)
-- Completion Promise: pending
+[one sentence]
 
 ## Work Queue
 
-(empty)
+| id  | task | agent | status | stage |
+| --- | ---- | ----- | ------ | ----- |
 
-## Active Blockers
+## Decisions Log
 
-(none)
-
-## Verification Failures
-
-(none)
-
-## Completion Notes
-
-(none)
+<!-- append-only; format: YYYY-MM-DD HH:MM UTC: <decision summary> -->
 ```
 
 ---
@@ -242,47 +217,40 @@ Start with the template structure below. Do not copy content from another projec
 
 These add quality, cost efficiency, and debug capability on top of the core SOLAR system.
 
-| ID  | Item                                                          | Status                           | Notes                                                                                     |
-| --- | ------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| A5  | Step-Level Process Supervision                                | ✅ In governor                   | Universal — no customization needed                                                       |
-| A6  | ARA 2.0 — Hacker-Auditor Pairs                                | ⏭️ Phase 3                       | Add "Proxy Sovereignty" section to both review auditors                                   |
-| A7  | Semantic Gradient Refinement                                  | ✅ In ledger + .github/AGENTS.md | Universal                                                                                 |
-| A8  | Exploration SKILL.md for Bug Investigation                    | ⏭️ Phase 3                       | Create `.github/skills/exploration/SKILL.md`                                              |
-| B5  | Bypass Approvals / Autopilot                                  | ✅ `.vscode/settings.json`       | **[POST-IMPLEMENT]** — uncomment `terminal.allowAutoExecute` per developer preference     |
-| B6  | Parallel Execution via Isolated Worktrees                     | ⏭️ Phase 3                       | Requires Copilot parallel agent fan-out                                                   |
-| B7  | Heuristic Context Rotation (Stream Parser)                    | ⏭️ Phase 3                       | Requires token-count hook API                                                             |
-| B8  | JIT Skill Loading via Argument-Hint                           | ~Partial                         | `argumentHint` on skills; governor doesn't yet enforce stage-specific loading             |
-| C5  | MCP Server Integration (Playwright, Puppeteer, Fetch, GitHub) | ✅ `.vscode/mcp.json`            | **[POST-IMPLEMENT]** — add GitHub token                                                   |
-| C6  | Verification-as-Code (VaC) Artifacts                          | ~Partial                         | `verification-artifacts/` + spec-first mode; per-stage signed artifact automation pending |
-| C7  | Gutter Detection and Escalation                               | ⏭️ Phase 3                       | Add same-error-3x hash tracking to Stop hook                                              |
-| C8  | Path-Specific Instruction Globbing                            | ✅ `.instructions.md` files      | **[POST-IMPLEMENT]** — update `applyTo` glob                                              |
-| C9  | GitHub-hosted Copilot Memory                                  | non-file                         | Manual admin toggle: org/repo Settings → GitHub Copilot → Memory                          |
+| ID  | Item                                                          | Status                           | Notes                                                                                 |
+| --- | ------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------- |
+| A5  | Step-Level Process Supervision                                | ✅ In governor                   | Universal — no customization needed                                                   |
+| A6  | ARA 2.0 — Hacker-Auditor Pairs                                | ⏭️ Phase 3                       | Add "Proxy Sovereignty" section to both review auditors                               |
+| A7  | Semantic Gradient Refinement                                  | ✅ In ledger + .github/AGENTS.md | Universal                                                                             |
+| A8  | Exploration SKILL.md for Bug Investigation                    | ⏭️ Phase 3                       | Create `.github/skills/exploration/SKILL.md`                                          |
+| B5  | Bypass Approvals / Autopilot                                  | ✅ `.vscode/settings.json`       | **[POST-IMPLEMENT]** — uncomment `terminal.allowAutoExecute` per developer preference |
+| B6  | Parallel Execution via Isolated Worktrees                     | ⏭️ Phase 3                       | Requires Copilot parallel agent fan-out                                               |
+| B7  | Heuristic Context Rotation (Stream Parser)                    | ⏭️ Phase 3                       | Requires token-count hook API                                                         |
+| B8  | JIT Skill Loading via Argument-Hint                           | ~Partial                         | `argumentHint` on skills; governor doesn't yet enforce stage-specific loading         |
+| C5  | MCP Server Integration (Playwright, Puppeteer, Fetch, GitHub) | ✅ `.vscode/mcp.json`            | **[POST-IMPLEMENT]** — add GitHub token                                               |
+| C6  | Verification-as-Code (VaC) Artifacts                          | ✅ `verification-artifacts/`     | Per-stage signed artifact automation pending                                          |
+| C7  | Gutter Detection and Escalation                               | ⏭️ Phase 3                       | Add same-error-3x hash tracking to governor                                           |
+| C8  | Path-Specific Instruction Globbing                            | ✅ `.instructions.md` files      | **[POST-IMPLEMENT]** — update `applyTo` glob                                          |
+| C9  | GitHub-hosted Copilot Memory                                  | non-file                         | Manual admin toggle: org/repo Settings → GitHub Copilot → Memory                      |
 
 ---
 
 ## Model Policy
 
-Model assignment is based on **invocation frequency** to minimize cost.
+All agents use a single model tier by default. With the availability of capable low-cost models (e.g., DeepSeek V4 Flash), model tiering for cost optimization is no longer necessary. Agents requiring deeper reasoning (architect, security auditor) may optionally use a premium model.
 
-| Tier    | Model                         | Rate  | Assigned Agents                                                                                                                  |
-| ------- | ----------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Free    | `GPT-5 mini (copilot)`        | 0x    | Governor, Frontend Impl, Backend Impl, Frontend Test, Backend Test, Docs Curator, Bug Investigation (uses Haiku 4.5), ralph-loop |
-| Reduced | `GPT-4o (copilot)`            | 0.33x | Frontend Review Auditor, Backend Review Auditor, Release Readiness Specialist                                                    |
-| Premium | `Claude Sonnet 4.5 (copilot)` | 1x    | Design Planning Architect, Security Auditor, audit-story                                                                         |
-
-> **Bug Investigation Specialist** uses `Claude Haiku 4.5 (copilot)` — cheaper than premium but capable enough for code tracing without escalating to the premium architect.
-
-**Validated model strings**: `"Claude Sonnet 4.5 (copilot)"`, `"GPT-5 mini (copilot)"`, `"GPT-4o (copilot)"`, `"Claude Haiku 4.5 (copilot)"`
+**Recommended model**: `DeepSeek V4 Flash (deepseek)` — all agents.
+**Premium alternative**: `Claude Sonnet 4.5 (copilot)` — architect, security auditor (optional).
 
 ---
 
 ## Quick Reference: Session Types
 
-| Session-Type  | Stop Hook Behavior                                   | When to Use                                  |
-| ------------- | ---------------------------------------------------- | -------------------------------------------- |
-| `chat`        | Exits cleanly; no blocking                           | Planning, single queries, knowledge lookups  |
-| `loop`        | Blocks until `WORK_PACKAGE_COMPLETE` promise written | `/ralph-loop` autonomous execution           |
-| `manual-test` | Exits silently; no message                           | Human drives app; agent observes and reports |
+| Session-Type  | Behavior                                        | When to Use                                 |
+| ------------- | ----------------------------------------------- | ------------------------------------------- |
+| `chat`        | Governor runs interactively; no loop state      | Planning, single queries, knowledge lookups |
+| `loop`        | Governor runs bounded cycle with max_iterations | `/ralph-loop` autonomous execution          |
+| `manual-test` | Human drives app; agent observes and reports    | Manual testing sessions                     |
 
 Set the active session type in `.github/.ai_ledger.md`:
 
@@ -290,17 +258,7 @@ Set the active session type in `.github/.ai_ledger.md`:
 Session-Type: loop
 ```
 
----
-
-## Quick Reference: Completion Promise
-
-To close a work package, the governor writes one of these into `.github/.ai_ledger.md → Completion Promise`:
-
-| Promise                                    | Meaning                                    |
-| ------------------------------------------ | ------------------------------------------ |
-| `<promise>WORK_PACKAGE_COMPLETE</promise>` | All done, all verifications pass           |
-| `<promise>WORK_PACKAGE_BLOCKED</promise>`  | External dependency; blocker documented    |
-| `<promise>ESCALATION_REQUIRED</promise>`   | Exceeds agent scope; human decision needed |
+| `<promise>ESCALATION_REQUIRED</promise>` | Exceeds agent scope; human decision needed |
 
 ---
 
@@ -327,5 +285,5 @@ A bare "test failed" entry is not acceptable and will be flagged by step supervi
 | B6  | Parallel Execution via Isolated Git Worktrees                   | When Copilot runtime supports parallel agent fan-out               |
 | B7  | Heuristic Context Rotation via Stream Parser                    | When a reliable byte/token-count hook API is available             |
 | B8  | Enforced JIT Skill Loading in Governor                          | When context window cost becomes measurably significant            |
-| C7  | Gutter Detection in Stop Hook                                   | When same-error loops are observed causing wasted iterations       |
+| C7  | Gutter Detection in Governor                                    | When same-error loops are observed causing wasted iterations       |
 | C9  | GitHub-hosted Copilot Memory                                    | When org admin enables Memory in GitHub Settings → Copilot         |
