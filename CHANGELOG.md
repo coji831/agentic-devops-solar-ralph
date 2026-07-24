@@ -15,6 +15,32 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.1.0 — July 10, 2026
+
+**Theme:** Context-efficiency overhaul — dedicated Context Summarizer agent, read-tool restriction on specialists, shrunk artifact schemas.
+
+### Added
+
+- **Context Summarizer agent** (`context-summarizer.agent.md`) — new agent with exclusive `read` tool access. Reads source files before every specialist dispatch and produces a compact digest (`{task-id}-digest.json`). Only agent allowed to `read` source files.
+- **Context Summarization skill** (`context-summarization/SKILL.md`) — instructions for producing compact digests with `refs[]`, `facts[]`, and `warnings[]`.
+- **Context budget rule** in solar.prompt.md — after every 3 specialist dispatches, governor performs a context roll-up: summarizes completed stages into a single Decisions Log entry and clears stale file contents from working memory.
+
+### Changed
+
+- **All 6 specialist agents** — `read` tool removed from tool lists. Context arrives via compact digest passed inline by Governor, not via direct file reads.
+- **All artifact schemas** — stripped to minimal refs-only format: `{task_id, refs[]}` + stage-specific fields. Substantive content (findings, reasons, summaries) goes to Decisions Log, not artifacts.
+- **All skill SKILL.md files** — steps updated: specialists extract context from dispatch prompt (Governor includes digest inline) instead of reading files directly. Compact-handoff schema references removed.
+- **All 3 playbook SKILL.md files** — Context Summarizer dispatch added before each specialist stage. Renumbered all steps.
+- **Agent Registry & Skill Index** (AGENTS.md) — Context Summarizer row and context-summarization skill registered.
+- **solar.prompt.md** — new step 3b (CONTEXT) added before 3c (EXECUTE): dispatch Context Summarizer, read digest, pass inline. Stale Materials section (step 5) replaced with Context Summarizer discipline and Artifact discipline rules. Context roll-up rule added to step 7.
+- **Reference docs** (concept, reference, implementation guideline) — updated with Context Summarizer description, read-tool restriction pattern, and updated agent/skill counts.
+
+### Design Rationale
+
+- **Cheap writes, expensive reads**: writing a compact digest (~200 tokens) costs pennies via DeepSeek V4 Flash. Reading source files into context costs 500-5000+ tokens. By centralizing reads in one agent and passing compact digests inline, we prevent context bloat from incidental file exploration.
+- **Tool restriction as architecture**: blocking `read` from specialists means they cannot accidentally expand scope by exploring files. They get exactly what the summarizer determined they need.
+- **Artifact-as-reference**: artifacts now serve as routing metadata only — the substantive content lives in the Decisions Log (governor-accessible) or in the source files themselves (not loaded into context unless needed).
+
 ## v5.0.0 — July 10, 2026
 
 **Theme:** Lightweight simplification — stripped v4.6.3's token-efficiency machinery in favor of a simpler, cheaper-model-optimized harness.

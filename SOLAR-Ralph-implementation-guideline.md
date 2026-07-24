@@ -25,8 +25,8 @@ The base installation generates the following files:
 | Category                     | Count | Location                                                                 |
 | ---------------------------- | ----- | ------------------------------------------------------------------------ |
 | Orchestration manifest       | 1     | `.github/AGENTS.md`                                                      |
-| Agents                       | 7     | `.github/agents/*.agent.md`                                              |
-| Skills                       | 7     | `.github/skills/*/SKILL.md`                                              |
+| Agents                       | 8     | `.github/agents/*.agent.md`                                              |
+| Skills                       | 8     | `.github/skills/*/SKILL.md`                                              |
 | Hooks                        | 1     | `.github/hooks/hooks.json` + `post-tool-use.cjs`                         |
 | Prompts                      | 2     | `.github/prompts/solar.prompt.md` + `solar-registry-update.prompt.md`    |
 | Instructions                 | 2     | `.github/instructions/solar.instructions.md` + `{stack}.instructions.md` |
@@ -35,9 +35,9 @@ The base installation generates the following files:
 | Copilot overlay              | 1     | `.github/copilot-instructions.md`                                        |
 | Solar-system reference files | 9     | `.github/solar-system/`                                                  |
 
-**Agents (7):** Orchestration Governor, Data Collector Specialist, Design Planning Architect, Implementation Specialist, Test Specialist, Docs Curator, Review Auditor.
+**Agents (8):** Orchestration Governor, Context Summarizer, Data Collector Specialist, Design Planning Architect, Implementation Specialist, Test Specialist, Docs Curator, Review Auditor.
 
-**Skills (7):** `data-collection`, `design-planning`, `implementation`, `testing`, `doc-sync`, `review`, `recursive-remediation`.
+**Skills (8):** `context-summarization`, `data-collection`, `design-planning`, `implementation`, `testing`, `doc-sync`, `review`, `recursive-remediation`.
 
 **Hooks (1):** `post-tool-use` (write-op guard — ADVERSARIAL_VERIFY_REQUIRED signal at VERIFY stage).
 
@@ -51,7 +51,9 @@ After installation, run the solar prompt in GitHub Copilot Chat agent mode:
 #solar.prompt.md
 ```
 
-The Governor reads `.github/AGENTS.md` and `.github/.ai_ledger.md`, writes a Work Queue row, and dispatches the first specialist. Task output goes to `verification-artifacts/`.
+The Governor reads `.github/AGENTS.md` and `.github/.ai_ledger.md`, writes a Work Queue row, dispatches the Context Summarizer to gather context, then dispatches the first specialist. Task output goes to `verification-artifacts/`.
+
+**Context flow**: Context Summarizer (`read` tool only) reads source files → writes compact digest → Governor reads digest → passes key facts inline to specialist (who has no `read` tool). This prevents context bloat from incidental file exploration.
 
 ---
 

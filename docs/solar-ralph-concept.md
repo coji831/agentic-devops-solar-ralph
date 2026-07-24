@@ -6,17 +6,17 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 
 ## Industry Comparison
 
-| SOLAR Concept         | Industry Equivalent                                                                  | Key Learning                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| **Specialist**        | CrewAI Agent (`role/goal/backstory/tools` in YAML)                                   | YAML registry = the swap/add/remove mechanism — declarative, not hardcoded     |
-| **Orchestrator**      | CrewAI Flow (`@start` → `@listen` → `@router`)                                       | Purely event-driven; reads state, fires next node, never executes tasks        |
-| **Ledger**            | CrewAI Flow State (Pydantic `BaseModel`) + task `context` chain                      | Typed state object; materials pass via reference, never embedded               |
-| **Ralph Loop**        | AutoGen `MaxMessageTermination \| TextMentionTermination \| FunctionCallTermination` | Combine numeric cap + semantic keyword + function call approval — OR logic     |
-| **Adversarial**       | CrewAI critic agent (primary + critic in round-robin)                                | Bystander = non-author; triggered by stage transition, not hardcoded role name |
-| **AGENTS.md**         | CrewAI `agents.yaml` + `tasks.yaml` merged                                           | Single-file portable bootstrap manifest                                        |
-| **Handoff/Materials** | CrewAI `output_pydantic`                                                             | Standardized typed output schema = the handoff contract                        |
-| **Hooks**             | CrewAI `callback` + middleware pipeline                                              | Stateless post-task signals; not orchestration logic                           |
-| **Installation**      | `crewai create crew` CLI scaffolds from YAML                                         | One file bootstraps everything — proven viable                                 |
+| SOLAR Concept          | Industry Equivalent                                                                          | Key Learning                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Specialist**         | CrewAI Agent (`role/goal/backstory/tools` in YAML)                                           | YAML registry = the swap/add/remove mechanism — declarative, not hardcoded      |
+| **Orchestrator**       | CrewAI Flow (`@start` → `@listen` → `@router`)                                               | Purely event-driven; reads state, fires next node, never executes tasks         |
+| **Ledger**             | CrewAI Flow State (Pydantic `BaseModel`) + task `context` chain                              | Typed state object; materials pass via reference, never embedded                |
+| **Ralph Loop**         | AutoGen `MaxMessageTermination \| TextMentionTermination \| FunctionCallTermination`         | Combine numeric cap + semantic keyword + function call approval — OR logic      |
+| **Adversarial**        | CrewAI critic agent (primary + critic in round-robin)                                        | Bystander = non-author; triggered by stage transition, not hardcoded role name  |
+| **AGENTS.md**          | CrewAI `agents.yaml` + `tasks.yaml` merged                                                   | Single-file portable bootstrap manifest                                         |
+| **Context Summarizer** | Anthropic orchestrator-workers pattern (central coordinator delegates to restricted workers) | Dedicated reader agent produces compact digest; specialists have no `read` tool |
+| **Hooks**              | CrewAI `callback` + middleware pipeline                                                      | Stateless post-task signals; not orchestration logic                            |
+| **Installation**       | `crewai create crew` CLI scaffolds from YAML                                                 | One file bootstraps everything — proven viable                                  |
 
 ---
 
@@ -27,10 +27,19 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 - YAML-declared: `role`, `goal`, `constraints`, `tools`, `accepts` (input schema), `produces` (output schema)
 - Registry in AGENTS.md — swap = update one YAML entry
 - Runs in a **forked context** (subagent via tool call): isolated, returns one artifact path; failure is contained
+- **No `read` tool** — context arrives via compact digest from the Context Summarizer, passed inline by the Governor
 - Communicates **only** via structured handoff written to `verification-artifacts/` and referenced in the ledger — never direct agent-to-agent
 - Gate before start: check ledger for `input_material: ready`. If not set → emit `MATERIAL_INSUFFICIENT` to orchestrator; do not start
 - Design gate: orchestrator writes `design` artifact, user approves (`stage: APPROVED`), then specialist starts
 - Writes step status to ledger **before returning** — enables recovery from last completed step on interruption
+
+### Context Summarizer
+
+- Only agent with the `read` tool — all source-file reads go through it
+- Dispatched by Governor before every specialist stage
+- Reads task-relevant files and produces a compact digest (`{task-id}-digest.json`): key facts, file refs, warnings
+- Digest is ~20 lines (~200 tokens); Governor reads it and includes key facts inline in the specialist dispatch prompt
+- Prevents context bloat from incidental file exploration by specialists
 
 ### Orchestrator
 
@@ -38,7 +47,7 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 - Four read-only checks before any dispatch: (1) materials-sufficient? (2) design-approved? (3) loop bounds ok? (4) previous stage verified?
 - **Always runs inline** — never forked. Owns all gates, adversarial dispatch, loop iteration, and ledger writes
 - **Playbook selection**: semantically matches user prompt to Playbook Index; ambiguous match → `askQuestion` before dispatch — never assumes
-- **Dispatch context**: every `runSubagent` call should include the current stage, relevant artifact paths, and the specialist's registry entry for context — keeping the dispatch prompt self-contained.
+- **Dispatch context**: every `runSubagent` call should include the current stage, the context digest (inline), relevant artifact paths, and the specialist's registry entry — keeping the dispatch prompt self-contained.
 - Parallel dispatch: queue independent tasks in ledger Work Queue with `status: PENDING`; fires in parallel when no inter-dependency
 - Resume: reads ledger cold on restart → identifies last `DONE` step → re-dispatches from next `PENDING`; no restart from scratch
 

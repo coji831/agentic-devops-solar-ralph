@@ -51,15 +51,16 @@ This repository uses the SOLAR-Ralph agent harness. Before every task:
 ```
 ## §3 Agent Registry
 
-| Name                                      | Dev Stage     | Role                                                                               | Loads Skill                            | Accepts                    | Produces                               | Optional |
-| ----------------------------------------- | ------------- | ---------------------------------------------------------------------------------- | -------------------------------------- | -------------------------- | -------------------------------------- | -------- |
-| Orchestration Governor                    | —             | Reads ledger stage → dispatches matching agent; owns exit decisions                | built-in                               | user prompt / ledger state | Work Queue row + Decisions Log entries | No       |
-| Data Collector Specialist                 | Scan          | Gathers files and produces context manifest                                        | `data-collection`                      | task description           | `{task-id}-scan.json`                  | No       |
-| Design Planning Architect                 | Plan + Design | Solution design, decomposition, tradeoff analysis                                  | `design-planning`                      | `{task-id}-scan.json`      | `{task-id}-design.json`                | No       |
-| [FILL IN: Implementation Specialist name] | Implement     | Code changes scoped to task                                                        | `[FILL IN: implementation skill slug]` | `{task-id}-design.json`    | `{task-id}-impl.json`                  | No       |
-| [FILL IN: Test Specialist name]           | Test          | Writes or repairs tests for the task output                                        | `[FILL IN: testing skill slug]`        | `{task-id}-impl.json`      | `{task-id}-test.json`                  | No       |
-| [FILL IN: Review Auditor name]            | VERIFY role   | Adversarial audit — dispatched by Governor at VERIFY step, not as a pipeline stage | `[FILL IN: review skill slug]`         | any artifact               | `{task-id}-verify.json`                | No       |
-| Docs Curator                              | Document      | Keeps docs aligned with code changes                                               | `doc-sync`                             | any artifact               | `{task-id}-docs.json`                  | No       |
+| Name                                      | Dev Stage                | Role                                                                               | Loads Skill                            | Accepts                    | Produces                                  | Optional |
+| ----------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------- | -------------------------- | ----------------------------------------- | -------- |
+| Orchestration Governor                    | —                        | Reads ledger stage → dispatches matching agent; owns exit decisions                | built-in                               | user prompt / ledger state | Work Queue row + Decisions Log entries    | No       |
+| Context Summarizer                        | Scan (context pre-step)  | Reads source files and produces compact digests. Only agent with `read` tool.     | `context-summarization`                | task description + paths   | `{task-id}-digest.json`                   | No       |
+| Data Collector Specialist                 | Scan                     | Gathers files and produces context manifest                                        | `data-collection`                      | digest + task description  | `{task-id}-scan.json`                     | No       |
+| Design Planning Architect                 | Plan + Design            | Solution design, decomposition, tradeoff analysis                                  | `design-planning`                      | digest + scan findings     | `{task-id}-design.json`                   | No       |
+| [FILL IN: Implementation Specialist name] | Implement                | Code changes scoped to task                                                        | `[FILL IN: implementation skill slug]` | digest + design plan       | `{task-id}-impl.json`                     | No       |
+| [FILL IN: Test Specialist name]           | Test                     | Writes or repairs tests for the task output                                        | `[FILL IN: testing skill slug]`        | digest + impl summary      | `{task-id}-test.json`                     | No       |
+| [FILL IN: Review Auditor name]            | VERIFY role              | Adversarial audit — dispatched by Governor at VERIFY step, not as a pipeline stage | `[FILL IN: review skill slug]`         | digest + artifact ref      | `{task-id}-verify.json`                   | No       |
+| Docs Curator                              | Document                 | Keeps docs aligned with code changes                                               | `doc-sync`                             | digest + impl summary      | `{task-id}-docs.json`                     | No       |
 
 **Agent Registry is a lookup table.** The Governor selects agents by Dev Stage role — row order does not control execution sequence. Execution sequence is defined by the Playbook SKILL.md.
 
@@ -67,15 +68,16 @@ This repository uses the SOLAR-Ralph agent harness. Before every task:
 
 ## §4 Skill Index
 
-| Name                             | Dev Stage     | Purpose                                                                 | Path                                            | Optional |
-| -------------------------------- | ------------- | ----------------------------------------------------------------------- | ----------------------------------------------- | -------- |
-| `data-collection`                | Scan          | Gather files, run searches, produce context manifest                    | `.github/skills/data-collection/SKILL.md`       | No       |
-| `design-planning`                | Plan + Design | Solution design, architecture-fit, task decomposition                   | `.github/skills/design-planning/SKILL.md`       | No       |
-| `[FILL IN: implementation slug]` | Implement     | Code changes per task                                                   | `.github/skills/[FILL IN: folder]/SKILL.md`     | No       |
-| `[FILL IN: testing slug]`        | Test          | Add or repair tests — ⚠ requires stack-specific runner setup before use | `.github/skills/[FILL IN: folder]/SKILL.md`     | No       |
-| `[FILL IN: review slug]`         | VERIFY role   | Audit output — runs at VERIFY step, not as pipeline stage               | `.github/skills/[FILL IN: folder]/SKILL.md`     | No       |
-| `doc-sync`                       | Document      | Sync docs after code or process changes                                 | `.github/skills/doc-sync/SKILL.md`              | No       |
-| `recursive-remediation`          | Remediation   | Bounded repair loop for failed tests or review findings                 | `.github/skills/recursive-remediation/SKILL.md` | No       |
+| Name                             | Dev Stage                | Purpose                                                                 | Path                                                  | Optional |
+| -------------------------------- | ------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------- | -------- |
+| `context-summarization`          | Scan (context pre-step)  | Read source files and produce compact digests for specialists           | `.github/skills/context-summarization/SKILL.md`       | No       |
+| `data-collection`                | Scan                     | Gather files, run searches, produce context manifest                    | `.github/skills/data-collection/SKILL.md`             | No       |
+| `design-planning`                | Plan + Design            | Solution design, architecture-fit, task decomposition                   | `.github/skills/design-planning/SKILL.md`             | No       |
+| `[FILL IN: implementation slug]` | Implement                | Code changes per task                                                   | `.github/skills/[FILL IN: folder]/SKILL.md`           | No       |
+| `[FILL IN: testing slug]`        | Test                     | Add or repair tests — ⚠ requires stack-specific runner setup before use | `.github/skills/[FILL IN: folder]/SKILL.md`           | No       |
+| `[FILL IN: review slug]`         | VERIFY role              | Audit output — runs at VERIFY step, not as pipeline stage               | `.github/skills/[FILL IN: folder]/SKILL.md`           | No       |
+| `doc-sync`                       | Document                 | Sync docs after code or process changes                                 | `.github/skills/doc-sync/SKILL.md`                    | No       |
+| `recursive-remediation`          | Remediation              | Bounded repair loop for failed tests or review findings                 | `.github/skills/recursive-remediation/SKILL.md`       | No       |
 
 ## §5 Playbook Index
 
@@ -128,6 +130,33 @@ Follow `.github/prompts/solar.prompt.md` for all task management — startup, re
 
 ---
 
+## INV:context-summarizer-agent
+
+<!-- Target: .github/agents/context-summarizer.agent.md -->
+
+```markdown
+---
+name: Context Summarizer
+description: Reads source files and produces compact digests for specialists. Only agent with read privilege. Specialists get their context through this agent.
+model: DeepSeek V4 Flash (deepseek)
+tools: [read, search]
+user-invocable: false
+---
+
+Handles context gathering for the pipeline. Reads source files, repository state, and task inputs — produces a compact digest that specialists consume instead of reading files directly. Does NOT design, implement code, test, review, or document.
+
+Before acting: load the SKILL.md path provided in the dispatch prompt → follow skill steps exactly.
+
+<constraints>
+- Maximum 15 file reads per dispatch. If more needed: append `BLOCKED: task exceeds scope — ESCALATION_REQUIRED` to Decisions Log and return to Governor without acting.
+- Do not expand scope beyond the current Work Package in `.github/.ai_ledger.md`. Discovered out-of-scope work: append `BLOCKED: OUT_OF_SCOPE: <description>` to Decisions Log only.
+- Output must be a compact digest — no raw file contents. Use bullet summaries, path references, and key facts only.
+- Return format: `{status: completed|partial|blocked}. Result: {artifact-path}. Summary: {2 sentences — key findings only, no raw file contents.}`
+</constraints>
+```
+
+---
+
 ## INV:specialist-agent-template
 
 <!-- Target: each specialist .agent.md body (replace [FILL IN] tokens per agent) -->
@@ -144,10 +173,12 @@ user-invocable: false
 
 Handles the **[FILL IN: Dev Stage]** stage. [FILL IN: one sentence what it does.] [FILL IN: one sentence what it does NOT do.]
 
+Context arrives via the dispatch prompt from the Governor — the Context Summarizer's digest is included inline with key facts, refs, and warnings. Do NOT read source files directly; use the digest for all context needs.
+
 Before acting: load the SKILL.md path provided in the dispatch prompt → follow skill steps exactly.
 
 <constraints>
-- Maximum 10 file reads per task. If more needed: append `BLOCKED: task exceeds scope — ESCALATION_REQUIRED` to Decisions Log and return to Governor without acting.
+- Input comes from digest only — do not read source files directly. If more needed: append `BLOCKED: task exceeds scope — ESCALATION_REQUIRED` to Decisions Log and return to Governor without acting.
 - Do not expand scope beyond the current Work Package in `.github/.ai_ledger.md`. Discovered out-of-scope work: append `BLOCKED: OUT_OF_SCOPE: <description>` to Decisions Log only.
 - Do not self-certify output. Requires non-author verification before emitting TASK_COMPLETE.
 - Return format: `{status: completed|partial|blocked}. Result: {artifact-path}. Summary: {2 sentences — key findings only, no raw file contents.}`
@@ -305,6 +336,31 @@ process.stdin.on("end", () => {
 
 ---
 
+## INV:context-summarizer-instructions
+
+<!-- Target: .github/instructions/context-summarizer.instructions.md -->
+
+```markdown
+---
+description: Dispatch pattern for Context Summarizer. Referenced by solar.prompt.md step 3b.
+applyTo: ".github/prompts/solar.prompt.md"
+---
+
+# Context Summarizer Dispatch Pattern
+
+Before every specialist dispatch, the Governor must gather context via the Context Summarizer.
+
+## Pattern
+
+- Dispatch `context-summarizer.agent.md` with task description + target paths.
+- SKILL: `.github/skills/context-summarization/SKILL.md`
+- Result path: `verification-artifacts/{task-id}-digest.json`
+- Await digest → read it (~20 lines, ~200 tokens) → include key facts inline in the specialist dispatch prompt.
+- Do NOT pass the digest path for the specialist to read — specialists cannot read files directly.
+```
+
+---
+
 ## INV:solar-instructions
 
 <!-- Target: .github/instructions/solar.instructions.md -->
@@ -330,6 +386,36 @@ Three permitted outputs:
 3. Artifacts — the final deliverable (code changes, design doc, handoff payload)
 
 Do not narrate tool calls. Do not announce intent. Do not confirm routine actions in prose.
+```
+
+---
+
+## INV:skill-context-summarization
+
+<!-- Target: .github/skills/context-summarization/SKILL.md -->
+
+```markdown
+# Context Summarization
+
+**Dev Stage**: Scan (context-gathering step before any specialist dispatch)
+**Purpose**: Read source files and produce a compact digest that the next specialist consumes instead of reading files directly.
+**Loaded by**: `context-summarizer` when Governor dispatches before a specialist stage
+
+## Steps
+
+1. Read the dispatch prompt — extract the list of files/paths to investigate and the target specialist type.
+2. For each target file or path:
+   - Read key sections (entry points, interfaces, function signatures, relevant types).
+   - Do NOT read full file bodies — use `startLine/endLine` for targeted reads.
+   - Note file path, key exports, relevant patterns.
+3. Build a compact digest:
+   - `task_id` — the current work item ID.
+   - `target_specialist` — which specialist this digest is for.
+   - `refs[]` — array of `{path, section, relevance}` objects pointing to source files.
+   - `facts[]` — bullet-point key facts the specialist needs to know (max 10 bullets, 1 line each).
+   - `warnings[]` — anything the specialist should be cautious about.
+4. Write output to `verification-artifacts/{task-id}-digest.json` with schema: `{ "task_id": "", "target_specialist": "", "refs": [], "facts": [], "warnings": [] }`.
+5. Append digest summary to ledger Decisions Log: `YYYY-MM-DD HH:MM UTC: Context gathered for {specialist} — {1-sentence summary of key facts delivered}`.
 ```
 
 ---
@@ -963,7 +1049,7 @@ Skills ({count}):
 
 Hooks: post-tool-use, stop
 Prompts: solar (entry), solar-registry-update (registry sync)
-Instructions: solar, {stack}
+Instructions: solar, context-summarizer, {stack}
 
 Repository Context registered in AGENTS.md:
   Existing docs: {list or none}  ← available as Materials input for any task

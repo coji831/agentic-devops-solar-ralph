@@ -199,21 +199,22 @@ Generate each agent as a `.agent.md` file with YAML frontmatter. Each agent must
 **Naming rules:**
 
 - **If `{STACK}` = generic** — plain names, no prefix:
-  - Files: `implementation-specialist.agent.md`, `test-specialist.agent.md`, `review-auditor.agent.md`, `docs-curator.agent.md`, `data-collector-specialist.agent.md`, `design-planning-architect.agent.md`
-  - Skill references: `implementation`, `testing`, `review`, `doc-sync`, `data-collection`, `design-planning`
+  - Files: `context-summarizer.agent.md`, `implementation-specialist.agent.md`, `test-specialist.agent.md`, `review-auditor.agent.md`, `docs-curator.agent.md`, `data-collector-specialist.agent.md`, `design-planning-architect.agent.md`
+  - Skill references: `context-summarization`, `implementation`, `testing`, `review`, `doc-sync`, `data-collection`, `design-planning`
 - **If `{STACK}` ≠ generic** — stack-prefixed names:
-  - Files: `{stack}-implementation-specialist.agent.md`, `{stack}-test-specialist.agent.md`, `{stack}-review-auditor.agent.md`
-  - Skill references: `{stack}-implementation`, `{stack}-testing`, `{stack}-review`
-  - Role-agnostic files keep plain names: `data-collector-specialist.agent.md`, `design-planning-architect.agent.md`, `docs-curator.agent.md`
+  - Files: `context-summarizer.agent.md`, `{stack}-implementation-specialist.agent.md`, `{stack}-test-specialist.agent.md`, `{stack}-review-auditor.agent.md`
+  - Skill references: `context-summarization`, `{stack}-implementation`, `{stack}-testing`, `{stack}-review`
+  - Role-agnostic files keep plain names: `context-summarizer.agent.md`, `data-collector-specialist.agent.md`, `design-planning-architect.agent.md`, `docs-curator.agent.md`
 
-| Dev Stage     | File                                         | Loads Skill                                             |
-| ------------- | -------------------------------------------- | ------------------------------------------------------- |
-| Scan          | `data-collector-specialist.agent.md`         | `data-collection`                                       |
-| Plan + Design | `design-planning-architect.agent.md`         | `design-planning`                                       |
-| Implement     | `{stack}-implementation-specialist.agent.md` | `{stack}-implementation` or `implementation` if generic |
-| Test          | `{stack}-test-specialist.agent.md`           | `{stack}-testing` or `testing` if generic               |
-| Document      | `docs-curator.agent.md`                      | `doc-sync`                                              |
-| VERIFY role   | `{stack}-review-auditor.agent.md`            | `{stack}-review` or `review` if generic                 |
+| Dev Stage                | File                                         | Loads Skill                                             |
+| ------------------------ | -------------------------------------------- | ------------------------------------------------------- |
+| Scan (context-gathering) | `context-summarizer.agent.md`                | `context-summarization`                                 |
+| Scan                     | `data-collector-specialist.agent.md`         | `data-collection`                                       |
+| Plan + Design            | `design-planning-architect.agent.md`         | `design-planning`                                       |
+| Implement                | `{stack}-implementation-specialist.agent.md` | `{stack}-implementation` or `implementation` if generic |
+| Test                     | `{stack}-test-specialist.agent.md`           | `{stack}-testing` or `testing` if generic               |
+| Document                 | `docs-curator.agent.md`                      | `doc-sync`                                              |
+| VERIFY role              | `{stack}-review-auditor.agent.md`            | `{stack}-review` or `review` if generic                 |
 
 **Verbatim YAML frontmatter for each agent (copy exactly — only replace `[FILL IN]` tokens):**
 
@@ -229,12 +230,23 @@ user-invocable: true
 ```
 
 ```yaml
+# Context Summarizer — .github/agents/context-summarizer.agent.md
+---
+name: Context Summarizer
+description: Reads source files and produces compact digests for specialists. Only agent with the read tool.
+model: DeepSeek V4 Flash (deepseek)
+tools: [read, search]
+user-invocable: false
+---
+```
+
+```yaml
 # Data Collector — .github/agents/data-collector-specialist.agent.md
 ---
 name: Data Collector Specialist
 description: Handles the Scan stage — gathers task context, repo state, and input findings.
 model: Claude Haiku 4.5 (copilot)
-tools: [read, search, edit]
+tools: [search, edit]
 user-invocable: false
 ---
 ```
@@ -245,7 +257,7 @@ user-invocable: false
 name: Design Planning Architect
 description: Handles the Plan + Design stage — produces architecture or design plans.
 model: Claude Sonnet 4.6 (copilot)
-tools: [read, search, edit]
+tools: [search, edit]
 user-invocable: false
 ---
 ```
@@ -256,7 +268,7 @@ user-invocable: false
 name: [FILL IN: "{Stack} Implementation Specialist" or "Implementation Specialist" if generic]
 description: Handles the Implement stage — writes [FILL IN: {stack}] code changes.
 model: Claude Haiku 4.5 (copilot)
-tools: [read, search, edit, execute, todo]
+tools: [search, edit, execute, todo]
 user-invocable: false
 ---
 ```
@@ -267,7 +279,7 @@ user-invocable: false
 name: [FILL IN: "{Stack} Test Specialist" or "Test Specialist" if generic]
 description: Handles the Test stage — writes and runs tests for [FILL IN: {stack}]. Requires stack-specific test runner configuration before use.
 model: Claude Haiku 4.5 (copilot)
-tools: [read, search, edit, execute, todo]
+tools: [search, edit, execute, todo]
 user-invocable: false
 ---
 ```
@@ -278,7 +290,7 @@ user-invocable: false
 name: [FILL IN: "{Stack} Review Auditor" or "Review Auditor" if generic]
 description: Handles the VERIFY role — adversarial audit of specialist output. Dispatched by Governor at VERIFY step, not as a pipeline stage.
 model: Claude Sonnet 4.6 (copilot)
-tools: [read, search, edit]
+tools: [search, edit]
 user-invocable: false
 ---
 ```
@@ -289,17 +301,22 @@ user-invocable: false
 name: Docs Curator
 description: Handles the Document stage — syncs and updates documentation.
 model: Claude Sonnet 4.5 (copilot)
-tools: [read, search, edit]
+tools: [search, edit]
 user-invocable: false
 ---
 ```
 
 **Post-install note to print at end of Step 5:**
 
-> Models assigned: Orchestrator + Design/Review = `Claude Sonnet 4.6 (copilot)`; Docs = `Claude Sonnet 4.5 (copilot)`; Scan/Implement/Test = `Claude Haiku 4.5 (copilot)`. To change: edit the `model:` field in each `.agent.md` file.
+> Models assigned: Orchestrator + Design/Review = `Claude Sonnet 4.6 (copilot)`; Context Summarizer = `DeepSeek V4 Flash (deepseek)`; Docs = `Claude Sonnet 4.5 (copilot)`; Scan/Implement/Test = `Claude Haiku 4.5 (copilot)`. To change: edit the `model:` field in each `.agent.md` file.
+>
+> **Context flow**: Context Summarizer (the only agent with `read` tool) reads source files before each specialist dispatch. Specialists receive context via compact digest passed inline by the Governor — they do NOT read source files directly.
 
 **Governor agent body:**
 → Read `INV:governor-agent` from `solar-install-inventory.md` and write verbatim (frontmatter + body) to `.github/agents/orchestration-governor.agent.md`.
+
+**Context Summarizer agent body:**
+→ Read `INV:context-summarizer-agent` from `solar-install-inventory.md` and write verbatim (frontmatter + body) to `.github/agents/context-summarizer.agent.md`.
 
 **All other specialist agent bodies:**
 → Read `INV:specialist-agent-template` from `solar-install-inventory.md` for the shared body stub.
@@ -338,6 +355,9 @@ Optional hooks (not generated by default): `pre-tool-use`, `stop`, `user-prompt-
 **`.github/instructions/solar.instructions.md`** — always generate:
 → Read `INV:solar-instructions` from `solar-install-inventory.md` and write verbatim to `.github/instructions/solar.instructions.md`.
 
+**`.github/instructions/context-summarizer.instructions.md`** — always generate (reusable dispatch pattern for playbooks):
+→ Read `INV:context-summarizer-instructions` from `solar-install-inventory.md` and write verbatim to `.github/instructions/context-summarizer.instructions.md`.
+
 **`.github/instructions/{stack}.instructions.md`** — one stack file based on `{STACK}` and `{TEST_RUNNER}`:
 
 - If `{STACK}` ≠ generic: generate a minimal instruction (under 20 lines) covering main frameworks, test runner `{TEST_RUNNER}`, lint tool, and key file paths detected in sweep
@@ -353,20 +373,22 @@ Generate one `SKILL.md` per dev lifecycle step. Skills are loaded by agents at t
 
 **Required skills (always generate):**
 
-| Dev Stage         | Skill name              | Folder                                  | Note                                                                           |
-| ----------------- | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------ |
-| Scan              | `data-collection`       | `.github/skills/data-collection/`       |                                                                                |
-| Plan + Design     | `design-planning`       | `.github/skills/design-planning/`       |                                                                                |
-| Implement         | `implementation`        | `.github/skills/implementation/`        |                                                                                |
-| Test              | `testing`               | `.github/skills/testing/`               | ⚠ Requires stack-specific runner setup (jest, vitest, pytest, etc.) before use |
-| Document          | `doc-sync`              | `.github/skills/doc-sync/`              |                                                                                |
-| Review            | `review`                | `.github/skills/review/`                | Used at VERIFY step only — not a dispatched pipeline stage                     |
-| Remediation (any) | `recursive-remediation` | `.github/skills/recursive-remediation/` |                                                                                |
+| Dev Stage               | Skill name              | Folder                                  | Note                                                                           |
+| ----------------------- | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------ |
+| Scan (context pre-step) | `context-summarization` | `.github/skills/context-summarization/` |                                                                                |
+| Scan                    | `data-collection`       | `.github/skills/data-collection/`       |                                                                                |
+| Plan + Design           | `design-planning`       | `.github/skills/design-planning/`       |                                                                                |
+| Implement               | `implementation`        | `.github/skills/implementation/`        |                                                                                |
+| Test                    | `testing`               | `.github/skills/testing/`               | ⚠ Requires stack-specific runner setup (jest, vitest, pytest, etc.) before use |
+| Document                | `doc-sync`              | `.github/skills/doc-sync/`              |                                                                                |
+| Review                  | `review`                | `.github/skills/review/`                | Used at VERIFY step only — not a dispatched pipeline stage                     |
+| Remediation (any)       | `recursive-remediation` | `.github/skills/recursive-remediation/` |                                                                                |
 
 **Default pipeline stage order:** Scan → Plan + Design → Implement → Test → Document. Review Auditor runs as the VERIFY role inside each micro-cycle — not a dispatched pipeline stage.
 
 For `{STACK}` ≠ generic: prefix the `implementation`, `testing`, and `review` folder names with the stack slug (e.g. `react-ts-implementation/`) and register them in the Skill Index alongside the generic counterparts.
 
+→ Read `INV:skill-context-summarization` from `solar-install-inventory.md` and write verbatim to `.github/skills/context-summarization/SKILL.md`.
 → Read `INV:skill-data-collection` from `solar-install-inventory.md` and write verbatim to `.github/skills/data-collection/SKILL.md`.
 → Read `INV:skill-design-planning` from `solar-install-inventory.md` and write verbatim to `.github/skills/design-planning/SKILL.md`.
 → Read `INV:skill-implementation` from `solar-install-inventory.md` and write verbatim to `.github/skills/implementation/SKILL.md`.

@@ -11,6 +11,7 @@ All agents live in `.github/agents/`. All agents use the same model tier by defa
 | File                                             | Role                                                                           |
 | ------------------------------------------------ | ------------------------------------------------------------------------------ |
 | `orchestration-governor.agent.md`                | Pipeline router, delegation enforcer, step supervisor                          |
+| `context-summarizer.agent.md`                    | Reads source files, produces compact digests. Only agent with `read` tool      |
 | `frontend-implementation-specialist.agent.md`    | React, TypeScript, context, reducers, routing, components **[POST-IMPLEMENT]** |
 | `backend-implementation-specialist.agent.md`     | Express, Prisma, services, repositories, auth **[POST-IMPLEMENT]**             |
 | `frontend-test-specialist.agent.md`              | Vitest, RTL, reducer, hook, component tests **[POST-IMPLEMENT]**               |
@@ -43,10 +44,11 @@ All skills live in `.github/skills/<name>/SKILL.md`. Load with `#<skill-name>` o
 | `frontend-testing/`                | Vitest + RTL test procedures **[POST-IMPLEMENT]**                                    |     |
 | `backend-testing/`                 | Jest/Vitest backend test procedures **[POST-IMPLEMENT]**                             |     |
 
-### Process & Governance Skills
+### Context & Governance Skills
 
 | Skill Folder             | Purpose                                                        |
 | ------------------------ | -------------------------------------------------------------- |
+| `context-summarization/` | Reads source files, produces compact digests for specialists   |
 | `story-execution/`       | End-to-end: plan → implement → test → docs → review → ledger   |
 | `doc-sync/`              | Keeps BR, implementation docs, and KB synchronized             |
 | `memory-curation/`       | Decides what belongs in repo memory vs ledger vs docs          |
@@ -79,12 +81,15 @@ All skills live in `.github/skills/<name>/SKILL.md`. Load with `#<skill-name>` o
 
 These scoped instruction files enforce lang/framework rules only within their directory, preventing "instruction leakage" across the full codebase.
 
-| File                             | Scope Pattern                                        | Tag                  |
-| -------------------------------- | ---------------------------------------------------- | -------------------- |
-| `apps/frontend/.instructions.md` | `applyTo: "apps/frontend/**/*.{ts,tsx,css,scss,md}"` | **[POST-IMPLEMENT]** |
-| `apps/backend/.instructions.md`  | `applyTo: "apps/backend/**/*.{ts,js,md}"`            | **[POST-IMPLEMENT]** |
+| File                                 | Scope Pattern                                        | Tag                                                                       |
+| ------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| `context-summarizer.instructions.md` | `applyTo: ".github/prompts/solar.prompt.md"`         | Dispatch pattern for the Governor — referenced by solar.prompt.md step 3b |
+| `apps/frontend/.instructions.md`     | `applyTo: "apps/frontend/**/*.{ts,tsx,css,scss,md}"` | **[POST-IMPLEMENT]**                                                      |
+| `apps/backend/.instructions.md`      | `applyTo: "apps/backend/**/*.{ts,js,md}"`            | **[POST-IMPLEMENT]**                                                      |
 
 **For other repos**: Create one `.instructions.md` per app/service boundary. Match `applyTo` to the folder glob. Fill in constraints specific to your stack (state management patterns, API conventions, forbidden patterns, etc.).
+
+**Reusable pattern instructions**: For patterns used by the Governor or shared across components (e.g., context-summarizer dispatch), define the pattern in an `.instructions.md` and scope `applyTo` to the consuming files. This keeps the pattern in one place rather than inlined in swappable playbooks.
 
 ---
 
