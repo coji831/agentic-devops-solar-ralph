@@ -8,35 +8,73 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+from . import executor
 from .core import Config, SolarState
 from .registry import load as load_registry
 
 MAX_ATTEMPTS = 3
 
+# keyword -> role hints, applied against the LOADED registry (repo roles win if
+# their name/description matches; generic defaults remain as fallback)
+_ROLE_HINTS = {
+    "implementer": ("implement", "refactor", "build", "feature", "code", "fix"),
+    "tester": ("test", "spec", "coverage", "verify"),
+    "reviewer": ("review", "audit", "check"),
+}
 
-def _classify(task: str) -> str:
+
+def _registry_role_hint(task: str, registry: dict) -> str | None:
+    """Prefer a repo-specific role whose name appears in the task (deterministic)."""
     low = (task or "").lower()
-    if any(k in low for k in ("test", "spec", "coverage", "verify")):
-        return "tester"
-    return "implementer"
+    # repo roles = registry minus generic defaults
+    generic = set(_ROLE_HINTS)
+    for role, spec in registry.items():
+        if role in generic:
+            continue
+        name = str(spec.get("role", role)).lower()
+        if name.replace(" ", "-") in low or name.split()[-1] in low or role.replace("_", "-") in low:
+            return role
+    return None
 
 
-def _execute(cfg: Config, state: SolarState) -> str:
-    """Run the specialist for the routed role.
+def _classify(task: str, registry: dict | None = None) -> str:
+    reg = registry or {}
+    hit = _registry_role_hint(task, reg)
+    if hit:
+        return hit
+    low = (task or "").lower()
+    # priority order breaks keyword-count ties: "add tests to X" -> tester,
+    # even though "feature/build" are also present.
+    best, best_score = "implementer", 0
+    for role in ("tester", "reviewer", "implementer"):
+        score = sum(low.count(k) for k in _ROLE_HINTS[role])
+        if score > best_score:
+            best, best_score = role, score
+    return best
 
-    cfg.model == "" -> deterministic stub executor (no API key). A real model
-    executor plugs in here (workspace MCP + LLM client) when cfg.model is set.
+
+def _execute(cfg: Config, state: SolarState) -> dict:
+    """Run the routed specialist role through the model executor.
+
+    System prompt comes from the loaded registry (repo-specific role wins). The
+    executor falls back to a stub when no API key is present (cfg.model "" or
+    SOLAR_API_KEY unset), so the graph stays testable without credentials.
     """
     role = state.get("role", "implementer")
-    if not cfg.model:
-        return (f"[{role}] plan for: {state.get('objective', '')}\n"
-                f"  - PREMISE_GATE: verify the request vs ground truth\n"
-                f"  - implement the minimal change\n"
-                f"  - self-check + tests")
-    # TODO(model executor): call the model with the role system prompt + tools.
-    # Requires a workspace MCP server + a provider key. Falls back to stub for now.
-    return (f"[{role}] MODEL EXECUTION NOT YET WIRED (cfg.model={cfg.model!r}); "
-            f"returning stub plan. Add the LLM client + workspace tool in graph.py._execute.")
+    objective = state.get("objective", "")
+    reg = load_registry(cfg.root / ".solar" / "registry.json")
+    spec = reg.get(role, {})
+    system = spec.get("system", f"You are the {role} specialist.")
+    res = executor.run(role=role, system_prompt=system, objective=objective,
+                       repo=cfg.root, cfg_model=cfg.model)
+    return {
+        "output": res.get("output", ""),
+        "model": res.get("model", "stub"),
+        "tokens_in": res.get("usage", {}).get("in", 0),
+        "tokens_out": res.get("usage", {}).get("out", 0),
+        "tool_calls": res.get("tool_calls", 0),
+        "error": res.get("error") or "",
+    }
 
 
 def build_nodes(cfg: Config):
@@ -46,7 +84,8 @@ def build_nodes(cfg: Config):
                 "decisions_log": [f"material_gate -> {status}"]}
 
     def dispatch(state: SolarState) -> dict:
-        role = _classify(state.get("objective", ""))
+        reg = load_registry(cfg.root / ".solar" / "registry.json")
+        role = _classify(state.get("objective", ""), reg)
         return {"role": role, "stage": "dispatched",
                 "work_queue": [{"id": "T1", "task": state.get("objective", ""),
                                 "role": role, "status": "PENDING", "stage": "dispatched"}],
@@ -54,8 +93,9 @@ def build_nodes(cfg: Config):
 
     def specialist(state: SolarState) -> dict:
         attempts = state.get("attempts", 0) + 1
-        return {"attempts": attempts, "output": _execute(cfg, state), "stage": "specialist",
-                "decisions_log": [f"specialist attempt {attempts}"]}
+        result = _execute(cfg, state)
+        return {"attempts": attempts, "stage": "specialist",
+                "decisions_log": [f"specialist attempt {attempts}"], **result}
 
     def review(state: SolarState) -> dict:
         if cfg.human_approval:

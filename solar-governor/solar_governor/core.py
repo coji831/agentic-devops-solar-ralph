@@ -25,6 +25,12 @@ class SolarState(TypedDict):
     output: str
     attempts: int                              # rework loop counter
     stage: str
+    # run-card metrics (v5 §14.7.3) — accumulated across rework attempts
+    model: str                                 # model used (or "stub")
+    tokens_in: Annotated[int, operator.add]    # prompt tokens (accumulates)
+    tokens_out: Annotated[int, operator.add]   # completion tokens (accumulates)
+    tool_calls: Annotated[int, operator.add]   # workspace tool calls
+    error: str                                 # executor error, if any
 
 
 DEFAULTS: dict = {

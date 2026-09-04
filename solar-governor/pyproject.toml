@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solar-governor"
-version = "0.1.0"
+version = "0.2.0"
 description = "SOLAR-Ralph v5 governor-as-graph runtime (LangGraph control layer)."
 requires-python = ">=3.11"
 dependencies = [
     "langgraph>=1.2",
     "langgraph-checkpoint-sqlite",
     "mcp>=2.1",
+    "openai>=1.0",
 ]
 
 [project.scripts]

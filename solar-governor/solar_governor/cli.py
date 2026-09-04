@@ -2,8 +2,10 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
+from . import executor, runcard
 from .core import Config
 from .graph import build_graph, run_task
 from .ledger import render
@@ -27,7 +29,8 @@ def cmd_init(args):
     if git.exists():
         text = git.read_text(encoding="utf-8")
         if ".solar/state" not in text:
-            git.write_text(text.rstrip() + "\n.solar/state/\n.solar/ledger.md\n", encoding="utf-8")
+            git.write_text(text.rstrip() + "\n.solar/state/\n.solar/ledger.md\n.solar/runs/\n",
+                           encoding="utf-8")
     print(f"✅ initialised solar-governor (profile={cfg.profile}) in {root}")
     print(f"   config: {_cfg_path(root).relative_to(root)}")
     print(f"   next: solar-governor run \"<task>\"  |  solar-governor doctor")
@@ -35,12 +38,19 @@ def cmd_init(args):
 
 def cmd_run(args):
     cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
+    started = time.time()
     state = run_task(cfg, args.task, thread=args.thread, approve=args.approve)
     ledger = render(cfg, state)
-    print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')}")
+    card = runcard.write(cfg, state, args.thread or "t1", started)
+    exec_note = "model" if state.get("model", "stub") != "stub" else "stub (no API key)"
+    print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')} "
+          f"role={state.get('role')} executor={exec_note}")
+    print(f"   tokens: in={state.get('tokens_in',0)} out={state.get('tokens_out',0)} "
+          f"tool_calls={state.get('tool_calls',0)}")
     out = state.get("output", "")
     print(f"   output:\n{out}")
     print(f"   ledger: {ledger}")
+    print(f"   run-card: {card}")
 
 
 def cmd_doctor(args):
@@ -65,6 +75,8 @@ def cmd_doctor(args):
         checks["registry"] = ("PASS", f"{len(reg)} specialists")
     except Exception as e:
         checks["registry"] = ("FAIL", str(e))
+    checks["model-executor"] = ("PASS" if executor.available() else "WARN",
+                                 "SOLAR_API_KEY set" if executor.available() else "no API key -> stub executor")
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
