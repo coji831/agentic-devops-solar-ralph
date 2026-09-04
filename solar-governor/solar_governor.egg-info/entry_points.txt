@@ -1,2 +1,0 @@
-[console_scripts]
-solar-governor = solar_governor.cli:main

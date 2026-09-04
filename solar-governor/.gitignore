@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+*.egg-info/
 .solar/state/
 .solar/ledger.md
 _sandbox/

@@ -1,3 +1,0 @@
-langgraph>=1.2
-langgraph-checkpoint-sqlite
-mcp>=2.1
