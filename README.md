@@ -39,7 +39,7 @@ SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves e
 
 ## Quick Start
 
-**1. Install:** Open `solar-install.prompt.md` in VS Code agent mode and follow the prompts.
+**1. Install:** Open `solar-install.prompt.md` in VS Code agent mode and follow the prompts. *(v5.3 governor-as-graph: `solar-governor init` — the LangGraph runtime in `solar-governor/`. Both coexist: `.github/` = agent harness, `.solar/` = graph runtime. See `docs/versions/v5.md`.)*
 
 **2. Run your first task:** Open `#solar.prompt.md` in Copilot Chat agent mode.
 
@@ -54,7 +54,7 @@ SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves e
 - `.github/hooks/` — 2 core hooks: `post-tool-use` (adversarial VERIFY signal) + `stop` (completion gate). Six optional hooks (`pre-tool-use`, `user-prompt-submit`, `session-start`, `subagent-start`, `subagent-stop`, `pre-compact`) can be added per project.
 - `.github/prompts/` — 2 prompts: `solar.prompt.md` (task entry) + `solar-registry-update.prompt.md`
 - `.github/AGENTS.md` — Orchestration manifest: agent registry, skill index, hook config, ledger template
-- `.github/.ai_ledger.md` — Persistent restart-safe state (Objective / Work Queue / Loop State / Materials / Decisions Log). Governor resets from AGENTS.md Section 7 on TASK_COMPLETE.
+- `.github/.ai_ledger.md` — Persistent restart-safe state (Objective / Work Queue / Decisions Log). Governor resets from AGENTS.md Section 7 on TASK_COMPLETE.
 - `.github/solar.config.json` — 5 behavior flags: `adversarial`, `learning`, `logging`, `human_approval`, `hooks`
 - `.github/solar-system/` — Adversarial checklist, lifecycle protocols, handoff schemas
 
