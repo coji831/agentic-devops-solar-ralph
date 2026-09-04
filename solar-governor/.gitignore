@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.solar/state/
+.solar/ledger.md
+_sandbox/

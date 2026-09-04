@@ -1,0 +1,5 @@
+# B2 governor-graph prototype deps (pin versions)
+langgraph==1.2.11
+mcp==2.1.1
+# install before 3.4 (EVAL 2 checkpoint resume): companion package to langgraph
+langgraph-checkpoint-sqlite

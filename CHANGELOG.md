@@ -15,6 +15,23 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.3.0 — Planned (2026-09-05) — Governor-as-graph (LangGraph)
+
+> **Version note:** this is the **v5.3** track (governor-as-graph). **v5.2** = agent-consistency enforcement (see `docs/research/v5-agent-consistency-*.md` + `docs/work-logs/v5.2-consistency-implementation-plan.md`). All folded into the v5 line; each sub-version is a clean commit bucket.
+
+**Theme:** Governor-as-graph (LangGraph) — v5 plan + B2 prototype + solar-governor runtime.
+
+### Added
+
+- **solar-governor runtime (dev)** (`solar-governor/`) — v5 implementation step 1 (2026-09-04): light-profile graph + SQLite checkpoint + CLI (`init`/`run`/`doctor`) + ledger render + deterministic routing + stub executor; 5 smoke tests pass. Next: mandarin registry + model executor + workspace tool.
+- **v5 plan doc** (`docs/versions/v5.md`) — governor-as-graph design: 3-layer architecture (LangGraph control / MCP tool / repo data-context), state schema grounded on the real 3-section ledger, node map, specialist registry + compactor, light/full profiles, one-engine 4-front install, verifiability (doctor + operational eval), data sovereignty (repo-bounded, uplink opt-in), v4→v5 migration.
+- **B2 governor-graph prototype** (`experiments/governor-graph/`) — 6 evals, all PASS: deterministic routing, HITL interrupt, SQLite durable checkpoint (cross-process resume), streaming, compactor (37% token ratio), hub KB MCP call + graceful degradation.
+
+### Changed
+
+- **Decision (B2 gate):** ADOPT v5 on graph → proceed to full migration (see `docs/versions/v5.md` §17). First deployment = the master repo (resume-kb) as dogfooding.
+- `TODOs.md`: added TD-5-1 (v5 plan), supersedes TD-4-1/2/3/4/5.
+
 ## v5.1.0 — July 10, 2026
 
 **Theme:** Context-efficiency overhaul — dedicated Context Summarizer agent, read-tool restriction on specialists, shrunk artifact schemas.

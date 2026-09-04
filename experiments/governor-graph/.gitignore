@@ -1,0 +1,4 @@
+# runtime artifacts (EVAL 2 sqlite checkpoint + python caches)
+checkpoints.sqlite
+__pycache__/
+*.pyc

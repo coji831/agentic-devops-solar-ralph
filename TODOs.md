@@ -14,6 +14,15 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ---
 
+## v5 — Governor-as-graph (LangGraph)
+
+### TD-5-1: v5 plan — governor-as-graph (LangGraph)
+
+**Status:** In progress (plan exists; B2 prototype validation pending)
+**Summary:** `docs/versions/v5.md` defines the v5 plan — LangGraph control layer (governor-as-graph), state schema grounded on the REAL 3-section ledger (Objective/Work Queue/Decisions Log; docs' 5-section claim was drift), specialist registry + compactor nodes, light/full profiles, one-engine 4-front install (`uvx`/`npx solar-governor init --profile`, container, CI action), verifiability (install `doctor` + operational eval), data sovereignty (repo-bounded by default, hub uplink opt-in for owned repos only), v4→v5 migration (steps 1–8).
+**Prototype:** `experiments/governor-graph/` — 6 evals (interrupt, checkpoint-resume, deterministic routing, streaming, hub KB MCP call, compactor). Decision gate after B2.
+**Supersedes:** TD-4-1/2/3/4 (effort steering → model routing), TD-4-5 (routing policy → graph edges).
+
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 
 ### TD-4-1: Instructional steering in agent bodies for direct invocations
@@ -26,10 +35,12 @@ bypass the `effort_preamble_lookup` table entirely.
 **Options:**
 
 A) Add a reasoning directive to the body of each high-effort agent:
-   > "Reason step-by-step through all edge cases and failure modes before producing output."
 
-   Add brevity directive to each low-effort agent:
-   > "Be concise. Produce only what is explicitly requested. Skip optional analysis."
+> "Reason step-by-step through all edge cases and failure modes before producing output."
+
+Add brevity directive to each low-effort agent:
+
+> "Be concise. Produce only what is explicitly requested. Skip optional analysis."
 
 B) Leave as-is. Accept that direct invocations have no effort steering.
 
@@ -59,6 +70,7 @@ No workspace floor exists.
 release notes.
 
 **Migration steps when ready:**
+
 1. Add `tiers: [thorough]` to high-effort agent front matter; `tiers: [quick]` to low-effort agents.
 2. Remove `effort_preamble_lookup` section from `orchestration-governor.agent.md`.
 3. Remove discoverability comments from agent bodies (`<!-- effort: high ... -->`).
@@ -92,6 +104,7 @@ another agent. If an agent is never intended for direct `@` invocation, setting
 that bypass governor oversight.
 
 **Questions to answer:**
+
 - Which agents are legitimately user-facing vs. internal pipeline workers?
 - Does VS Code's `handoffs:` frontmatter work regardless of `user-invocable`?
   (i.e. can a `user-invocable: false` agent still appear as a handoff target?)
