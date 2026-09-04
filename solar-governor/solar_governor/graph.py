@@ -53,18 +53,22 @@ def _classify(task: str, registry: dict | None = None) -> str:
     return best
 
 
+def _role_spec(cfg: Config, role: str) -> tuple[str, str]:
+    """Return (role, system_prompt) from the loaded registry (repo wins)."""
+    reg = load_registry(cfg.root / ".solar" / "registry.json")
+    spec = reg.get(role, {})
+    return role, spec.get("system", f"You are the {role} specialist.")
+
+
 def _execute(cfg: Config, state: SolarState) -> dict:
-    """Run the routed specialist role through the model executor.
+    """Run the routed specialist role through the HTTP/stub runner.
 
     System prompt comes from the loaded registry (repo-specific role wins). The
     executor falls back to a stub when no API key is present (cfg.model "" or
     SOLAR_API_KEY unset), so the graph stays testable without credentials.
     """
-    role = state.get("role", "implementer")
+    role, system = _role_spec(cfg, state.get("role", "implementer"))
     objective = state.get("objective", "")
-    reg = load_registry(cfg.root / ".solar" / "registry.json")
-    spec = reg.get(role, {})
-    system = spec.get("system", f"You are the {role} specialist.")
     res = executor.run(role=role, system_prompt=system, objective=objective,
                        repo=cfg.root, cfg_model=cfg.model)
     return {
@@ -75,6 +79,28 @@ def _execute(cfg: Config, state: SolarState) -> dict:
         "tool_calls": res.get("tool_calls", 0),
         "error": res.get("error") or "",
     }
+
+
+def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
+    """AgentDispatchRunner: write a handoff, then HITL-interrupt for the result.
+
+    The human runs the matching .agent.md specialist in VS Code Copilot (DeepSeek
+    via the extension) and pastes the result (or a result-file path) to resume.
+    """
+    role, system = _role_spec(cfg, state.get("role", "implementer"))
+    handoff = executor.write_handoff(role=role, system_prompt=system,
+                                     objective=state.get("objective", ""),
+                                     repo=cfg.root, cfg_model=cfg.model,
+                                     attempt=attempts)
+    resumed = interrupt({"kind": "agent-dispatch",
+                         "handoff": str(handoff),
+                         "ask": (f"Run the `{role}` agent in VS Code Copilot "
+                                 f"(handoff: {handoff.name}), then paste its final "
+                                 f"result or the result-file path:")})
+    output = executor.resolve_result(resumed, cfg.root)
+    return {"attempts": attempts, "output": output, "model": f"agent-dispatch:{role}",
+            "stage": "specialist",
+            "decisions_log": [f"specialist attempt {attempts} (agent-dispatch: {role})"]}
 
 
 def build_nodes(cfg: Config):
@@ -93,6 +119,9 @@ def build_nodes(cfg: Config):
 
     def specialist(state: SolarState) -> dict:
         attempts = state.get("attempts", 0) + 1
+        runner = executor.select_runner(cfg.runner)
+        if runner == "agent-dispatch":
+            return _dispatch_agent(cfg, state, attempts)
         result = _execute(cfg, state)
         return {"attempts": attempts, "stage": "specialist",
                 "decisions_log": [f"specialist attempt {attempts}"], **result}
@@ -129,11 +158,16 @@ def build_graph(cfg: Config):
     return b
 
 
-def run_task(cfg: Config, task: str, thread: str | None = None, approve: str | None = None) -> dict:
+def run_task(cfg: Config, task: str, thread: str | None = None,
+             approve: str | None = None, resume_result: str | None = None) -> dict:
     """Run a task under the profile's graph with a SQLite checkpoint.
 
-    Returns the final state. Interrupts (human_approval) are answered via the
-    `approve` param ('approve'|'deny') or a CLI prompt when None.
+    Returns the final state. Interrupt kinds:
+      - agent-dispatch: the human runs the .agent.md specialist in the IDE and
+        pastes the result (or a result-file path). Use `resume_result` to supply
+        it non-interactively (tests/CI); otherwise a CLI prompt reads it.
+      - review (human_approval): answered via `approve` ('approve'|'deny') or a
+        CLI prompt when None.
     """
     thread = thread or "t1"
     config = {"configurable": {"thread_id": thread}}
@@ -146,7 +180,15 @@ def run_task(cfg: Config, task: str, thread: str | None = None, approve: str | N
         graph = build_graph(cfg).compile(checkpointer=cp)
         result = graph.invoke(initial, config)
         while "__interrupt__" in result:
-            question = result["__interrupt__"][0].value.get("ask", "approve or deny?")
+            payload = result["__interrupt__"][0].value
+            kind = payload.get("kind", "review")
+            if kind == "agent-dispatch":
+                print(f"\n🧭 AGENT DISPATCH — {payload.get('ask', '')}")
+                if resume_result is None:
+                    resume_result = input("   result (paste text or result-file path): ").strip()
+                result = graph.invoke(Command(resume=resume_result), config)
+                continue
+            question = payload.get("ask", "approve or deny?")
             verdict = approve
             if verdict not in ("approve", "deny"):
                 verdict = input(f"{question} [approve/deny]: ").strip().lower()

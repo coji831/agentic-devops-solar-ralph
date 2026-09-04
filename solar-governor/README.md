@@ -30,11 +30,28 @@ solar-governor run "task description" --repo <path> # run through the graph + le
 
 Run without installing: `python -m solar_governor.cli ...` from this directory.
 
-## Model executor (real runs)
+## Runners — how a specialist executes (provider-agnostic)
 
-The specialist node calls a model through an **OpenAI-compatible** client
-(provider-neutral). Configure at runtime via environment — never stored in
-files, never committed:
+The graph never calls a provider directly. The SPECIALIST node asks a **runner**
+(`cfg.runner`, or env `SOLAR_RUNNER`; default auto = http if a key is set, else
+stub):
+
+| Runner            | What it does                                                                  | Needs                  |
+| ----------------- | ----------------------------------------------------------------------------- | ---------------------- |
+| `agent-dispatch`  | Writes a task handoff (`.solar/handoffs/`), interrupts; you run the repo's     | VS Code Copilot + the  |
+|                   | `.agent.md` specialist in the IDE (DeepSeek via the DeepSeek-for-Copilot       | DeepSeek extension     |
+|                   | extension), then paste the result (or result-file path) to resume             |                        |
+| `http`            | OpenAI-compatible chat call with repo-bounded workspace tools                  | `SOLAR_API_KEY`        |
+| `stub`            | Deterministic plan text (offline structure tests)                             | nothing                |
+
+Set the runner per repo at install time:
+
+```bash
+solar-governor init --repo <path> --runner agent-dispatch   # IDE-native pilot
+solar-governor init --repo <path> --runner http             # headless/CLI
+```
+
+### `http` runner config (env only, never committed)
 
 ```bash
 $env:SOLAR_API_KEY  = "<your deepseek/openrouter key>"   # or DEEPSEEK_API_KEY
@@ -42,19 +59,29 @@ $env:SOLAR_BASE_URL = "https://api.deepseek.com"          # default; any OpenAI-
 $env:SOLAR_MODEL    = "deepseek-chat"                     # or cfg.model
 ```
 
-No key set → deterministic **stub** executor (structure tests stay offline). The
-executor offers repo-bounded workspace tools (list_tree / read_file / glob /
-write_file) that refuse to escape the repo root.
+Tools (repo-bounded, refuse to escape the repo root): `list_tree` / `read_file` /
+`glob` / `write_file`.
+
+### `agent-dispatch` flow (mandarin pilot)
+
+1. `solar-governor run "<task>" --repo <path>` → graph routes to a role
+   (registry) and writes `.solar/handoffs/<role>-attempt1-*.md`.
+2. It interrupts: open the repo in VS Code Copilot, run that `.agent.md`
+   specialist (its model = DeepSeek via the extension) with the handoff's
+   Objective.
+3. Paste the agent's result back (or save it and type the path) → the graph
+   resumes → review → complete → ledger + run-card.
+4. Non-interactive: `solar-governor run "<task>" --result "<text|path>"`.
 
 ## What it proves now
 
 - Light graph: `MATERIAL_GATE → DISPATCH → SPECIALIST → REVIEW(cond) → COMPLETE`
   with a bounded rework loop (≤3).
 - Registry-aware routing: repo roles (e.g. mandarin's frontend-engineer) win over
-generic defaults when their name appears in the task.
+  generic defaults when their name appears in the task.
 - SQLite checkpoint (durable, resume by thread_id) + interrupt-over-CLI when
   `human_approval` is on.
-- Model executor (stub offline / real when `SOLAR_API_KEY` set) + workspace tools.
+- Runner abstraction: `agent-dispatch` (IDE handoff) · `http` · `stub`.
 - Run-card JSON per run at `.solar/runs/<thread>.json` (tokens, verdict, model).
 - Ledger render (human view from state).
 

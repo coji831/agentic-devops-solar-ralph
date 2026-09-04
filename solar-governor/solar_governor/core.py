@@ -41,6 +41,11 @@ DEFAULTS: dict = {
     "uplink": "none",
     "model": "",          # "" = deterministic stub executor (no API key needed)
     "human_approval": False,
+    # Runner = HOW the specialist node executes work (provider-agnostic, v5 §3):
+    #   ""             -> auto (http if SOLAR_API_KEY set, else stub)
+    #   "http"         -> OpenAI-compatible HTTP client
+    #   "agent-dispatch" -> hand off to the repo's .agent.md agents (IDE-native)
+    "runner": "",
 }
 
 
@@ -53,6 +58,7 @@ class Config:
     uplink: str = DEFAULTS["uplink"]
     model: str = DEFAULTS["model"]
     human_approval: bool = DEFAULTS["human_approval"]
+    runner: str = DEFAULTS["runner"]
 
     @property
     def root(self) -> Path:

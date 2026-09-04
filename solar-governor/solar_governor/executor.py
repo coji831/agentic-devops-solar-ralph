@@ -42,6 +42,75 @@ def available() -> bool:
     return api_key() is not None
 
 
+def select_runner(cfg_runner: str = "") -> str:
+    """Resolve which runner executes specialist work (v5 §3, provider-agnostic).
+
+    Order: explicit config/env > auto (http when a key is set, else stub).
+    Values: "agent-dispatch" (hand off to the repo's .agent.md agents in the
+    IDE) · "http" (OpenAI-compatible) · "stub" (deterministic, offline).
+    """
+    r = cfg_runner or os.environ.get("SOLAR_RUNNER", "")
+    if r in ("agent-dispatch", "http", "stub"):
+        return r
+    return "http" if available() else "stub"
+
+
+def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
+                  cfg_model: str = "", attempt: int = 1) -> Path:
+    """AgentDispatchRunner: write a task handoff for one .agent.md specialist.
+
+    Returns the handoff markdown path (under <repo>/.solar/handoffs/). The human
+    runs the matching agent in VS Code Copilot (DeepSeek via the extension) and
+    pastes the result back (or saves it to <handoff>.result.md) to resume.
+    """
+    import hashlib
+    from datetime import datetime
+    hdir = Path(repo) / ".solar" / "handoffs"
+    hdir.mkdir(parents=True, exist_ok=True)
+    # deterministic name per (role, attempt, objective) so a resume overwrites
+    # the same file instead of spawning duplicates
+    slug = hashlib.md5((objective or "").encode("utf-8")).hexdigest()[:6]
+    path = hdir / f"{role}-attempt{attempt}-{slug}.md"
+    model_hint = model_name(cfg_model)
+    body = (f"# SOLAR handoff — specialist: {role}\n\n"
+            f"_model routing: {model_hint} (via IDE agent) · generated "
+            f"{datetime.now().isoformat(timespec='seconds')} · attempt {attempt}_\n\n"
+            f"## Objective\n\n{objective}\n\n"
+            f"## System prompt (registry)\n\n```\n{system_prompt}\n```\n\n"
+            f"## How to run\n\n"
+            f"1. Open this repo in VS Code Copilot (agent mode).\n"
+            f"2. Run the `{role}` specialist agent (`.github/agents/{role}.agent.md`)\n"
+            f"   — its model is DeepSeek via the DeepSeek-for-Copilot extension.\n"
+            f"3. Give it the Objective above; it uses its own tools (read/edit/exec).\n"
+            f"4. Paste the agent's final result into the CLI when prompted, or save\n"
+            f"   it to `{path}.result.md` and type that path.\n\n"
+            f"## Notes\n\n- The graph (this run) adds routing + gates + checkpoint "
+            f"around the agent; the agent does the real work.\n"
+            f"- Result is recorded in the run-card and ledger, not the handoff.\n")
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def resolve_result(value: str, repo: Path) -> str:
+    """Turn a resumed value into specialist output text.
+
+    If the value points to an existing file (e.g. the agent's .result.md), read
+    and return its contents; otherwise treat the value itself as the result.
+    """
+    value = (value or "").strip()
+    if not value:
+        return "(no agent result provided)"
+    p = Path(value)
+    if not p.is_absolute():
+        p = Path(repo) / value
+    if p.is_file():
+        try:
+            return p.read_text(encoding="utf-8")
+        except OSError:
+            pass
+    return value
+
+
 class ExecutorResult(dict):
     """Thin dict: output / usage(in,out) / tool_calls / error / model."""
 

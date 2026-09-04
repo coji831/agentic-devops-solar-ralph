@@ -18,7 +18,8 @@ def _cfg_path(root: Path) -> Path:
 
 def cmd_init(args):
     root = Path(args.repo).expanduser().resolve()
-    cfg = Config(profile=args.profile, repo=str(root), human_approval=args.approval)
+    cfg = Config(profile=args.profile, repo=str(root), human_approval=args.approval,
+                 runner=args.runner or "")
     solar = root / ".solar"
     (solar / "state").mkdir(parents=True, exist_ok=True)
     cfg.save(_cfg_path(root))
@@ -29,24 +30,26 @@ def cmd_init(args):
     if git.exists():
         text = git.read_text(encoding="utf-8")
         if ".solar/state" not in text:
-            git.write_text(text.rstrip() + "\n.solar/state/\n.solar/ledger.md\n.solar/runs/\n",
+            git.write_text(text.rstrip() +
+                           "\n.solar/state/\n.solar/ledger.md\n.solar/runs/\n.solar/handoffs/\n",
                            encoding="utf-8")
-    print(f"✅ initialised solar-governor (profile={cfg.profile}) in {root}")
+    print(f"✅ initialised solar-governor (profile={cfg.profile}, runner={cfg.runner or 'auto'}) in {root}")
     print(f"   config: {_cfg_path(root).relative_to(root)}")
     print(f"   next: solar-governor run \"<task>\"  |  solar-governor doctor")
 
 
 def cmd_run(args):
     cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
+    runner = executor.select_runner(cfg.runner)
     started = time.time()
-    state = run_task(cfg, args.task, thread=args.thread, approve=args.approve)
+    state = run_task(cfg, args.task, thread=args.thread, approve=args.approve,
+                     resume_result=args.result)
     ledger = render(cfg, state)
     card = runcard.write(cfg, state, args.thread or "t1", started)
-    exec_note = "model" if state.get("model", "stub") != "stub" else "stub (no API key)"
     print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')} "
-          f"role={state.get('role')} executor={exec_note}")
-    print(f"   tokens: in={state.get('tokens_in',0)} out={state.get('tokens_out',0)} "
-          f"tool_calls={state.get('tool_calls',0)}")
+          f"role={state.get('role')} runner={runner}")
+    print(f"   model={state.get('model')} tokens: in={state.get('tokens_in',0)} "
+          f"out={state.get('tokens_out',0)} tool_calls={state.get('tool_calls',0)}")
     out = state.get("output", "")
     print(f"   output:\n{out}")
     print(f"   ledger: {ledger}")
@@ -75,8 +78,11 @@ def cmd_doctor(args):
         checks["registry"] = ("PASS", f"{len(reg)} specialists")
     except Exception as e:
         checks["registry"] = ("FAIL", str(e))
-    checks["model-executor"] = ("PASS" if executor.available() else "WARN",
-                                 "SOLAR_API_KEY set" if executor.available() else "no API key -> stub executor")
+    runner = executor.select_runner(cfg.runner)
+    detail = {"agent-dispatch": "hand off to .agent.md agents in the IDE",
+              "http": "OpenAI-compatible (SOLAR_API_KEY set)",
+              "stub": "no API key -> deterministic stub"}[runner]
+    checks["runner"] = ("PASS", f"{runner} ({detail})")
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
@@ -98,6 +104,8 @@ def main():
     p_init.add_argument("--repo", default=".")
     p_init.add_argument("--profile", choices=["light", "full"], default="light")
     p_init.add_argument("--approval", action="store_true", help="human_approval on (review interrupt)")
+    p_init.add_argument("--runner", choices=["agent-dispatch", "http", "stub", ""], default="",
+                        help="how specialists execute (default auto: http if key else stub)")
     p_init.set_defaults(fn=cmd_init)
 
     p_run = sub.add_parser("run", help="run a task through the graph")
@@ -105,6 +113,8 @@ def main():
     p_run.add_argument("--repo", default=".")
     p_run.add_argument("--thread", default=None)
     p_run.add_argument("--approve", choices=["approve", "deny"], default=None)
+    p_run.add_argument("--result", default=None,
+                       help="agent-dispatch: supply the agent result text/path non-interactively")
     p_run.set_defaults(fn=cmd_run)
 
     p_doct = sub.add_parser("doctor", help="install self-check")
