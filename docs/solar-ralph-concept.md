@@ -1,10 +1,6 @@
 # SOLAR-Ralph — Canonical Concept
 
-Lightweight AI agent harness built on five composable layers. Template lives in `template/`; install into any repo via `solar-install.prompt.md`.
-
-> **v5.3 — governor-as-graph (current canonical implementation, 2026-09-05).**
-> The orchestrator is now a **LangGraph graph** (`solar-governor/` runtime). The layers below are the timeless vocabulary; the graph is how they run:
-> **Orchestrator** = deterministic nodes/edges (no prompt-model drift) · **Specialists** = in-graph nodes from a registry, digest-fed via state channels · **MCP** = the tool layer · the `.github/` harness (template/) is the v4/v5.x form, kept for IDE-native Copilot subagent dispatch. Full mapping: `docs/versions/v5.md` §19.
+Lightweight AI agent harness built on five composable layers. Control flow is a **deterministic graph written in code**: nodes and edges decide which specialist runs next, so orchestration logic cannot drift from intent. Specialists are declared in a registry and run digest-fed; MCP is the tool layer; the `.github/` harness is the IDE-native Copilot form of the same architecture. Template lives in `template/`; install into any repo via `solar-install.prompt.md`.
 
 ---
 
@@ -47,7 +43,7 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 
 ### Orchestrator
 
-- Pure event-driven: reads ledger stage → dispatches specialist → advances stage *(v5.3: this is the LangGraph graph — deterministic nodes/edges; see `docs/versions/v5.md` §19)*
+- Pure event-driven: reads ledger stage → dispatches specialist → advances stage. Implemented as a deterministic graph in code — the next dispatch is decided by nodes and edges, never by a free-form model prompt
 - Four read-only checks before any dispatch: (1) materials-sufficient? (2) design-approved? (3) loop bounds ok? (4) previous stage verified?
 - **Always runs inline** — never forked. Owns all gates, adversarial dispatch, loop iteration, and ledger writes
 - **Playbook selection**: semantically matches user prompt to Playbook Index; ambiguous match → `askQuestion` before dispatch — never assumes
@@ -97,7 +93,7 @@ Lightweight AI agent harness built on five composable layers. Template lives in 
 | **Hooks**                  | Stateless lifecycle callbacks (read ledger/stdin → write stdout signal → exit); on by default            |
 | **Verification Artifacts** | Typed artifact files `{task-id}-{type}.json`; empty by default; cleaned up when ledger closes task       |
 | **MCP**                    | Tool entry declared in AGENTS.md; fetch for external data; loaded on demand                              |
-| **Installation**           | AGENTS.md → setup agent scaffolds `.github/` structure; zero multi-file download · v5.3: `solar-governor init` → `.solar/` runtime                         |
+| **Installation**           | AGENTS.md → setup agent scaffolds `.github/` structure; zero multi-file download                         |
 
 ### Playbook Execution Model
 
