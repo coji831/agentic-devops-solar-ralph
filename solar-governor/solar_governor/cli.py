@@ -9,7 +9,9 @@ from . import executor, runcard
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
+from .registry import chains as load_chains
 from .registry import load as load_registry
+from .registry import role_keys
 
 # exit codes for the --json step contract (agent wrapper drives on these)
 EXIT_OK = 0
@@ -48,15 +50,22 @@ def cmd_run(args):
     cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
     thread = args.thread or "t1"
     started = time.time()
+    if args.chain:
+        cm = load_chains(cfg.root / ".solar" / "registry.json")
+        if args.chain not in cm:
+            print(f"❌ no chain '{args.chain}' in registry (have: {sorted(cm)})",
+                  file=sys.stderr)
+            sys.exit(2)
     if args.json:
         return _cmd_run_json(cfg, args, thread, started)
     # interactive/one-shot path (stdin prompts at interrupts)
     state = run_task(cfg, args.task, thread=thread, approve=args.approve,
-                     resume_result=args.result)
+                     resume_result=args.result, chain=args.chain or "")
     _write_artifacts(cfg, state, thread, started)
     runner = executor.select_runner(cfg.runner)
+    chain = f" chain={state.get('chain')}" if state.get("chain") else ""
     print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')} "
-          f"role={state.get('role')} runner={runner}")
+          f"role={state.get('role')}{chain} runner={runner}")
     print(f"   model={state.get('model')} tokens: in={state.get('tokens_in',0)} "
           f"out={state.get('tokens_out',0)} tool_calls={state.get('tool_calls',0)}")
     out = state.get("output", "")
@@ -118,7 +127,7 @@ def _cmd_run_json(cfg, args, thread, started) -> None:
                   EXIT_USAGE)
         return
 
-    state = run_step(cfg, args.task, thread, resume=resume)
+    state = run_step(cfg, args.task, thread, resume=resume, chain=args.chain or "")
     _write_artifacts(cfg, state, thread, started)
 
     if "__interrupt__" in state:
@@ -168,7 +177,10 @@ def cmd_doctor(args):
         checks["graph-compiles"] = ("FAIL", str(e))
     try:
         reg = load_registry(root / ".solar" / "registry.json")
-        checks["registry"] = ("PASS", f"{len(reg)} specialists")
+        n_roles = len(role_keys(reg))
+        cm = load_chains(root / ".solar" / "registry.json")
+        detail = f"{n_roles} specialists" + (f", chains: {sorted(cm)}" if cm else "")
+        checks["registry"] = ("PASS", detail)
     except Exception as e:
         checks["registry"] = ("FAIL", str(e))
     runner = executor.select_runner(cfg.runner)
@@ -205,6 +217,10 @@ def main():
     p_run.add_argument("task")
     p_run.add_argument("--repo", default=".")
     p_run.add_argument("--thread", default=None)
+    p_run.add_argument("--chain", default=None,
+                       help="run a named chain from the registry: dispatch the chain "
+                            "entry; it runs the whole chain itself (handoff marks it "
+                            "CHAIN ENTRY)")
     p_run.add_argument("--approve", choices=["approve", "deny"], default=None)
     p_run.add_argument("--result", default=None,
                        help="agent-dispatch: supply the agent result text/path non-interactively")

@@ -1,0 +1,106 @@
+"""Tests for named-chain dispatch (v5 self-chain entry).
+
+A named chain in the registry is data: name -> ordered list, where a nested
+list = a parallel group. The graph dispatches ONLY the chain ENTRY; that agent
+runs the rest of the chain itself (see the shared solar-agent-chain
+instruction in the installing repo). Here we verify: role_keys skips the
+'chains' key, chain resolution, entry routing, and that the handoff marks the
+entry as CHAIN MODE.
+"""
+import json
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from solar_governor import registry                      # noqa: E402
+from solar_governor.core import Config                   # noqa: E402
+from solar_governor.graph import run_task                # noqa: E402
+
+CHAIN_REG = {
+    "architect": {"role": "Architect", "system": "You plan.", "tools": [],
+                  "next_edges": [], "model": ""},
+    "investigator": {"role": "Investigator", "system": "You research.", "tools": [],
+                     "next_edges": [], "model": ""},
+    "chains": {"epic": ["investigator", "architect",
+                        ["frontend-engineer", "backend-engineer"],
+                        "docs-writer", "code-reviewer"]},
+}
+
+
+def _tmp_repo() -> Path:
+    r = Path(tempfile.mkdtemp(prefix="solar-chain-"))
+    (r / ".solar").mkdir(parents=True)
+    (r / ".solar" / "registry.json").write_text(json.dumps(CHAIN_REG), encoding="utf-8")
+    return r
+
+
+def test_role_keys_skip_structural():
+    reg = registry.load(None)
+    assert "chains" not in reg
+    reg2 = registry.load(Path(tempfile.mkdtemp()) / "x.json") if False else None
+    # repo registry with a chains key: role_keys must not include it
+    r = _tmp_repo()
+    merged = registry.load(r / ".solar" / "registry.json")
+    assert "chains" in merged
+    keys = registry.role_keys(merged)
+    assert "investigator" in keys and "architect" in keys
+    assert "chains" not in keys
+    shutil.rmtree(r)
+
+
+def test_chain_resolution():
+    cm = registry.chains(None)  # generic: no chains
+    assert cm == {}
+    r = _tmp_repo()
+    cm = registry.chains(r / ".solar" / "registry.json")
+    assert registry.chain_entry(cm, "epic") == "investigator"
+    assert registry.chain_text(cm, "epic") == ("investigator -> architect -> "
+                                               "frontend-engineer + backend-engineer -> "
+                                               "docs-writer -> code-reviewer")
+    try:
+        registry.chain_entry(cm, "missing")
+        raise AssertionError("expected KeyError")
+    except KeyError:
+        pass
+    shutil.rmtree(r)
+
+
+def test_run_chain_routes_to_entry_and_marks_handoff():
+    """agent-dispatch chain run: graph dispatches chain[0] (investigator) and
+    the handoff carries the CHAIN MODE note so the entry knows to run the rest."""
+    r = _tmp_repo()
+    cfg = Config(repo=str(r), runner="agent-dispatch")
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    state = run_task(cfg, "secure guest identity (epic 25)", thread="c1",
+                     chain="epic", resume_result="investigated; final chain result delivered")
+    assert state.get("stage") == "complete"
+    assert state.get("role") == "investigator"      # chain entry, not a classify guess
+    assert state.get("chain") == "epic"
+    assert state.get("model", "").startswith("agent-dispatch")
+    hdir = r / ".solar" / "handoffs"
+    handoffs = list(hdir.glob("investigator-attempt1-*.md"))
+    assert handoffs, "expected an investigator handoff"
+    text = handoffs[0].read_text(encoding="utf-8")
+    assert "Chain mode" in text and "epic" in text
+    assert "CHAIN ENTRY" in text
+    shutil.rmtree(r)
+
+
+def test_run_chain_entry_with_parallel_group_text():
+    """chain_text renders a parallel group with ' + ' so the entry agent sees it."""
+    r = _tmp_repo()
+    cm = registry.chains(r / ".solar" / "registry.json")
+    assert "frontend-engineer + backend-engineer" in registry.chain_text(cm, "epic")
+    shutil.rmtree(r)
+
+
+if __name__ == "__main__":
+    for fn in (test_role_keys_skip_structural, test_chain_resolution,
+               test_run_chain_routes_to_entry_and_marks_handoff,
+               test_run_chain_entry_with_parallel_group_text):
+        fn()
+        print(f"PASS {fn.__name__}")
+    print("all chain tests passed")

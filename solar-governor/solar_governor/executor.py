@@ -56,12 +56,16 @@ def select_runner(cfg_runner: str = "") -> str:
 
 
 def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
-                  cfg_model: str = "", attempt: int = 1) -> Path:
+                  cfg_model: str = "", attempt: int = 1, chain_note: str = "") -> Path:
     """AgentDispatchRunner: write a task handoff for one .agent.md specialist.
 
     Returns the handoff markdown path (under <repo>/.solar/handoffs/). The human
     runs the matching agent in VS Code Copilot (DeepSeek via the extension) and
     pastes the result back (or saves it to <handoff>.result.md) to resume.
+
+    `chain_note` (optional): when the dispatch is a named chain, a short
+    instruction block telling this agent it is the chain ENTRY and to run the
+    whole chain itself (see .github/instructions/solar-agent-chain.md).
     """
     import hashlib
     from datetime import datetime
@@ -76,17 +80,24 @@ def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
             f"_model routing: {model_hint} (via IDE agent) · generated "
             f"{datetime.now().isoformat(timespec='seconds')} · attempt {attempt}_\n\n"
             f"## Objective\n\n{objective}\n\n"
-            f"## System prompt (registry)\n\n```\n{system_prompt}\n```\n\n"
-            f"## How to run\n\n"
-            f"1. Open this repo in VS Code Copilot (agent mode).\n"
-            f"2. Run the `{role}` specialist agent (`.github/agents/{role}.agent.md`)\n"
-            f"   — its model is DeepSeek via the DeepSeek-for-Copilot extension.\n"
-            f"3. Give it the Objective above; it uses its own tools (read/edit/exec).\n"
-            f"4. Paste the agent's final result into the CLI when prompted, or save\n"
-            f"   it to `{path}.result.md` and type that path.\n\n"
-            f"## Notes\n\n- The graph (this run) adds routing + gates + checkpoint "
-            f"around the agent; the agent does the real work.\n"
-            f"- Result is recorded in the run-card and ledger, not the handoff.\n")
+            f"## System prompt (registry)\n\n```\n{system_prompt}\n```\n\n")
+    if chain_note:
+        body += (f"## Chain mode\n\n{chain_note}\n\n"
+                 f"You are the CHAIN ENTRY. After your own step, run the next "
+                 f"specialist(s) yourself per the shared "
+                 f"`solar-agent-chain.instructions.md`; the LAST specialist returns "
+                 f"the FINAL result, which you return as your result. Do not return "
+                 f"after your own step alone.\n\n")
+    body += (f"## How to run\n\n"
+             f"1. Open this repo in VS Code Copilot (agent mode).\n"
+             f"2. Run the `{role}` specialist agent (`.github/agents/{role}.agent.md`)\n"
+             f"   — its model is DeepSeek via the DeepSeek-for-Copilot extension.\n"
+             f"3. Give it the Objective above; it uses its own tools (read/edit/exec).\n"
+             f"4. Paste the agent's final result into the CLI when prompted, or save\n"
+             f"   it to `{path}.result.md` and type that path.\n\n"
+             f"## Notes\n\n- The graph (this run) adds routing + gates + checkpoint "
+             f"around the agent; the agent does the real work.\n"
+             f"- Result is recorded in the run-card and ledger, not the handoff.\n")
     path.write_text(body, encoding="utf-8")
     return path
 

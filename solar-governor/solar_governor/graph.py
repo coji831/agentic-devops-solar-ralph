@@ -10,7 +10,7 @@ from langgraph.types import Command, interrupt
 
 from . import executor
 from .core import Config, SolarState
-from .registry import load as load_registry
+from .registry import chain_entry, chain_text, load as load_registry
 
 MAX_ATTEMPTS = 3
 
@@ -26,10 +26,10 @@ _ROLE_HINTS = {
 def _registry_role_hint(task: str, registry: dict) -> str | None:
     """Prefer a repo-specific role whose name appears in the task (deterministic)."""
     low = (task or "").lower()
-    # repo roles = registry minus generic defaults
+    # repo roles = registry minus generic defaults and structural keys
     generic = set(_ROLE_HINTS)
     for role, spec in registry.items():
-        if role in generic:
+        if role in generic or not isinstance(spec, dict):
             continue
         name = str(spec.get("role", role)).lower()
         if name.replace(" ", "-") in low or name.split()[-1] in low or role.replace("_", "-") in low:
@@ -60,6 +60,16 @@ def _role_spec(cfg: Config, role: str) -> tuple[str, str]:
     return role, spec.get("system", f"You are the {role} specialist.")
 
 
+def _chain_note(cfg: Config, chain_name: str) -> str:
+    """Human-readable chain block for a handoff ('' when not a chain run)."""
+    if not chain_name:
+        return ""
+    cm = (load_registry(cfg.root / ".solar" / "registry.json").get("chains") or {})
+    if chain_name not in cm:
+        return ""
+    return f"chain `{chain_name}` (you are the entry): {chain_text(cm, chain_name)}"
+
+
 def _execute(cfg: Config, state: SolarState) -> dict:
     """Run the routed specialist role through the HTTP/stub runner.
 
@@ -86,15 +96,19 @@ def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
 
     The human runs the matching .agent.md specialist in VS Code Copilot (DeepSeek
     via the extension) and pastes the result (or a result-file path) to resume.
+    When the run is a named chain, the handoff marks this agent as the chain
+    ENTRY: it runs the whole chain itself and returns the FINAL result.
     """
     role, system = _role_spec(cfg, state.get("role", "implementer"))
+    chain_note = _chain_note(cfg, state.get("chain", ""))
     handoff = executor.write_handoff(role=role, system_prompt=system,
                                      objective=state.get("objective", ""),
                                      repo=cfg.root, cfg_model=cfg.model,
-                                     attempt=attempts)
+                                     attempt=attempts, chain_note=chain_note)
     resumed = interrupt({"kind": "agent-dispatch",
                          "role": role,
                          "attempt": attempts,
+                         "chain": state.get("chain", ""),
                          "handoff": str(handoff),
                          "ask": (f"Run the `{role}` agent in VS Code Copilot "
                                  f"(handoff: {handoff.name}), then paste its final "
@@ -113,11 +127,18 @@ def build_nodes(cfg: Config):
 
     def dispatch(state: SolarState) -> dict:
         reg = load_registry(cfg.root / ".solar" / "registry.json")
-        role = _classify(state.get("objective", ""), reg)
-        return {"role": role, "stage": "dispatched",
+        chain_name = state.get("chain") or ""
+        role = None
+        if chain_name:
+            cm = reg.get("chains") or {}
+            if chain_name in cm:
+                role = chain_entry(cm, chain_name)
+        if role is None:
+            role = _classify(state.get("objective", ""), reg)
+        return {"role": role, "chain": chain_name, "stage": "dispatched",
                 "work_queue": [{"id": "T1", "task": state.get("objective", ""),
                                 "role": role, "status": "PENDING", "stage": "dispatched"}],
-                "decisions_log": [f"dispatch -> {role}"]}
+                "decisions_log": [f"dispatch -> {role}" + (f" (chain {chain_name})" if chain_name else "")]}
 
     def specialist(state: SolarState) -> dict:
         attempts = state.get("attempts", 0) + 1
@@ -160,17 +181,17 @@ def build_graph(cfg: Config):
     return b
 
 
-def initial_state(task: str) -> dict:
+def initial_state(task: str, chain: str = "") -> dict:
     """v5 §4: initial channel values for a light-profile run."""
-    return {"objective": task, "work_queue": [], "decisions_log": [],
+    return {"objective": task, "chain": chain, "work_queue": [], "decisions_log": [],
             "materials_status": "PENDING", "stage": "start", "attempts": 0}
 
 
 def run_step(cfg: Config, task: str, thread: str | None = None,
-             resume: str | None = None) -> dict:
+             resume: str | None = None, chain: str = "") -> dict:
     """Execute exactly ONE graph step on a thread (SQLite checkpoint).
 
-    - resume=None  -> fresh start for a new thread.
+    - resume=None  -> fresh start for a new thread (optionally as a named chain).
     - resume=<str> -> resume the thread's pending interrupt with that value
         (agent-dispatch: result text or result-file path; review:
         'approve'|'deny').
@@ -187,7 +208,7 @@ def run_step(cfg: Config, task: str, thread: str | None = None,
         graph = build_graph(cfg).compile(checkpointer=cp)
         if resume is not None:
             return graph.invoke(Command(resume=resume), config)
-        return graph.invoke(initial_state(task), config)
+        return graph.invoke(initial_state(task, chain=chain), config)
 
 
 def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
@@ -211,7 +232,8 @@ def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
 
 
 def run_task(cfg: Config, task: str, thread: str | None = None,
-             approve: str | None = None, resume_result: str | None = None) -> dict:
+             approve: str | None = None, resume_result: str | None = None,
+             chain: str = "") -> dict:
     """Interactive/one-shot runner: loop run_step until complete.
 
     Answers each interrupt on stdin when no value was supplied (kept for the
@@ -224,7 +246,7 @@ def run_task(cfg: Config, task: str, thread: str | None = None,
       - review (human_approval): answered via `approve` ('approve'|'deny').
     """
     thread = thread or "t1"
-    result = run_step(cfg, task, thread)
+    result = run_step(cfg, task, thread, chain=chain)
     while "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
         kind = payload.get("kind", "review")

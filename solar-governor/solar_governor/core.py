@@ -17,7 +17,8 @@ class TaskRow(TypedDict):
 class SolarState(TypedDict):
     """v5 §4: ledger-sourced + runtime fields (light profile subset)."""
     objective: str
-    role: str                                  # routed specialist role
+    role: str                                  # routed specialist role (or chain entry)
+    chain: str                                 # named chain, when running one (else "")
     materials_status: str                      # PENDING / READY / INSUFFICIENT
     work_queue: Annotated[list, operator.add]
     decisions_log: Annotated[list, operator.add]

@@ -89,12 +89,12 @@ solar-governor run "<task>" --repo <path> --thread <t> --json --result "<file|te
 solar-governor run "<task>" --repo <path> --thread <t> --json --approve approve|deny    # review
 ```
 
-| Exit | Meaning | JSON `status` |
-| ---- | ------- | ------------- |
-| `0`  | run complete | `complete` — stage/verdict/role/output/run_card |
-| `10` | paused: run the specialist, then `--result` | `interrupt` kind=`agent-dispatch` — role/attempt/handoff/ask |
-| `11` | paused: ask the human, then `--approve` | `interrupt` kind=`review` — role/ask |
-| `2`  | usage/state error (e.g. resume on a thread with no pending interrupt) | `error` — message |
+| Exit | Meaning                                                               | JSON `status`                                                |
+| ---- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `0`  | run complete                                                          | `complete` — stage/verdict/role/output/run_card              |
+| `10` | paused: run the specialist, then `--result`                           | `interrupt` kind=`agent-dispatch` — role/attempt/handoff/ask |
+| `11` | paused: ask the human, then `--approve`                               | `interrupt` kind=`review` — role/ask                         |
+| `2`  | usage/state error (e.g. resume on a thread with no pending interrupt) | `error` — message                                            |
 
 A paused thread is detected via the SQLite checkpoint; `run --json` refuses to
 plain-invoke a paused thread (that would resume with the wrong value). Ledger +

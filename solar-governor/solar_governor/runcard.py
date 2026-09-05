@@ -25,6 +25,7 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "thread": thread,
         "objective": state.get("objective", ""),
         "role": state.get("role", ""),
+        "chain": state.get("chain", ""),
         "outcome": "complete" if state.get("stage") == "complete" else state.get("stage", ""),
         "verdict": state.get("verdict", ""),
         "attempts": state.get("attempts", 0),
