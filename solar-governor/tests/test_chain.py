@@ -141,13 +141,33 @@ def test_chain_auto_runner_on_stub():
     shutil.rmtree(r)
 
 
+def test_executor_error_is_not_auto_approved():
+    """An executor failure must end REJECTED (terminal), never a false APPROVED."""
+    import solar_governor.executor as ex
+    r = _tmp_repo()
+    cfg = Config(repo=str(r), runner="http")
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    orig = ex.run
+    ex.run = lambda *a, **k: {"output": "boom", "usage": {"in": 1, "out": 1},
+                              "tool_calls": 0, "error": "provider down", "model": "http"}
+    try:
+        state = run_task(cfg, "do a thing", thread="er1")
+    finally:
+        ex.run = orig
+    assert state.get("verdict") == "REJECTED", "error output must not auto-approve"
+    assert state.get("stage") == "complete"
+    assert "provider down" in (state.get("error") or "")
+    shutil.rmtree(r)
+
+
 if __name__ == "__main__":
     for fn in (test_role_keys_skip_structural, test_chain_resolution,
                test_run_chain_routes_to_entry_and_marks_handoff,
                test_run_chain_entry_with_parallel_group_text,
                test_run_pinned_role_skips_classify,
                test_role_pin_invalid_role_falls_back,
-               test_chain_auto_runner_on_stub):
+               test_chain_auto_runner_on_stub,
+               test_executor_error_is_not_auto_approved):
         fn()
         print(f"PASS {fn.__name__}")
     print("all chain tests passed")

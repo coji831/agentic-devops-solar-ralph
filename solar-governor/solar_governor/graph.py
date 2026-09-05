@@ -154,6 +154,12 @@ def build_nodes(cfg: Config):
                 "decisions_log": [f"specialist attempt {attempts}"], **result}
 
     def review(state: SolarState) -> dict:
+        # Never auto-approve an executor failure: an error output must not read
+        # as success (the harness exists to stop false "done"). Terminal, no rework.
+        if state.get("error"):
+            return {"verdict": "REJECTED", "stage": "review",
+                    "decisions_log": [f"review -> REJECTED (executor error: "
+                                      f"{str(state['error'])[:80]} — no auto-approve)"]}
         if cfg.human_approval:
             verdict = interrupt({"ask": f"Review {state.get('role', 'work')}: approve or deny?"})
         else:
@@ -161,6 +167,8 @@ def build_nodes(cfg: Config):
         return {"verdict": "APPROVED" if verdict == "approve" else "REJECTED", "stage": "review"}
 
     def route(state: SolarState) -> str:
+        if state.get("error"):                    # executor failure is terminal
+            return "complete"
         if state.get("verdict") == "APPROVED" or state.get("attempts", 1) >= MAX_ATTEMPTS:
             return "complete"
         return "specialist"
