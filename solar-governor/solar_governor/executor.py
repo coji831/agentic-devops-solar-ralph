@@ -32,11 +32,12 @@ def tool_output_chars() -> int:
 
     Read-heavy roles balloon context because full-file reads accumulate across
     rounds; truncating each result bounds per-round growth. Tunable via
-    SOLAR_TOOL_OUTPUT_CHARS (default 12000)."""
+    SOLAR_TOOL_OUTPUT_CHARS (default 8000 — proven 100% pass at lower cost on
+    the eval battery; raise for cases that legitimately need >8k-char reads)."""
     try:
-        return int(os.environ.get("SOLAR_TOOL_OUTPUT_CHARS", "12000"))
+        return int(os.environ.get("SOLAR_TOOL_OUTPUT_CHARS", "8000"))
     except ValueError:
-        return 12000
+        return 8000
 
 
 def _cap_tool(text: str) -> str:
