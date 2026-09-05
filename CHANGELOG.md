@@ -15,7 +15,7 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
-## v5.3.0 — Planned (2026-09-05) — Governor-as-graph (LangGraph)
+## v5.3.0 — Released (2026-09-05) — Governor-as-graph (LangGraph)
 
 > **Version note:** this is the **v5.3** track (governor-as-graph). **v5.2** = agent-consistency enforcement (see `docs/research/v5-agent-consistency-*.md` + `docs/work-logs/v5.2-consistency-implementation-plan.md`). All folded into the v5 line; each sub-version is a clean commit bucket.
 
@@ -27,9 +27,10 @@ Format: newest version first. Each entry covers what changed from the previous v
 - **`run --json` step contract** (2026-09-05) — `run` executes ONE graph step and exits 0 (complete) / 10 (agent-dispatch) / 11 (review) / 2 (guard error) with a machine-readable JSON doc, so a thin driver agent (not a human at stdin) can loop: dispatch specialist on 10, ask the human on 11. Adds `run_step`/`pending_interrupt` (cross-process resume via SQLite), a `role`+`attempt` field on the agent-dispatch interrupt payload, refactors `run_task` onto `run_step` (13 tests pass). Paused-thread guard prevents wrong-value resumes.
 - **Governor v5 driver agent** (mandarin `.github/agents/governor-v5.agent.md`) — the v4-like single UI entry point for the graph: reads the interrupt JSON, maps `role`→repo agent, dispatches the specialist, saves its answer to `<handoff>.result.md`, resumes; surfaces review gates. Engine stays vendor-agnostic; only this thin shell is IDE-specific.
 - **Named-chain dispatch (self-chain)** (2026-09-05) — the "agents chain themselves" model: registry gains data-driven `chains` (name → ordered roles; a nested list = a parallel group). `run --chain <name>` dispatches ONLY the chain ENTRY; the handoff marks it CHAIN ENTRY and embeds the chain, so the entry agent runs the whole chain via direct agent-to-agent delegation (no return to Governor/Orchestrator between links) and returns the FINAL result. Adds `registry.chain*`/`role_keys`, a `chain` field on state + run-card, chain-aware dispatch, and a doctor role-count fix (structural keys excluded). Mandarin `epic` chain = `investigator → architect → uiux-designer → (frontend-engineer + backend-engineer) → docs-writer → code-reviewer`. 17 tests pass. (Trade-off chosen deliberately: per-hop run-cards/gates are traded for one run-card per epic; the governor is entry + final gate only, and human-owned gates like the UIUX Preview Gate still pause the chain.)
+- **⚠️ Pilot correction — driver-orchestrated chaining (2026-09-05):** the agent-spawns-agent self-chain above was **FALSIFIED** on Copilot — nested agents lack the agent-spawn tool. Final v5.3 model: `--chain <name> --auto` runs every link headless in order (one run-card per link); in the IDE the Governor driver runs each link. See `docs/versions/v5.md` + mandarin `PILOT.md` caveats.
 - **`--role` pin + Hermes intake** (2026-09-05) — `run --role <role>` pins dispatch to one registry role (skips keyword classify), so the Hermes intent-decoder can hand the manager a concrete role and get a deterministic run; mutually exclusive with `--chain`, validates the role exists. Registry role detection keys on a role's `system` prompt so `playbooks` entries (which carry a `role` slot) are never miscounted or misrouted. 19 tests pass.
 - **Headless HTTP API + bench** (2026-09-05) — `solar-governor serve` runs a zero-dependency stdlib HTTP server (`GET /health`, `POST /run` — one graph step, same shape as `run --json`, resumable via `result`/`approve`) so any client/platform can run tasks without an IDE or an interactive shell (v5 §9 'remote later' slice). `solar-governor bench --task … --n N` runs the same task N times over the `http` runner and aggregates real tokens/duration/tool_calls. Env-key presence now makes `test_executor` non-deterministic, so unit tests force a key-less env. 22 tests pass.
-- **Tool-output truncation + known-answer eval battery** (2026-09-05) — the epic-25 verify chain exposed runaway context (read-heavy roles reached 300–555k prompt tokens). `SOLAR_TOOL_OUTPUT_CHARS` (default 12000, 0 = unlimited) now caps each tool result kept in context. New `solar-governor eval` runs a deterministic known-answer battery (default read-only cases on mandarin: shared entries, chengyu phase, route count, guest badge testid, TTS guard, cn join) and reports pass-rate + tokens + est $ — a real quality signal for tuning (unlike auto-APPROVED verdicts). 28 tests pass.
+- **Tool-output truncation + known-answer eval battery** (2026-09-05) — the epic-25 verify chain exposed runaway context (read-heavy roles reached 300–555k prompt tokens). `SOLAR_TOOL_OUTPUT_CHARS` (default 8000 after tuning; was 12000; 0 = unlimited) now caps each tool result kept in context. New `solar-governor eval` runs a deterministic known-answer battery (default read-only cases on mandarin: shared entries, chengyu phase, route count, guest badge testid, TTS guard, cn join) and reports pass-rate + tokens + est $ — a real quality signal for tuning (unlike auto-APPROVED verdicts). 28 tests pass.
 - **v5 plan doc** (`docs/versions/v5.md`) — governor-as-graph design: 3-layer architecture (LangGraph control / MCP tool / repo data-context), state schema grounded on the real 3-section ledger, node map, specialist registry + compactor, light/full profiles, one-engine 4-front install, verifiability (doctor + operational eval), data sovereignty (repo-bounded, uplink opt-in), v4→v5 migration.
 - **B2 governor-graph prototype** (`experiments/governor-graph/`) — 6 evals, all PASS: deterministic routing, HITL interrupt, SQLite durable checkpoint (cross-process resume), streaming, compactor (37% token ratio), hub KB MCP call + graceful degradation.
 
@@ -37,6 +38,13 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 - **Decision (B2 gate):** ADOPT v5 on graph → proceed to full migration (see `docs/versions/v5.md` §17). First deployment = the master repo (resume-kb) as dogfooding.
 - `TODOs.md`: added TD-5-1 (v5 plan), supersedes TD-4-1/2/3/4/5.
+- **v5.3.0 release (2026-09-05)** — tagged from the `v5` branch after the
+  mandarin pilot. Evidence: T1–T5 PASS + epic-25 Phase A delivered
+  (driver-orchestrated, not autonomous) + verify close-out Code Reviewer
+  APPROVED; eval battery 18/18 across tuning settings (truncation 8000 vs
+  off, rounds 6 vs 12); whole pilot day ≈ $0.11 (input ~77% cache-hit).
+  `solar-v5-wire` is kept as **reference-only** pilot proof; the full epic-25
+  with the detailed pipeline runs on `main` after installing v5.3.0.
 
 ## v5.1.0 — July 10, 2026
 

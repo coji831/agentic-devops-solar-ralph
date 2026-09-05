@@ -12,6 +12,29 @@ SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves e
 
 ---
 
+## v5.3.0 — Governor-as-graph runtime (released 2026-09-05)
+
+The v5 line adds a real runtime, `solar-governor/`: a LangGraph control layer
+with SQLite checkpointing, repo-scoped tools, run-cards per dispatch, and CLI /
+HTTP surfaces that are IDE-agnostic. Proven on the mandarin pilot
+(`solar-v5-wire`, kept as **reference only**): driver-orchestrated chains,
+T1–T5 PASS, epic-25 Phase A + verify close-out APPROVED, and a known-answer
+eval battery at 18/18.
+
+```bash
+# v5 runtime quick start (from this repo)
+pip install ./solar-governor          # or: pip install -e ./solar-governor
+solar-governor init --repo <target>    # write .solar/ config + registry
+solar-governor doctor --repo <target>  # install self-check
+solar-governor run "<task>" --chain epic --auto
+solar-governor eval --repo <target>    # known-answer quality battery
+```
+
+The classic v4 `.github/` agent harness below remains installable via
+`solar-install.prompt.md` (legacy form).
+
+---
+
 ## Why SOLAR-Ralph
 
 | Pain Point                                                                | SOLAR Solution                                                                                                                            |

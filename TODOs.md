@@ -18,7 +18,7 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ### TD-5-1: v5 plan — governor-as-graph (LangGraph)
 
-**Status:** In progress (plan exists; B2 prototype validation pending)
+**Status:** Resolved 2026-09-05 — shipped as v5.3.0 (governor-as-graph runtime). B2 evals PASS; B3 mandarin pilot (`solar-v5-wire`, reference only) T1–T5 PASS + epic-25 delivery + verify close-out APPROVED; eval battery 18/18 across tuning settings.
 **Summary:** `docs/versions/v5.md` defines the v5 plan — LangGraph control layer (governor-as-graph), state schema grounded on the REAL 3-section ledger (Objective/Work Queue/Decisions Log; docs' 5-section claim was drift), specialist registry + compactor nodes, light/full profiles, one-engine 4-front install (`uvx`/`npx solar-governor init --profile`, container, CI action), verifiability (install `doctor` + operational eval), data sovereignty (repo-bounded by default, hub uplink opt-in for owned repos only), v4→v5 migration (steps 1–8).
 **Prototype:** `experiments/governor-graph/` — 6 evals (interrupt, checkpoint-resume, deterministic routing, streaming, hub KB MCP call, compactor). Decision gate after B2.
 **Supersedes:** TD-4-1/2/3/4 (effort steering → model routing), TD-4-5 (routing policy → graph edges).
