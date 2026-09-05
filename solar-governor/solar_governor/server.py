@@ -16,7 +16,7 @@ POST /run body:
       "repo":   "<path>",                # default: process cwd
       "thread": "<id>",                  # default: "t1"
       "role":   "<registry role>",       # optional: pin dispatch (Hermes decision)
-      "chain":  "<named chain>",         # optional: dispatch chain entry
+      # NOTE: chains are driver-orchestrated — use POST /chain (auto), not this route.
       "approve":"approve|deny",          # optional: resume a review interrupt
       "result": "<text|file path>"       # optional: resume an agent-dispatch
     }
@@ -39,11 +39,10 @@ from . import chain, executor, runcard
 from .core import Config
 from .graph import pending_interrupt, run_step
 from .ledger import render
-from .registry import chains as load_chains
 from .registry import load as load_registry
 from .registry import role_keys
 
-__version__ = "0.2.0"
+__version__ = "5.3.1"
 
 
 def _cfg_for(repo: str) -> Config:
@@ -67,10 +66,11 @@ def _run_one_step(repo: str, body: dict) -> tuple[int, dict]:
 
     if role and role not in role_keys(reg):
         return 400, {"status": "error", "message": f"unknown role '{role}'"}
-    if chain and chain not in load_chains(cfg.root / ".solar" / "registry.json"):
-        return 400, {"status": "error", "message": f"unknown chain '{chain}'"}
-    if role and chain:
-        return 400, {"status": "error", "message": "'role' and 'chain' are mutually exclusive"}
+    if chain:
+        return 400, {"status": "error",
+                     "message": "chains are driver-orchestrated: use POST /chain "
+                                "(headless auto, link-by-link) instead of POST /run "
+                                "with 'chain'; or pass a single 'role' per link"}
 
     resume = None
     if result:

@@ -68,7 +68,7 @@ def _chain_note(cfg: Config, chain_name: str) -> str:
     cm = (load_registry(cfg.root / ".solar" / "registry.json").get("chains") or {})
     if chain_name not in cm:
         return ""
-    return f"chain `{chain_name}` (you are the entry): {chain_text(cm, chain_name)}"
+    return f"chain `{chain_name}`: {chain_text(cm, chain_name)}"
 
 
 def _execute(cfg: Config, state: SolarState) -> dict:
@@ -97,8 +97,9 @@ def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
 
     The human runs the matching .agent.md specialist in VS Code Copilot (DeepSeek
     via the extension) and pastes the result (or a result-file path) to resume.
-    When the run is a named chain, the handoff marks this agent as the chain
-    ENTRY: it runs the whole chain itself and returns the FINAL result.
+    A dispatch is always ONE link of work: if the run is part of a named chain
+    the handoff only carries neutral chain context (the coordinator runs the
+    links) — it never tells the agent to run the rest of the chain itself.
     """
     role, system = _role_spec(cfg, state.get("role", "implementer"))
     chain_note = _chain_note(cfg, state.get("chain", ""))

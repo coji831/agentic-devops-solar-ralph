@@ -1,11 +1,12 @@
-"""Tests for named-chain dispatch (v5 self-chain entry).
+"""Tests for named-chain resolution + single-link dispatch (driver-orchestrated).
 
 A named chain in the registry is data: name -> ordered list, where a nested
-list = a parallel group. The graph dispatches ONLY the chain ENTRY; that agent
-runs the rest of the chain itself (see the shared solar-agent-chain
-instruction in the installing repo). Here we verify: role_keys skips the
-'chains' key, chain resolution, entry routing, and that the handoff marks the
-entry as CHAIN MODE.
+list = a parallel group. Chains are run by the DRIVER (`--chain <name> --auto`
+headless, or the Governor agent per-link `--role` in the IDE) — a bare
+`--chain` is rejected. Here we verify: role_keys skips the 'chains' key, chain
+resolution/parallel text, entry routing, and that a dispatch handoff carries
+chain context but NEVER the falsified "CHAIN ENTRY / run the rest yourself"
+instruction.
 """
 import json
 import shutil
@@ -70,13 +71,14 @@ def test_chain_resolution():
 
 
 def test_run_chain_routes_to_entry_and_marks_handoff():
-    """agent-dispatch chain run: graph dispatches chain[0] (investigator) and
-    the handoff carries the CHAIN MODE note so the entry knows to run the rest."""
+    """agent-dispatch chain run: graph routes to chain[0] (investigator) as ONE
+    link; the handoff carries neutral chain context, NOT a CHAIN-ENTRY/self-run
+    instruction (driver-orchestrated model)."""
     r = _tmp_repo()
     cfg = Config(repo=str(r), runner="agent-dispatch")
     cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     state = run_task(cfg, "secure guest identity (epic 25)", thread="c1",
-                     chain="epic", resume_result="investigated; final chain result delivered")
+                     chain="epic", resume_result="investigated; deliverable returned")
     assert state.get("stage") == "complete"
     assert state.get("role") == "investigator"      # chain entry, not a classify guess
     assert state.get("chain") == "epic"
@@ -85,8 +87,9 @@ def test_run_chain_routes_to_entry_and_marks_handoff():
     handoffs = list(hdir.glob("investigator-attempt1-*.md"))
     assert handoffs, "expected an investigator handoff"
     text = handoffs[0].read_text(encoding="utf-8")
-    assert "Chain mode" in text and "epic" in text
-    assert "CHAIN ENTRY" in text
+    assert "Chain context" in text and "epic" in text
+    assert "CHAIN ENTRY" not in text                 # never tell a link to self-run
+    assert "coordinator" in text.lower()
     shutil.rmtree(r)
 
 

@@ -86,9 +86,9 @@ def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
     runs the matching agent in VS Code Copilot (DeepSeek via the extension) and
     pastes the result back (or saves it to <handoff>.result.md) to resume.
 
-    `chain_note` (optional): when the dispatch is a named chain, a short
-    instruction block telling this agent it is the chain ENTRY and to run the
-    whole chain itself (see .github/instructions/solar-agent-chain.md).
+    `chain_note` (optional): when the dispatch is part of a named chain, a short
+    block giving the chain name/text + the driver-model rule (you are ONE link;
+    the coordinator runs the rest). Never instructs self-running.
     """
     import hashlib
     from datetime import datetime
@@ -105,12 +105,13 @@ def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
             f"## Objective\n\n{objective}\n\n"
             f"## System prompt (registry)\n\n```\n{system_prompt}\n```\n\n")
     if chain_note:
-        body += (f"## Chain mode\n\n{chain_note}\n\n"
-                 f"You are the CHAIN ENTRY. After your own step, run the next "
-                 f"specialist(s) yourself per the shared "
-                 f"`solar-agent-chain.instructions.md`; the LAST specialist returns "
-                 f"the FINAL result, which you return as your result. Do not return "
-                 f"after your own step alone.\n\n")
+        body += (f"## Chain context\n\n{chain_note}\n\n"
+                 f"You are ONE link of this chain. The coordinator (Governor driver "
+                 f"/ `--auto`) runs the other links in order and threads context; "
+                 f"you do NOT run or spawn other specialists yourself — nested agents "
+                 f"lack the agent-spawn tool, and one agent composing the whole "
+                 f"chain is the exact failure the harness prevents. Return your "
+                 f"step's deliverable; the coordinator continues the chain.\n\n")
     body += (f"## How to run\n\n"
              f"1. Open this repo in VS Code Copilot (agent mode).\n"
              f"2. Run the `{role}` specialist agent (`.github/agents/{role}.agent.md`)\n"

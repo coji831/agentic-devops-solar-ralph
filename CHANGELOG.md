@@ -15,6 +15,34 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.3.1 — Released (2026-09-05) — driver-orchestrated only (self-chain removed)
+
+**Theme:** remove the last falsified-model surface from the runtime — chains are
+driver-orchestrated, full stop.
+
+### Removed
+
+- **Bare `--chain` self-running entry dispatch** — `run --chain <name>` without
+  `--auto` used to dispatch the chain ENTRY and tell it to run the whole chain
+  itself; the mandarin pilot FALSIFIED agent-spawns-agent chaining. `--chain`
+  now REQUIRES `--auto` (headless driver, one run-card per link); in the IDE the
+  Governor agent drives each link as its own `--role` dispatch.
+- **`POST /run` with `chain`** — the one-step chain-entry path is gone; headless
+  chains run via `POST /chain` (auto). `POST /run` accepts a single `role`.
+- **"CHAIN ENTRY / run the rest yourself" handoff text** — a dispatched
+  specialist handoff now carries only neutral chain context ("you are ONE link;
+  the coordinator runs the other links; never spawn or compose the chain
+  yourself").
+
+### Changed
+
+- `executor.write_handoff` chain note → driver-framed (no self-run instruction).
+- `graph._chain_note` / `_dispatch_agent` note text + docs updated.
+- Version bump `5.3.0` → `5.3.1` (pyproject + `__version__`).
+- CLI `--chain` / `--auto` help text updated to the driver model.
+
+---
+
 ## v5.3.0 — Released (2026-09-05) — Governor-as-graph (LangGraph)
 
 > **Version note:** this is the **v5.3** track (governor-as-graph). **v5.2** = agent-consistency enforcement (see `docs/research/v5-agent-consistency-*.md` + `docs/work-logs/v5.2-consistency-implementation-plan.md`). All folded into the v5 line; each sub-version is a clean commit bucket.

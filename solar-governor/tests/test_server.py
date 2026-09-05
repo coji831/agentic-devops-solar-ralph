@@ -49,6 +49,16 @@ def test_run_rejects_unknown_role():
     shutil.rmtree(r)
 
 
+def test_run_rejects_chain_field_driver_only():
+    """POST /run with 'chain' is rejected — chains run via POST /chain (auto)."""
+    r = _tmp_repo()
+    code, obj = server._run_one_step(str(r), {"task": "x", "thread": "s2b",
+                                              "chain": "epic"})
+    assert code == 400 and obj["status"] == "error"
+    assert "driver-orchestrated" in obj["message"]
+    shutil.rmtree(r)
+
+
 def test_health_and_run_over_real_http():
     r = _tmp_repo()
     # serve_forever blocks: run the handler on an ephemeral-port server in a thread

@@ -65,8 +65,13 @@ def cmd_run(args):
             print(f"❌ no chain '{args.chain}' in registry (have: {sorted(cm)})",
                   file=sys.stderr)
             sys.exit(2)
-        if getattr(args, "auto", False):
-            return _cmd_run_chain_auto(cfg, args, thread)
+        if not getattr(args, "auto", False):
+            print("❌ chains are driver-orchestrated: run the whole chain headless with "
+                  "`--chain <name> --auto`, or in the IDE drive each link as its own "
+                  "`--role` dispatch from the Governor agent (a bare `--chain` no "
+                  "longer dispatches a self-running chain entry).", file=sys.stderr)
+            sys.exit(2)
+        return _cmd_run_chain_auto(cfg, args, thread)
     if args.json:
         return _cmd_run_json(cfg, args, thread, started)
     # interactive/one-shot path (stdin prompts at interrupts)
@@ -237,12 +242,15 @@ def main():
     p_run.add_argument("--repo", default=".")
     p_run.add_argument("--thread", default=None)
     p_run.add_argument("--chain", default=None,
-                       help="run a named chain from the registry: dispatch the chain "
-                            "entry; it runs the whole chain itself (handoff marks it "
-                            "CHAIN ENTRY). With --auto: run the whole chain headless.")
+                       help="run a named chain from the registry (driver-orchestrated): "
+                            "with --auto it runs every link headless in order (one "
+                            "run-card per link). Bare --chain (no --auto) is rejected — "
+                            "in the IDE drive each link with --role from the Governor "
+                            "agent.")
     p_run.add_argument("--auto", action="store_true",
-                       help="with --chain: run every link headless in order (http/stub, "
-                            "one run-card per link) instead of dispatching only the entry")
+                       help="with --chain: run the whole chain headless via the driver "
+                            "(http/stub, one run-card per link). Required — chains are "
+                            "driver-orchestrated (no self-running entry).")
     p_run.add_argument("--role", default=None,
                        help="pin dispatch to one registry role (skip keyword classify) — "
                             "e.g. a Hermes intake decision")
