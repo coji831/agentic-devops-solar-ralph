@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bench, chain, executor, runcard, server
+from . import bench, chain, eval as eval_mod, executor, runcard, server
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
@@ -272,6 +272,16 @@ def main():
     p_bench.add_argument("--role", default="")
     p_bench.add_argument("--chain", default="")
     p_bench.set_defaults(fn=lambda a: bench.run(a.repo, a.task, a.n, a.role, a.chain))
+
+    p_eval = sub.add_parser("eval", help="run the known-answer battery (quality signal)")
+    p_eval.add_argument("--repo", default=".")
+    p_eval.add_argument("--cases", default=None, help="path to a JSON cases file")
+    p_eval.add_argument("--n", type=int, default=1)
+    p_eval.add_argument("--id", default=None, help="run a single case by id")
+    p_eval.set_defaults(fn=lambda a: eval_mod.run(a.repo,
+                                                  cases=(json.loads(Path(a.cases).read_text(encoding="utf-8"))
+                                                         if a.cases else None),
+                                                  n=a.n, only=a.id))
 
     args = ap.parse_args()
     args.fn(args)

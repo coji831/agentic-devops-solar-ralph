@@ -27,6 +27,26 @@ DEFAULT_MODEL = "deepseek-chat"
 MAX_TOOL_ROUNDS = int(os.environ.get("SOLAR_MAX_ROUNDS", "12"))
 
 
+def tool_output_chars() -> int:
+    """Cap on characters of a single tool result kept in context (0 = unlimited).
+
+    Read-heavy roles balloon context because full-file reads accumulate across
+    rounds; truncating each result bounds per-round growth. Tunable via
+    SOLAR_TOOL_OUTPUT_CHARS (default 12000)."""
+    try:
+        return int(os.environ.get("SOLAR_TOOL_OUTPUT_CHARS", "12000"))
+    except ValueError:
+        return 12000
+
+
+def _cap_tool(text: str) -> str:
+    cap = tool_output_chars()
+    if cap > 0 and text and len(text) > cap:
+        return text[:cap] + f"\n…[truncated {len(text)} chars to {cap} " \
+                            f"by SOLAR_TOOL_OUTPUT_CHARS]"
+    return text
+
+
 def api_key() -> str | None:
     return os.environ.get("SOLAR_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or None
 
@@ -188,7 +208,8 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                         args = {}
                     tool_calls += 1
                     result = ws.call_tool(tc.function.name, args)
-                    messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+                    messages.append({"role": "tool", "tool_call_id": tc.id,
+                                     "content": _cap_tool(result)})
                 continue
             return ExecutorResult(output=msg.content or "(no output)",
                                   usage={"in": total_in, "out": total_out},
