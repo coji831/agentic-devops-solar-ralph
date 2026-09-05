@@ -1078,9 +1078,10 @@
             <div class="name">Specialists</div>
             <p>
               Registry roles (investigator, architect, uiux, engineers, docs,
-              reviewer) that do the real work — and can chain to each other.
+              reviewer) that do the real work — chained by the governor driver,
+              one link at a time, never spawning each other.
             </p>
-            <div class="fn">Stateless per link; context carried forward.</div>
+            <div class="fn">Stateless per link; handoff carries context.</div>
           </div>
         </div>
 
@@ -1118,8 +1119,10 @@
         </div>
         <p class="dim" style="text-align: center">
           Hermes is confident → governor runs. Not confident → one clearance
-          bounce (you pick) → run. Human-owned gates (e.g. UIUX design preview)
-          pause the chain for approval.
+          bounce (you pick) → run. Chains run under the governor driver: each
+          link is dispatched in order and its run-card checked before the next —
+          agents never chain to each other (pilot-falsified). Human-owned gates
+          (e.g. UIUX design preview) pause the chain for approval.
         </p>
 
         <div class="grid g2" style="margin-top: 10px">
@@ -1144,11 +1147,26 @@
                   <b>Named chain</b><br /><span class="mono">--chain epic</span>
                 </td>
                 <td>
-                  Dispatch the chain <i>entry</i> once; it runs the rest itself.
+                  Registry chain. In the IDE the governor driver runs each link
+                  in order — per-link dispatch, run-card checked before the
+                  next. The chain entry does <i>not</i> run the rest itself.
                   <span class="dim"
                     >investigator → architect → uiux → fe+be → docs →
                     reviewer</span
                   >
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Auto headless</b><br /><span class="mono"
+                    >--chain epic --auto</span
+                  >
+                </td>
+                <td>
+                  Same link-by-link loop with no IDE: the driver executes every
+                  link headless (<span class="mono">http</span> /
+                  <span class="mono">stub</span>), one run-card per link,
+                  persisted under <span class="mono">.solar/chains/</span>.
                 </td>
               </tr>
             </table>
@@ -1213,11 +1231,39 @@
           --repo &lt;path&gt; --role backend-engineer --result result.md
           <span class="cm"># pinned specialist + resume</span>
         </div>
+        <div class="cmd">
+          <span class="c">solar-governor serve</span> --repo &lt;path&gt;
+          <span class="cm"
+            ># headless HTTP API: POST /run (one step) · POST /chain
+            (auto)</span
+          >
+        </div>
+        <div class="cmd">
+          <span class="c">solar-governor bench</span> "verify guest gating"
+          --repo &lt;path&gt; --n 5 --chain verify
+          <span class="cm"># N-run aggregate: tokens · duration · verdict</span>
+        </div>
+        <div class="cmd">
+          <span class="c">solar-governor eval</span> --repo &lt;path&gt; --n 3
+          <span class="cm"
+            ># known-answer battery → pass rate (quality signal)</span
+          >
+        </div>
         <p class="dim" style="margin-top: 6px">
           In the IDE you usually don’t type these — you pick
           <b>@Governor v5</b> and talk. Hermes + Governor translate.
         </p>
 
+        <div class="callout blue">
+          <b>Measured (mandarin pilot · 2026-09-05):</b> eval battery holds
+          18/18 (100%) across tuning settings · tool-output truncation
+          (<span class="mono">SOLAR_TOOL_OUTPUT_CHARS=8000</span>) is a pure
+          win (~34% fewer prompt tokens, ~22% faster) and is the new default ·
+          an entire pilot day ran for ≈ <span class="mono">$0.11</span> (input
+          ~77% cache-hit). Cost is not the constraint — quality and wall-clock
+          are; on heavy verifies the objective
+          (“stop once verified”) beats any round cap.
+        </div>
         <div class="callout">
           <b>Start small:</b> init on a branch →
           <span class="mono">doctor</span> → run one quick
