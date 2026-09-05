@@ -93,6 +93,8 @@ def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
                                      repo=cfg.root, cfg_model=cfg.model,
                                      attempt=attempts)
     resumed = interrupt({"kind": "agent-dispatch",
+                         "role": role,
+                         "attempt": attempts,
                          "handoff": str(handoff),
                          "ask": (f"Run the `{role}` agent in VS Code Copilot "
                                  f"(handoff: {handoff.name}), then paste its final "
@@ -158,39 +160,85 @@ def build_graph(cfg: Config):
     return b
 
 
-def run_task(cfg: Config, task: str, thread: str | None = None,
-             approve: str | None = None, resume_result: str | None = None) -> dict:
-    """Run a task under the profile's graph with a SQLite checkpoint.
+def initial_state(task: str) -> dict:
+    """v5 §4: initial channel values for a light-profile run."""
+    return {"objective": task, "work_queue": [], "decisions_log": [],
+            "materials_status": "PENDING", "stage": "start", "attempts": 0}
 
-    Returns the final state. Interrupt kinds:
-      - agent-dispatch: the human runs the .agent.md specialist in the IDE and
-        pastes the result (or a result-file path). Use `resume_result` to supply
-        it non-interactively (tests/CI); otherwise a CLI prompt reads it.
-      - review (human_approval): answered via `approve` ('approve'|'deny') or a
-        CLI prompt when None.
+
+def run_step(cfg: Config, task: str, thread: str | None = None,
+             resume: str | None = None) -> dict:
+    """Execute exactly ONE graph step on a thread (SQLite checkpoint).
+
+    - resume=None  -> fresh start for a new thread.
+    - resume=<str> -> resume the thread's pending interrupt with that value
+        (agent-dispatch: result text or result-file path; review:
+        'approve'|'deny').
+
+    Returns the merged state. A pending interrupt appears under '__interrupt__';
+    run_step never prompts on stdin, so callers (human CLI, an agent driver,
+    tests) decide how to answer interrupts.
     """
     thread = thread or "t1"
     config = {"configurable": {"thread_id": thread}}
-    initial: dict = {"objective": task, "work_queue": [], "decisions_log": [],
-                     "materials_status": "PENDING", "stage": "start", "attempts": 0}
     cfg.root.mkdir(parents=True, exist_ok=True)
     cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-
     with SqliteSaver.from_conn_string(str(cfg.checkpoint_path)) as cp:
         graph = build_graph(cfg).compile(checkpointer=cp)
-        result = graph.invoke(initial, config)
-        while "__interrupt__" in result:
-            payload = result["__interrupt__"][0].value
-            kind = payload.get("kind", "review")
-            if kind == "agent-dispatch":
-                print(f"\n🧭 AGENT DISPATCH — {payload.get('ask', '')}")
-                if resume_result is None:
-                    resume_result = input("   result (paste text or result-file path): ").strip()
-                result = graph.invoke(Command(resume=resume_result), config)
-                continue
-            question = payload.get("ask", "approve or deny?")
-            verdict = approve
-            if verdict not in ("approve", "deny"):
-                verdict = input(f"{question} [approve/deny]: ").strip().lower()
-            result = graph.invoke(Command(resume=verdict), config)
+        if resume is not None:
+            return graph.invoke(Command(resume=resume), config)
+        return graph.invoke(initial_state(task), config)
+
+
+def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
+    """Return the payload dict of the thread's pending interrupt, else None.
+
+    Lets a caller distinguish 'new thread' from 'thread paused at an interrupt'
+    so a plain invoke is never used to (incorrectly) resume a paused run.
+    """
+    thread = thread or "t1"
+    config = {"configurable": {"thread_id": thread}}
+    with SqliteSaver.from_conn_string(str(cfg.checkpoint_path)) as cp:
+        graph = build_graph(cfg).compile(checkpointer=cp)
+        try:
+            snap = graph.get_state(config)
+        except Exception:
+            return None
+        ints = getattr(snap, "interrupts", ())
+        if ints:
+            return ints[0].value
+    return None
+
+
+def run_task(cfg: Config, task: str, thread: str | None = None,
+             approve: str | None = None, resume_result: str | None = None) -> dict:
+    """Interactive/one-shot runner: loop run_step until complete.
+
+    Answers each interrupt on stdin when no value was supplied (kept for the
+    human CLI + tests). The --json agent contract uses run_step +
+    pending_interrupt directly and never blocks on stdin.
+
+    Interrupt kinds:
+      - agent-dispatch: paste the specialist result (or a result-file path).
+        `resume_result` supplies it non-interactively (tests/CI).
+      - review (human_approval): answered via `approve` ('approve'|'deny').
+    """
+    thread = thread or "t1"
+    result = run_step(cfg, task, thread)
+    while "__interrupt__" in result:
+        payload = result["__interrupt__"][0].value
+        kind = payload.get("kind", "review")
+        if kind == "agent-dispatch":
+            print(f"\n🧭 AGENT DISPATCH — {payload.get('ask', '')}")
+            if resume_result is None:
+                resume_result = input("   result (paste text or result-file path): ").strip()
+            result = run_step(cfg, task, thread, resume=resume_result)
+            resume_result = None          # one-shot: a rework attempt re-prompts
+            continue
+        question = payload.get("ask", "approve or deny?")
+        if approve is None:
+            approve = input(f"{question} [approve/deny]: ").strip().lower()
+        verdict = "approve" if approve == "approve" else "deny"
+        result = run_step(cfg, task, thread, resume=verdict)
+        approve = None                    # one-shot
     return result

@@ -14,14 +14,14 @@ SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves e
 
 ## Why SOLAR-Ralph
 
-| Pain Point                                                                | SOLAR Solution                                                                                                           |
-| :------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------- |
-| Agent declares the task done before it actually is                        | **Ralph Loop** — declarative exit condition + adversarial gate required before `TASK_COMPLETE` is written                |
-| Agent starts implementing with missing context and fails mid-way          | **Material Gate** — `MATERIAL_INSUFFICIENT` signal stops the governor before any specialist is delegated                 |
-| Wrong direction: hours of code before you realize the agent misunderstood | **Design Gate** — user-approved plan must exist before any implementation agent runs                                     |
-| Can't trust AI output without independent verification                    | **Adversarial Bystander** — a non-author agent verifies at every write stage; bystander is a principle, not a named role |
-| Session ends and the agent loses all progress                             | **Ledger** — sparse restart-safe state anchor in `.github/.ai_ledger.md` (Objective / Work Queue / Decisions Log); governor reads it cold            |
-| Swapping one agent breaks the whole team                                  | **Registry** — every agent is a YAML block in `AGENTS.md`; swap by updating one entry                                    |
+| Pain Point                                                                | SOLAR Solution                                                                                                                            |
+| :------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent declares the task done before it actually is                        | **Ralph Loop** — declarative exit condition + adversarial gate required before `TASK_COMPLETE` is written                                 |
+| Agent starts implementing with missing context and fails mid-way          | **Material Gate** — `MATERIAL_INSUFFICIENT` signal stops the governor before any specialist is delegated                                  |
+| Wrong direction: hours of code before you realize the agent misunderstood | **Design Gate** — user-approved plan must exist before any implementation agent runs                                                      |
+| Can't trust AI output without independent verification                    | **Adversarial Bystander** — a non-author agent verifies at every write stage; bystander is a principle, not a named role                  |
+| Session ends and the agent loses all progress                             | **Ledger** — sparse restart-safe state anchor in `.github/.ai_ledger.md` (Objective / Work Queue / Decisions Log); governor reads it cold |
+| Swapping one agent breaks the whole team                                  | **Registry** — every agent is a YAML block in `AGENTS.md`; swap by updating one entry                                                     |
 
 ---
 

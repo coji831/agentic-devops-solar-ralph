@@ -7,9 +7,15 @@ from pathlib import Path
 
 from . import executor, runcard
 from .core import Config
-from .graph import build_graph, run_task
+from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
 from .registry import load as load_registry
+
+# exit codes for the --json step contract (agent wrapper drives on these)
+EXIT_OK = 0
+EXIT_USAGE = 2
+EXIT_AGENT_DISPATCH = 10   # paused: run the specialist, resume with --result
+EXIT_REVIEW = 11           # paused: ask the human, resume with --approve
 
 
 def _cfg_path(root: Path) -> Path:
@@ -40,20 +46,107 @@ def cmd_init(args):
 
 def cmd_run(args):
     cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
-    runner = executor.select_runner(cfg.runner)
+    thread = args.thread or "t1"
     started = time.time()
-    state = run_task(cfg, args.task, thread=args.thread, approve=args.approve,
+    if args.json:
+        return _cmd_run_json(cfg, args, thread, started)
+    # interactive/one-shot path (stdin prompts at interrupts)
+    state = run_task(cfg, args.task, thread=thread, approve=args.approve,
                      resume_result=args.result)
-    ledger = render(cfg, state)
-    card = runcard.write(cfg, state, args.thread or "t1", started)
+    _write_artifacts(cfg, state, thread, started)
+    runner = executor.select_runner(cfg.runner)
     print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')} "
           f"role={state.get('role')} runner={runner}")
     print(f"   model={state.get('model')} tokens: in={state.get('tokens_in',0)} "
           f"out={state.get('tokens_out',0)} tool_calls={state.get('tool_calls',0)}")
     out = state.get("output", "")
     print(f"   output:\n{out}")
-    print(f"   ledger: {ledger}")
-    print(f"   run-card: {card}")
+    print(f"   ledger: {cfg.ledger_path}")
+    print(f"   run-card: {cfg.root / '.solar' / 'runs' / f'{thread}.json'}")
+
+
+def _write_artifacts(cfg, state, thread, started) -> None:
+    """Render the human-view ledger + run-card from a state snapshot.
+
+    Called at every --json step so progress is on disk even when the run is
+    paused at an interrupt; the final step overwrites the run-card.
+    """
+    render(cfg, state)
+    runcard.write(cfg, state, thread, started)
+
+
+def _state_summary(state: dict) -> dict:
+    return {k: state.get(k) for k in
+            ("objective", "role", "materials_status", "stage", "verdict",
+             "attempts", "tokens_in", "tokens_out", "tool_calls", "error")}
+
+
+def _json_out(obj: dict, code: int) -> None:
+    print(json.dumps(obj, indent=2, ensure_ascii=False))
+    sys.exit(code)
+
+
+def _cmd_run_json(cfg, args, thread, started) -> None:
+    """One graph step, machine-readable (agent wrapper / non-interactive).
+
+    Exit codes: 0 complete · 10 paused at agent-dispatch · 11 paused at review ·
+    2 usage/state error. The task string must be identical across a thread's
+    resume calls (it only seeds a fresh thread; resume uses the checkpoint).
+    """
+    resume = None
+    if args.result is not None:
+        resume = args.result
+    elif args.approve is not None:
+        if args.approve not in ("approve", "deny"):
+            _json_out({"status": "error",
+                       "message": "--approve must be 'approve' or 'deny'"}, EXIT_USAGE)
+            return
+        resume = "approve" if args.approve == "approve" else "deny"
+
+    pending = pending_interrupt(cfg, thread)
+    if pending is not None and resume is None:
+        _json_out({"status": "error",
+                   "message": (f"thread '{thread}' is paused at an interrupt "
+                                f"({pending.get('kind')}) — resume with "
+                                f"--result <file> or --approve approve|deny")},
+                  EXIT_USAGE)
+        return
+    if pending is None and resume is not None:
+        _json_out({"status": "error",
+                   "message": (f"thread '{thread}' has no pending interrupt to "
+                                f"resume — start with `run \"<task>\" --json`")},
+                  EXIT_USAGE)
+        return
+
+    state = run_step(cfg, args.task, thread, resume=resume)
+    _write_artifacts(cfg, state, thread, started)
+
+    if "__interrupt__" in state:
+        payload = state["__interrupt__"][0].value
+        kind = payload.get("kind", "review")
+        if kind == "agent-dispatch":
+            _json_out({"status": "interrupt", "kind": "agent-dispatch",
+                       "thread": thread,
+                       "role": payload.get("role") or state.get("role", ""),
+                       "attempt": payload.get("attempt", state.get("attempts", 0)),
+                       "handoff": payload.get("handoff", ""),
+                       "ask": payload.get("ask", ""),
+                       "state": _state_summary(state)}, EXIT_AGENT_DISPATCH)
+            return
+        _json_out({"status": "interrupt", "kind": "review", "thread": thread,
+                   "ask": payload.get("ask", "approve or deny?"),
+                   "role": state.get("role", ""),
+                   "state": _state_summary(state)}, EXIT_REVIEW)
+        return
+
+    _json_out({"status": "complete", "thread": thread,
+               "stage": state.get("stage"), "verdict": state.get("verdict"),
+               "role": state.get("role"), "attempts": state.get("attempts", 0),
+               "model": state.get("model", "stub"),
+               "output": state.get("output", ""),
+               "ledger": str(cfg.ledger_path),
+               "run_card": str(cfg.root / ".solar" / "runs" / f"{thread}.json"),
+               "state": _state_summary(state)}, EXIT_OK)
 
 
 def cmd_doctor(args):
@@ -115,6 +208,9 @@ def main():
     p_run.add_argument("--approve", choices=["approve", "deny"], default=None)
     p_run.add_argument("--result", default=None,
                        help="agent-dispatch: supply the agent result text/path non-interactively")
+    p_run.add_argument("--json", action="store_true",
+                       help="one graph step, machine-readable (exit 0 complete · "
+                            "10 agent-dispatch · 11 review · 2 error)")
     p_run.set_defaults(fn=cmd_run)
 
     p_doct = sub.add_parser("doctor", help="install self-check")
