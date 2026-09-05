@@ -14,10 +14,10 @@ keeps the agentic system intact and stops multi-step AI work from declaring
 success early, drifting off-task, or losing state. Same five pillars, two
 install forms:
 
-| Form | Where | Control |
-| :--- | :---- | :------ |
-| **Runtime engine** | any repo, any surface (CLI / HTTP / IDE) | graph-as-code: routing + gates + checkpoints (`solar-governor`, `.solar/`) |
-| **`.github/` agent harness** | IDE-native Copilot | the classic prompt+agents form (installed via `solar-install.prompt.md`) |
+| Form                         | Where                                    | Control                                                                    |
+| :--------------------------- | :--------------------------------------- | :------------------------------------------------------------------------- |
+| **Runtime engine**           | any repo, any surface (CLI / HTTP / IDE) | graph-as-code: routing + gates + checkpoints (`solar-governor`, `.solar/`) |
+| **`.github/` agent harness** | IDE-native Copilot                       | the classic prompt+agents form (installed via `solar-install.prompt.md`)   |
 
 ---
 
