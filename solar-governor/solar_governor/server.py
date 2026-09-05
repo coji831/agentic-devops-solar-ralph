@@ -35,7 +35,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import executor, runcard
+from . import chain, executor, runcard
 from .core import Config
 from .graph import pending_interrupt, run_step
 from .ledger import render
@@ -145,13 +145,34 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"status": "error", "message": f"no route {self.path}"})
 
     def do_POST(self):
-        if self.path.rstrip("/").endswith("/run"):
+        path = self.path.rstrip("/")
+        if path.endswith("/run"):
             body = self._read_body()
             repo = body.get("repo") or _server_cwd()
             code, obj = _run_one_step(repo, body)
             self._send(code, obj)
+        elif path.endswith("/chain"):
+            self._handle_chain()
         else:
             self._send(404, {"status": "error", "message": f"no route {self.path}"})
+
+    def _handle_chain(self):
+        body = self._read_body()
+        repo = body.get("repo") or _server_cwd()
+        task = (body.get("task") or "").strip()
+        chain_name = (body.get("chain") or "").strip()
+        thread = (body.get("thread") or "chain").strip()
+        if not task or not chain_name:
+            return self._send(400, {"status": "error",
+                                    "message": "'task' and 'chain' are required"})
+        try:
+            cfg = _cfg_for(repo)
+            agg = chain.run_chain(cfg, chain_name, task, thread=thread)
+        except KeyError as e:
+            return self._send(400, {"status": "error", "message": str(e)})
+        except SystemExit as e:
+            return self._send(400, {"status": "error", "message": str(e)})
+        self._send(200, {"status": "complete", **agg})
 
     def log_message(self, fmt, *args):  # keep logs terse
         pass
@@ -176,7 +197,7 @@ def serve(repo: str = ".", host: str = "127.0.0.1", port: int = 8787) -> None:
     _server_state["repo"] = repo
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"solar-governor HTTP API on http://{host}:{port} "
-          f"(repo={_server_cwd()}, /health, POST /run)")
+          f"(repo={_server_cwd()}, GET /health, POST /run, POST /chain)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -26,7 +26,8 @@ CHAIN_REG = {
                      "next_edges": [], "model": ""},
     "chains": {"epic": ["investigator", "architect",
                         ["frontend-engineer", "backend-engineer"],
-                        "docs-writer", "code-reviewer"]},
+                        "docs-writer", "code-reviewer"],
+                 "mini": ["implementer", "reviewer"]},
 }
 
 
@@ -123,12 +124,30 @@ def test_role_pin_invalid_role_falls_back():
     shutil.rmtree(r)
 
 
+def test_chain_auto_runner_on_stub():
+    """run_chain runs each link headless in order over the stub runner (offline)."""
+    from solar_governor.chain import run_chain
+    r = _tmp_repo()
+    cfg = Config(repo=str(r), runner="stub")
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    agg = run_chain(cfg, "mini", "add a small feature", thread="ca")
+    assert agg["chain"] == "mini"
+    assert agg["passed"] == 2 and agg["failed"] == 0
+    roles = [l["link"] for l in agg["links"]]
+    assert roles == ["implementer", "reviewer"]
+    # one run-card per link was written
+    assert (r / ".solar" / "runs" / "ca-0.json").exists()
+    assert (r / ".solar" / "runs" / "ca-1.json").exists()
+    shutil.rmtree(r)
+
+
 if __name__ == "__main__":
     for fn in (test_role_keys_skip_structural, test_chain_resolution,
                test_run_chain_routes_to_entry_and_marks_handoff,
                test_run_chain_entry_with_parallel_group_text,
                test_run_pinned_role_skips_classify,
-               test_role_pin_invalid_role_falls_back):
+               test_role_pin_invalid_role_falls_back,
+               test_chain_auto_runner_on_stub):
         fn()
         print(f"PASS {fn.__name__}")
     print("all chain tests passed")

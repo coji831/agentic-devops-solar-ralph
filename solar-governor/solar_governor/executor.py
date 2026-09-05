@@ -22,7 +22,9 @@ from .workspace import Workspace
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"
-MAX_TOOL_ROUNDS = 6
+# model round-trips per specialist node; configurable via SOLAR_MAX_ROUNDS
+# (complex read-heavy roles like investigator/code-reviewer exceed a low cap)
+MAX_TOOL_ROUNDS = int(os.environ.get("SOLAR_MAX_ROUNDS", "12"))
 
 
 def api_key() -> str | None:

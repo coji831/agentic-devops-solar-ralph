@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bench, executor, runcard, server
+from . import bench, chain, executor, runcard, server
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
@@ -39,7 +39,7 @@ def cmd_init(args):
         text = git.read_text(encoding="utf-8")
         if ".solar/state" not in text:
             git.write_text(text.rstrip() +
-                           "\n.solar/state/\n.solar/ledger.md\n.solar/runs/\n.solar/handoffs/\n",
+                           "\n.solar/state/\n.solar/ledger.md\n.solar/runs/\n.solar/handoffs/\n.solar/chains/\n",
                            encoding="utf-8")
     print(f"✅ initialised solar-governor (profile={cfg.profile}, runner={cfg.runner or 'auto'}) in {root}")
     print(f"   config: {_cfg_path(root).relative_to(root)}")
@@ -65,6 +65,8 @@ def cmd_run(args):
             print(f"❌ no chain '{args.chain}' in registry (have: {sorted(cm)})",
                   file=sys.stderr)
             sys.exit(2)
+        if getattr(args, "auto", False):
+            return _cmd_run_chain_auto(cfg, args, thread)
     if args.json:
         return _cmd_run_json(cfg, args, thread, started)
     # interactive/one-shot path (stdin prompts at interrupts)
@@ -82,6 +84,12 @@ def cmd_run(args):
     print(f"   output:\n{out}")
     print(f"   ledger: {cfg.ledger_path}")
     print(f"   run-card: {cfg.root / '.solar' / 'runs' / f'{thread}.json'}")
+
+
+def _cmd_run_chain_auto(cfg, args, thread) -> None:
+    """Headless auto-chain: run the whole named chain link-by-link (http/stub)."""
+    agg = chain.run_chain(cfg, args.chain, args.task, thread=thread)
+    chain.print_chain(agg)
 
 
 def _write_artifacts(cfg, state, thread, started) -> None:
@@ -231,7 +239,10 @@ def main():
     p_run.add_argument("--chain", default=None,
                        help="run a named chain from the registry: dispatch the chain "
                             "entry; it runs the whole chain itself (handoff marks it "
-                            "CHAIN ENTRY)")
+                            "CHAIN ENTRY). With --auto: run the whole chain headless.")
+    p_run.add_argument("--auto", action="store_true",
+                       help="with --chain: run every link headless in order (http/stub, "
+                            "one run-card per link) instead of dispatching only the entry")
     p_run.add_argument("--role", default=None,
                        help="pin dispatch to one registry role (skip keyword classify) — "
                             "e.g. a Hermes intake decision")
