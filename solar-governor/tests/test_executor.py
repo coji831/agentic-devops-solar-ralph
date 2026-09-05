@@ -1,13 +1,18 @@
 """Tests for the model executor + workspace tool (v5 §3/§6 + tool layer).
 
-No network: executor falls back to the stub when SOLAR_API_KEY is unset, so
-these run offline. Workspace confinement is tested directly.
+No network: these tests force a key-less environment so the executor falls back
+to the stub regardless of whether SOLAR_API_KEY is set on the dev machine.
 """
 import json
+import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
+
+# make these tests deterministic-offline even when a real key is set in the env
+os.environ.pop("SOLAR_API_KEY", None)
+os.environ.pop("DEEPSEEK_API_KEY", None)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

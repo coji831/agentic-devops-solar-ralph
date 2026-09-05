@@ -1,381 +1,1239 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOLAR-Ralph v5 — The Agentic Harness, at a glance</title>
-<style>
-  :root{
-    --bg:#0b0f14; --bg2:#10161d; --panel:#141b24; --panel2:#1a232e;
-    --line:#243140; --line2:#31455c;
-    --ink:#dce6f0; --muted:#8aa0b4; --dim:#5f7488;
-    --amber:#f0b35c; --amber2:#f5cf8a;
-    --sun:#ffb35c; --teal:#3fd0c9; --blue:#5aa2ff; --green:#57d98a;
-    --red:#ff6b6b; --purple:#b48cff;
-    --radius:14px; --radius-s:8px;
-    --mono:"Cascadia Code","SF Mono",Consolas,monospace;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{
-    background:radial-gradient(1200px 600px at 80% -10%, #17222e 0%, var(--bg) 55%);
-    color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    line-height:1.6; -webkit-font-smoothing:antialiased;
-  }
-  .wrap{max-width:1100px;margin:0 auto;padding:0 28px 80px}
-  a{color:var(--blue)}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SOLAR-Ralph v5 — The Agentic Harness, at a glance</title>
+    <style>
+      :root {
+        --bg: #0b0f14;
+        --bg2: #10161d;
+        --panel: #141b24;
+        --panel2: #1a232e;
+        --line: #243140;
+        --line2: #31455c;
+        --ink: #dce6f0;
+        --muted: #8aa0b4;
+        --dim: #5f7488;
+        --amber: #f0b35c;
+        --amber2: #f5cf8a;
+        --sun: #ffb35c;
+        --teal: #3fd0c9;
+        --blue: #5aa2ff;
+        --green: #57d98a;
+        --red: #ff6b6b;
+        --purple: #b48cff;
+        --radius: 14px;
+        --radius-s: 8px;
+        --mono: "Cascadia Code", "SF Mono", Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: radial-gradient(
+          1200px 600px at 80% -10%,
+          #17222e 0%,
+          var(--bg) 55%
+        );
+        color: var(--ink);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 28px 80px;
+      }
+      a {
+        color: var(--blue);
+      }
 
-  /* ---------- hero ---------- */
-  header.hero{padding:72px 0 30px;text-align:center}
-  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
-    color:var(--amber);border:1px solid #3a2e1c;background:#1a140a55;border-radius:999px;
-    padding:6px 14px;display:inline-block;margin-bottom:22px}
-  h1.title{font-size:clamp(30px,5vw,54px);line-height:1.05;font-weight:800;letter-spacing:-.02em;
-    background:linear-gradient(180deg,#fff,#cfe0f0);-webkit-background-clip:text;background-clip:text;color:transparent}
-  h1.title .sun{background:linear-gradient(180deg,var(--amber2),var(--amber));-webkit-background-clip:text;background-clip:text}
-  p.sub{max-width:720px;margin:18px auto 0;color:var(--muted);font-size:18px}
-  p.tag{font-family:var(--mono);color:var(--sun);font-size:13px;margin-top:14px}
-  .pill-row{margin-top:26px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-  .pill{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);
-    background:var(--panel);padding:6px 12px;border-radius:999px}
-  .pill b{color:var(--ink);font-weight:600}
+      /* ---------- hero ---------- */
+      header.hero {
+        padding: 72px 0 30px;
+        text-align: center;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--amber);
+        border: 1px solid #3a2e1c;
+        background: #1a140a55;
+        border-radius: 999px;
+        padding: 6px 14px;
+        display: inline-block;
+        margin-bottom: 22px;
+      }
+      h1.title {
+        font-size: clamp(30px, 5vw, 54px);
+        line-height: 1.05;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(180deg, #fff, #cfe0f0);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      h1.title .sun {
+        background: linear-gradient(180deg, var(--amber2), var(--amber));
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+      p.sub {
+        max-width: 720px;
+        margin: 18px auto 0;
+        color: var(--muted);
+        font-size: 18px;
+      }
+      p.tag {
+        font-family: var(--mono);
+        color: var(--sun);
+        font-size: 13px;
+        margin-top: 14px;
+      }
+      .pill-row {
+        margin-top: 26px;
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .pill {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 6px 12px;
+        border-radius: 999px;
+      }
+      .pill b {
+        color: var(--ink);
+        font-weight: 600;
+      }
 
-  /* ---------- nav ---------- */
-  nav.q{position:sticky;top:0;z-index:20;background:#0b0f14ee;backdrop-filter:blur(8px);
-    border-bottom:1px solid var(--line);margin:34px -28px 0;padding:0 28px}
-  nav.q ul{list-style:none;display:flex;gap:4px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
-  nav.q a{display:block;padding:13px 14px;color:var(--muted);text-decoration:none;font-size:14px;
-    font-weight:600;border-bottom:2px solid transparent}
-  nav.q a:hover{color:var(--ink)}
-  nav.q a .num{color:var(--amber);font-family:var(--mono);margin-right:6px}
+      /* ---------- nav ---------- */
+      nav.q {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: #0b0f14ee;
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--line);
+        margin: 34px -28px 0;
+        padding: 0 28px;
+      }
+      nav.q ul {
+        list-style: none;
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      nav.q a {
+        display: block;
+        padding: 13px 14px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        border-bottom: 2px solid transparent;
+      }
+      nav.q a:hover {
+        color: var(--ink);
+      }
+      nav.q a .num {
+        color: var(--amber);
+        font-family: var(--mono);
+        margin-right: 6px;
+      }
 
-  /* ---------- sections ---------- */
-  section{margin-top:64px}
-  h2.sec{font-size:26px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:baseline;gap:12px}
-  h2.sec .q{font-family:var(--mono);color:var(--amber);font-size:15px}
-  h2.sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent);margin-left:6px}
-  h3{font-size:17px;margin:26px 0 10px;color:#fff}
-  p.lead{color:var(--muted);max-width:860px;margin:8px 0 6px}
-  .muted{color:var(--muted)}
-  .dim{color:var(--dim);font-size:13px}
-  .mono{font-family:var(--mono)}
-  code{font-family:var(--mono);font-size:.9em;background:#0c1219;border:1px solid var(--line);
-    padding:1px 6px;border-radius:6px;color:var(--amber2)}
+      /* ---------- sections ---------- */
+      section {
+        margin-top: 64px;
+      }
+      h2.sec {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      h2.sec .q {
+        font-family: var(--mono);
+        color: var(--amber);
+        font-size: 15px;
+      }
+      h2.sec::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, var(--line2), transparent);
+        margin-left: 6px;
+      }
+      h3 {
+        font-size: 17px;
+        margin: 26px 0 10px;
+        color: #fff;
+      }
+      p.lead {
+        color: var(--muted);
+        max-width: 860px;
+        margin: 8px 0 6px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .dim {
+        color: var(--dim);
+        font-size: 13px;
+      }
+      .mono {
+        font-family: var(--mono);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.9em;
+        background: #0c1219;
+        border: 1px solid var(--line);
+        padding: 1px 6px;
+        border-radius: 6px;
+        color: var(--amber2);
+      }
 
-  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
-    border-radius:var(--radius);padding:22px 24px}
-  .grid{display:grid;gap:16px}
-  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-  .g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
-  .g4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel2));
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 22px 24px;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      .g2 {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+      .g3 {
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      }
+      .g4 {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
 
-  .accent{border-top:3px solid var(--amber)}
-  .accent-teal{border-top:3px solid var(--teal)}
-  .accent-blue{border-top:3px solid var(--blue)}
-  .accent-green{border-top:3px solid var(--green)}
-  .accent-purple{border-top:3px solid var(--purple)}
-  .accent-red{border-top:3px solid var(--red)}
+      .accent {
+        border-top: 3px solid var(--amber);
+      }
+      .accent-teal {
+        border-top: 3px solid var(--teal);
+      }
+      .accent-blue {
+        border-top: 3px solid var(--blue);
+      }
+      .accent-green {
+        border-top: 3px solid var(--green);
+      }
+      .accent-purple {
+        border-top: 3px solid var(--purple);
+      }
+      .accent-red {
+        border-top: 3px solid var(--red);
+      }
 
-  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
-    color:var(--amber);margin-bottom:6px}
-  .kicker.t{color:var(--teal)} .kicker.b{color:var(--blue)} .kicker.g{color:var(--green)}
-  .kicker.p{color:var(--purple)} .kicker.r{color:var(--red)}
-  .card h4{font-size:16px;margin-bottom:6px;color:#fff}
-  .card p{color:var(--muted);font-size:14px}
-  .card ul{list-style:none;margin-top:8px}
-  .card li{color:var(--muted);font-size:13.5px;padding:3px 0 3px 18px;position:relative}
-  .card li::before{content:"";position:absolute;left:2px;top:12px;width:6px;height:6px;border-radius:2px;
-    background:var(--amber)}
-  .card.li-blue li::before{background:var(--blue)}
-  .card.li-teal li::before{background:var(--teal)}
+      .kicker {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--amber);
+        margin-bottom: 6px;
+      }
+      .kicker.t {
+        color: var(--teal);
+      }
+      .kicker.b {
+        color: var(--blue);
+      }
+      .kicker.g {
+        color: var(--green);
+      }
+      .kicker.p {
+        color: var(--purple);
+      }
+      .kicker.r {
+        color: var(--red);
+      }
+      .card h4 {
+        font-size: 16px;
+        margin-bottom: 6px;
+        color: #fff;
+      }
+      .card p {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .card ul {
+        list-style: none;
+        margin-top: 8px;
+      }
+      .card li {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding: 3px 0 3px 18px;
+        position: relative;
+      }
+      .card li::before {
+        content: "";
+        position: absolute;
+        left: 2px;
+        top: 12px;
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        background: var(--amber);
+      }
+      .card.li-blue li::before {
+        background: var(--blue);
+      }
+      .card.li-teal li::before {
+        background: var(--teal);
+      }
 
-  /* ---------- SOLAR stack ---------- */
-  .solar-stack{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
-  .solar{flex:1 1 150px;border:1px solid var(--line2);border-radius:var(--radius-s);
-    padding:14px 14px;background:#0e141c;position:relative;overflow:hidden}
-  .solar .l{font-family:var(--mono);font-weight:800;font-size:22px;color:var(--amber)}
-  .solar .w{font-weight:700;font-size:14px;color:#fff}
-  .solar .d{font-size:12px;color:var(--muted);margin-top:4px}
+      /* ---------- SOLAR stack ---------- */
+      .solar-stack {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 14px 0;
+      }
+      .solar {
+        flex: 1 1 150px;
+        border: 1px solid var(--line2);
+        border-radius: var(--radius-s);
+        padding: 14px 14px;
+        background: #0e141c;
+        position: relative;
+        overflow: hidden;
+      }
+      .solar .l {
+        font-family: var(--mono);
+        font-weight: 800;
+        font-size: 22px;
+        color: var(--amber);
+      }
+      .solar .w {
+        font-weight: 700;
+        font-size: 14px;
+        color: #fff;
+      }
+      .solar .d {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
 
-  /* ---------- architecture layers ---------- */
-  .arch{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:18px}
-  .layer{padding:16px 20px;display:flex;gap:16px;align-items:flex-start;border-top:1px solid var(--line)}
-  .layer:first-child{border-top:0}
-  .layer .tag{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;
-    color:#0b0f14;font-weight:800;border-radius:6px;padding:4px 9px;white-space:nowrap;margin-top:3px}
-  .layer .body h4{font-size:15px;color:#fff}
-  .layer .body p{color:var(--muted);font-size:13.5px}
-  .l-surface{background:#1b2532}.l-surface .tag{background:var(--amber)}
-  .l-control{background:#16202c}.l-control .tag{background:var(--teal)}
-  .l-tool{background:#111a24}.l-tool .tag{background:var(--blue)}
-  .l-data{background:#0d131b}.l-data .tag{background:var(--green)}
+      /* ---------- architecture layers ---------- */
+      .arch {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        margin-top: 18px;
+      }
+      .layer {
+        padding: 16px 20px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        border-top: 1px solid var(--line);
+      }
+      .layer:first-child {
+        border-top: 0;
+      }
+      .layer .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #0b0f14;
+        font-weight: 800;
+        border-radius: 6px;
+        padding: 4px 9px;
+        white-space: nowrap;
+        margin-top: 3px;
+      }
+      .layer .body h4 {
+        font-size: 15px;
+        color: #fff;
+      }
+      .layer .body p {
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+      .l-surface {
+        background: #1b2532;
+      }
+      .l-surface .tag {
+        background: var(--amber);
+      }
+      .l-control {
+        background: #16202c;
+      }
+      .l-control .tag {
+        background: var(--teal);
+      }
+      .l-tool {
+        background: #111a24;
+      }
+      .l-tool .tag {
+        background: var(--blue);
+      }
+      .l-data {
+        background: #0d131b;
+      }
+      .l-data .tag {
+        background: var(--green);
+      }
 
-  /* ---------- tables ---------- */
-  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:14px;
-    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-s);overflow:hidden}
-  th,td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
-  th{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-    color:var(--amber);background:#10161d}
-  tr:last-child td{border-bottom:0}
-  td{color:var(--muted)} td b{color:#e7eef5;font-weight:600}
-  tr:hover td{background:#0f161f}
-  .yes{color:var(--green);font-weight:700}
-  .no{color:var(--red);font-weight:700}
-  .warn{color:var(--amber)}
+      /* ---------- tables ---------- */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        margin-top: 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-s);
+        overflow: hidden;
+      }
+      th,
+      td {
+        padding: 10px 14px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--amber);
+        background: #10161d;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td {
+        color: var(--muted);
+      }
+      td b {
+        color: #e7eef5;
+        font-weight: 600;
+      }
+      tr:hover td {
+        background: #0f161f;
+      }
+      .yes {
+        color: var(--green);
+        font-weight: 700;
+      }
+      .no {
+        color: var(--red);
+        font-weight: 700;
+      }
+      .warn {
+        color: var(--amber);
+      }
 
-  /* ---------- flow / who's who ---------- */
-  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:20px 0 8px}
-  .node{flex:1 1 130px;min-width:118px;background:var(--panel);border:1px solid var(--line2);
-    border-radius:12px;padding:13px 12px;text-align:center}
-  .node .n{font-size:13px;font-weight:700;color:#fff;line-height:1.2}
-  .node .r{font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:3px;text-transform:uppercase;letter-spacing:.06em}
-  .node.hot{border-color:var(--amber);box-shadow:0 0 0 1px #f0b35c44,0 8px 24px #00000066}
-  .node.hot .n{color:var(--amber2)}
-  .node.mgr .n{color:var(--teal)} .node.mgr{border-color:var(--teal)}
-  .node.clerk .n{color:var(--purple)} .node.clerk{border-color:var(--purple)}
-  .arrow{display:flex;align-items:center;justify-content:center;padding:0 4px;color:var(--line2)}
-  .arrow::after{content:"→";font-size:20px}
-  .arrow.rot{writing-mode:vertical-lr}.arrow.rot::after{content:"↓"}
+      /* ---------- flow / who's who ---------- */
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 0;
+        margin: 20px 0 8px;
+      }
+      .node {
+        flex: 1 1 130px;
+        min-width: 118px;
+        background: var(--panel);
+        border: 1px solid var(--line2);
+        border-radius: 12px;
+        padding: 13px 12px;
+        text-align: center;
+      }
+      .node .n {
+        font-size: 13px;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1.2;
+      }
+      .node .r {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--dim);
+        margin-top: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .node.hot {
+        border-color: var(--amber);
+        box-shadow:
+          0 0 0 1px #f0b35c44,
+          0 8px 24px #00000066;
+      }
+      .node.hot .n {
+        color: var(--amber2);
+      }
+      .node.mgr .n {
+        color: var(--teal);
+      }
+      .node.mgr {
+        border-color: var(--teal);
+      }
+      .node.clerk .n {
+        color: var(--purple);
+      }
+      .node.clerk {
+        border-color: var(--purple);
+      }
+      .arrow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+        color: var(--line2);
+      }
+      .arrow::after {
+        content: "→";
+        font-size: 20px;
+      }
+      .arrow.rot {
+        writing-mode: vertical-lr;
+      }
+      .arrow.rot::after {
+        content: "↓";
+      }
 
-  .qwho{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:6px}
-  .who{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
-  .who .role{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
-  .who .name{font-size:16px;font-weight:800;color:#fff;margin:2px 0 8px}
-  .who.c .name{color:var(--purple)} .who.m .name{color:var(--teal)}
-  .who.g .name{color:var(--blue)} .who.s .name{color:var(--amber)}
-  .who p{font-size:13px;color:var(--muted)}
-  .who .fn{font-size:12px;color:var(--dim);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+      .qwho {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 14px;
+        margin-top: 6px;
+      }
+      .who {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .who .role {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .who .name {
+        font-size: 16px;
+        font-weight: 800;
+        color: #fff;
+        margin: 2px 0 8px;
+      }
+      .who.c .name {
+        color: var(--purple);
+      }
+      .who.m .name {
+        color: var(--teal);
+      }
+      .who.g .name {
+        color: var(--blue);
+      }
+      .who.s .name {
+        color: var(--amber);
+      }
+      .who p {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .who .fn {
+        font-size: 12px;
+        color: var(--dim);
+        margin-top: 8px;
+        border-top: 1px dashed var(--line);
+        padding-top: 8px;
+      }
 
-  .cmd{font-family:var(--mono);font-size:13px;background:#0c1219;border:1px solid var(--line);
-    border-radius:10px;padding:12px 14px;margin:8px 0;overflow-x:auto;color:#cfe3d9}
-  .cmd .c{color:var(--green)} .cmd .fl{color:var(--blue)} .cmd .cm{color:var(--dim)}
+      .cmd {
+        font-family: var(--mono);
+        font-size: 13px;
+        background: #0c1219;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin: 8px 0;
+        overflow-x: auto;
+        color: #cfe3d9;
+      }
+      .cmd .c {
+        color: var(--green);
+      }
+      .cmd .fl {
+        color: var(--blue);
+      }
+      .cmd .cm {
+        color: var(--dim);
+      }
 
-  .badge{display:inline-block;font-family:var(--mono);font-size:11px;border-radius:999px;padding:2px 9px;
-    border:1px solid var(--line2);color:var(--muted);margin:2px 2px 2px 0}
-  .badge.amber{color:var(--amber);border-color:#4a3a1c}
-  .badge.teal{color:var(--teal);border-color:#1c4a44}
-  .badge.blue{color:var(--blue);border-color:#1e3a63}
-  .badge.green{color:var(--green);border-color:#1e4a30}
+      .badge {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        border-radius: 999px;
+        padding: 2px 9px;
+        border: 1px solid var(--line2);
+        color: var(--muted);
+        margin: 2px 2px 2px 0;
+      }
+      .badge.amber {
+        color: var(--amber);
+        border-color: #4a3a1c;
+      }
+      .badge.teal {
+        color: var(--teal);
+        border-color: #1c4a44;
+      }
+      .badge.blue {
+        color: var(--blue);
+        border-color: #1e3a63;
+      }
+      .badge.green {
+        color: var(--green);
+        border-color: #1e4a30;
+      }
 
-  .callout{border:1px solid var(--line2);border-left:3px solid var(--amber);background:#151107;
-    border-radius:10px;padding:14px 18px;margin:16px 0;color:var(--muted);font-size:14px}
-  .callout b{color:var(--amber2)}
-  .callout.blue{border-left-color:var(--blue);background:#0d1522}
-  .callout.blue b{color:#bcd6ff}
+      .callout {
+        border: 1px solid var(--line2);
+        border-left: 3px solid var(--amber);
+        background: #151107;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin: 16px 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .callout b {
+        color: var(--amber2);
+      }
+      .callout.blue {
+        border-left-color: var(--blue);
+        background: #0d1522;
+      }
+      .callout.blue b {
+        color: #bcd6ff;
+      }
 
-  footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);
-    font-size:13px;text-align:center}
-  @media print{ body{background:#fff;color:#000} .card,table,.arch,.solar{background:#fff} }
-</style>
-</head>
-<body>
-<div class="wrap">
+      footer {
+        margin-top: 70px;
+        padding-top: 22px;
+        border-top: 1px solid var(--line);
+        color: var(--dim);
+        font-size: 13px;
+        text-align: center;
+      }
+      @media print {
+        body {
+          background: #fff;
+          color: #000;
+        }
+        .card,
+        table,
+        .arch,
+        .solar {
+          background: #fff;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <!-- ============ HERO ============ -->
+      <header class="hero">
+        <span class="eyebrow">SOLAR-Ralph · v5.3 · governor-as-graph</span>
+        <h1 class="title">
+          The <span class="sun">Agentic Harness</span><br />that makes agents
+          finish.
+        </h1>
+        <p class="tag">
+          “Agentic AI should finish tasks autonomously. Most of the time, it
+          doesn’t.”
+        </p>
+        <p class="sub">
+          SOLAR-Ralph is an installable harness you drop into a code repository.
+          It wraps your coding agents with <b>deterministic control</b> — the
+          right specialist, the right gates, restart-safe state, auditable runs
+          — so multi-step AI work actually completes correctly instead of
+          declaring success early, misunderstanding the task, or losing
+          everything when a session ends.
+        </p>
+        <div class="pill-row">
+          <span class="pill"><b>Control:</b> LangGraph graph</span>
+          <span class="pill"><b>Tools:</b> MCP, repo-scoped</span>
+          <span class="pill"><b>State:</b> SQLite checkpoint + ledger</span>
+          <span class="pill"><b>Vendors:</b> model-agnostic</span>
+          <span class="pill"
+            ><b>Status:</b> v5 pilot on mandarin epic&nbsp;25</span
+          >
+        </div>
+      </header>
 
-  <!-- ============ HERO ============ -->
-  <header class="hero">
-    <span class="eyebrow">SOLAR-Ralph · v5.3 · governor-as-graph</span>
-    <h1 class="title">The <span class="sun">Agentic Harness</span><br>that makes agents finish.</h1>
-    <p class="tag">“Agentic AI should finish tasks autonomously. Most of the time, it doesn’t.”</p>
-    <p class="sub">
-      SOLAR-Ralph is an installable harness you drop into a code repository. It wraps your coding
-      agents with <b>deterministic control</b> — the right specialist, the right gates, restart-safe
-      state, auditable runs — so multi-step AI work actually completes correctly instead of
-      declaring success early, misunderstanding the task, or losing everything when a session ends.
-    </p>
-    <div class="pill-row">
-      <span class="pill"><b>Control:</b> LangGraph graph</span>
-      <span class="pill"><b>Tools:</b> MCP, repo-scoped</span>
-      <span class="pill"><b>State:</b> SQLite checkpoint + ledger</span>
-      <span class="pill"><b>Vendors:</b> model-agnostic</span>
-      <span class="pill"><b>Status:</b> v5 pilot on mandarin epic&nbsp;25</span>
-    </div>
-  </header>
-
-  <nav class="q">
-    <ul>
-      <li><a href="#what"><span class="num">1</span>What it is</a></li>
-      <li><a href="#when"><span class="num">2</span>When to use it</a></li>
-      <li><a href="#why"><span class="num">3</span>Why use it</a></li>
-      <li><a href="#where"><span class="num">4</span>Where to use it</a></li>
-      <li><a href="#how"><span class="num">5</span>How to use it</a></li>
-    </ul>
-  </nav>
-
-  <!-- ============ 1 WHAT ============ -->
-  <section id="what">
-    <h2 class="sec"><span class="q">01</span>What it is</h2>
-    <p class="lead">
-      SOLAR-Ralph is a <b>five-layer protocol</b> (the acronym) plus, in v5, a real
-      <b>governor-as-graph</b> runtime. Same pillars as v4 — specialists, orchestrator, ledger,
-      adversarial checks, recursion — but the control flow is now <b>code</b> (LangGraph), not a
-      prompt-instructed state machine. One engine, and VS Code becomes just one client of many.
-    </p>
-
-    <div class="solar-stack">
-      <div class="solar"><div class="l">S</div><div class="w">Specialist</div><div class="d">Isolated domain agents; one failure doesn’t block the rest.</div></div>
-      <div class="solar"><div class="l">O</div><div class="w">Orchestrator</div><div class="d">v4: the governor agent. v5: the graph itself owns routing + gates.</div></div>
-      <div class="solar"><div class="l">L</div><div class="w">Ledger</div><div class="d">Restart-safe state anchor — Objective / Work Queue / Decisions Log.</div></div>
-      <div class="solar"><div class="l">A</div><div class="w">Adversarial</div><div class="d">A non-author verifies before work is trusted or written.</div></div>
-      <div class="solar"><div class="l">R</div><div class="w">Recursive</div><div class="d">Bounded rework loop with a declared exit condition.</div></div>
-    </div>
-
-    <div class="card accent">
-      <div class="kicker">The three layers (v5)</div>
-      <p style="margin-bottom:6px">Think of it as a control system around your agents: <b>surface</b> (where you talk to it),
-      <b>control</b> (the graph that decides), <b>tools</b> (repo-scoped actions), and <b>repo truth</b>
-      (durable state). The guardrail: MCP = tool protocol · LangGraph = control flow · repo = durable
-      truth. Never rebuild the vector DB or MCP runtime inside the graph.</p>
-      <div class="arch">
-        <div class="layer l-surface"><span class="tag">SURFACE</span>
-          <div class="body"><h4>Any client</h4><p>VS Code Copilot agents (<b>@Governor v5</b>) · CLI <span class="mono">solar-governor</span> · HTTP/SSE later · CI. IDE-agnostic.</p></div></div>
-        <div class="layer l-control"><span class="tag">CONTROL</span>
-          <div class="body"><h4>Governor graph (LangGraph, own process)</h4><p>Material gate → Hermes intake → dispatch → specialist → review → complete. Interrupts for approval, SQLite checkpoint, compactor, light/full profiles.</p></div></div>
-        <div class="layer l-tool"><span class="tag">TOOLS</span>
-          <div class="body"><h4>MCP servers (local, repo-scoped)</h4><p>Workspace (read/edit + write-guard) · exec · repo-index · optional hub uplink (owned repos only).</p></div></div>
-        <div class="layer l-data"><span class="tag">TRUTH</span>
-          <div class="body"><h4>Repo-local data/context</h4><p><span class="mono">.solar/state</span> (checkpoint) · ledger (human view) · registry (roles/chains/playbooks) · run-cards · handoffs.</p></div></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ 2 WHEN ============ -->
-  <section id="when">
-    <h2 class="sec"><span class="q">02</span>When to use it</h2>
-    <p class="lead">Reach for the harness when the work is <b>more than a single quick edit</b> — when you’d otherwise trust one agent to reason, act, and self-certify across many steps.</p>
-    <div class="grid g2">
-      <div class="card accent-teal li-teal">
-        <div class="kicker t">Use it when…</div>
+      <nav class="q">
         <ul>
-          <li><b>Multi-role work</b> — an epic or story spanning design, frontend, backend, docs, review.</li>
-          <li><b>Tasks that must survive restarts</b> — long jobs where losing state mid-way is expensive.</li>
-          <li><b>You need gates &amp; approvals</b> — plan approval, design preview, adversarial review before “done”.</li>
-          <li><b>Agents keep getting it wrong</b> — early “done”, missing context, hours in the wrong direction.</li>
-          <li><b>Deterministic routing matters</b> — the same request should route the same way, reproducibly.</li>
-          <li><b>Vendor/IDE independence</b> — one engine, many fronts (Copilot today, anything later).</li>
+          <li>
+            <a href="#what"><span class="num">1</span>What it is</a>
+          </li>
+          <li>
+            <a href="#when"><span class="num">2</span>When to use it</a>
+          </li>
+          <li>
+            <a href="#why"><span class="num">3</span>Why use it</a>
+          </li>
+          <li>
+            <a href="#where"><span class="num">4</span>Where to use it</a>
+          </li>
+          <li>
+            <a href="#how"><span class="num">5</span>How to use it</a>
+          </li>
         </ul>
-      </div>
-      <div class="card accent-red">
-        <div class="kicker r">Skip it when…</div>
-        <ul>
-          <li><b>A single, tiny change</b> — one file, no gates needed; just ask the matching specialist directly.</li>
-          <li><b>Pure Q&amp;A / chat</b> — “explain this”, “what does this do” — no execution flow to govern.</li>
-          <li><b>You want zero ceremony</b> — the harness adds gates + telemetry; sometimes that’s overhead you don’t need.</li>
-        </ul>
-      </div>
-    </div>
-    <div class="callout"><b>Rule of thumb:</b> if you’d be annoyed that an agent “finished” without really finishing — that’s the pain SOLAR exists to remove. If you don’t care, you don’t need it yet.</div>
-  </section>
+      </nav>
 
-  <!-- ============ 3 WHY ============ -->
-  <section id="why">
-    <h2 class="sec"><span class="q">03</span>Why use it</h2>
-    <p class="lead">Each failure mode of naive agentic coding has a named SOLAR countermeasure — and in v5 that countermeasure is <b>enforced by graph edges and state</b>, not by hoping a prompt holds.</p>
-    <table>
-      <thead><tr><th style="width:44%">The pain (agent fails by…)</th><th>The SOLAR answer</th></tr></thead>
-      <tbody>
-        <tr><td>Declaring the task done before it actually is</td><td><b>Ralph Loop</b> — bounded rework ≤ 3 + explicit exit; <span class="mono">TASK_COMPLETE</span> only after the gate passes.</td></tr>
-        <tr><td>Starting with missing context, failing mid-way</td><td><b>Material Gate</b> — <span class="mono">MATERIAL_INSUFFICIENT</span> stops the run before any specialist is dispatched.</td></tr>
-        <tr><td>Hours of code before you notice it misunderstood</td><td><b>Design / intake gates</b> — Hermes decodes intent; plans are confirmed before implementation agents run.</td></tr>
-        <tr><td>Self-certifying its own output</td><td><b>Adversarial review</b> — a non-author (Code Reviewer) verifies; read-only, catches what the author missed.</td></tr>
-        <tr><td>Losing all progress when the session ends</td><td><b>Ledger + SQLite checkpoint</b> — resume by thread id; the ledger is a render of durable state.</td></tr>
-        <tr><td>Changing one agent breaking the whole team</td><td><b>Registry-as-data</b> — roles, chains, playbooks are entries you edit; swap without rewiring.</td></tr>
-      </tbody>
-    </table>
-    <div class="grid g3" style="margin-top:16px">
-      <div class="card accent"><h4>Auditable</h4><p>Every run writes a run-card (thread, role, chain, tokens, verdict) + decisions log. You can say what happened, not guess.</p></div>
-      <div class="card accent-teal"><h4>Deterministic</h4><p>Routing is registry + graph, not vibes. Same request → same flow → replayable runs.</p></div>
-      <div class="card accent-blue"><h4>Cost-bounded</h4><p>Compactor digests between specialists (~≤40% of raw). Profiles trade depth for tokens when you want speed.</p></div>
-    </div>
-  </section>
+      <!-- ============ 1 WHAT ============ -->
+      <section id="what">
+        <h2 class="sec"><span class="q">01</span>What it is</h2>
+        <p class="lead">
+          SOLAR-Ralph is a <b>five-layer protocol</b> (the acronym) plus, in v5,
+          a real <b>governor-as-graph</b> runtime. Same pillars as v4 —
+          specialists, orchestrator, ledger, adversarial checks, recursion — but
+          the control flow is now <b>code</b> (LangGraph), not a
+          prompt-instructed state machine. One engine, and VS Code becomes just
+          one client of many.
+        </p>
 
-  <!-- ============ 4 WHERE ============ -->
-  <section id="where">
-    <h2 class="sec"><span class="q">04</span>Where to use it</h2>
-    <p class="lead">One engine, <b>four install fronts</b> — the same <span class="mono">.solar</span> runtime and registry drop into a repo, then you drive it from whatever surface fits.</p>
-    <div class="grid g4">
-      <div class="card accent"><h4>IDE / Copilot</h4><p>Custom agents (<b>@Governor v5</b>, Hermes, specialists) run the graph via the CLI. DeepSeek-through-extension, agent-dispatch runner.</p></div>
-      <div class="card accent-teal"><h4>CLI</h4><p><span class="mono">solar-governor run</span> headless. Init, doctor, run, resume — scriptable, testable.</p></div>
-      <div class="card accent-blue"><h4>Container</h4><p>Headless cloud runs; state → volume / object store. No IDE required.</p></div>
-      <div class="card accent-green"><h4>CI action</h4><p>Install + run in CI, zero local setup, <span class="mono">profile:</span> knob. Non-interactive.</p></div>
-    </div>
-    <div class="callout blue"><b>Who is it for:</b> solo engineers &amp; small teams who ship multi-step features with AI and want it <i>trustworthy</i>; repos that are AI-active (mandarin, the resume hub, any codebase you let agents edit). <b>Not</b> a replacement for your agent — it’s the harness <i>around</i> it.</div>
-  </section>
+        <div class="solar-stack">
+          <div class="solar">
+            <div class="l">S</div>
+            <div class="w">Specialist</div>
+            <div class="d">
+              Isolated domain agents; one failure doesn’t block the rest.
+            </div>
+          </div>
+          <div class="solar">
+            <div class="l">O</div>
+            <div class="w">Orchestrator</div>
+            <div class="d">
+              v4: the governor agent. v5: the graph itself owns routing + gates.
+            </div>
+          </div>
+          <div class="solar">
+            <div class="l">L</div>
+            <div class="w">Ledger</div>
+            <div class="d">
+              Restart-safe state anchor — Objective / Work Queue / Decisions
+              Log.
+            </div>
+          </div>
+          <div class="solar">
+            <div class="l">A</div>
+            <div class="w">Adversarial</div>
+            <div class="d">
+              A non-author verifies before work is trusted or written.
+            </div>
+          </div>
+          <div class="solar">
+            <div class="l">R</div>
+            <div class="w">Recursive</div>
+            <div class="d">
+              Bounded rework loop with a declared exit condition.
+            </div>
+          </div>
+        </div>
 
-  <!-- ============ 5 HOW ============ -->
-  <section id="how">
-    <h2 class="sec"><span class="q">05</span>How to use it</h2>
-    <p class="lead">One request, one thread, a narrated flow. Here is the whole journey at concept level.</p>
+        <div class="card accent">
+          <div class="kicker">The three layers (v5)</div>
+          <p style="margin-bottom: 6px">
+            Think of it as a control system around your agents:
+            <b>surface</b> (where you talk to it), <b>control</b> (the graph
+            that decides), <b>tools</b> (repo-scoped actions), and
+            <b>repo truth</b> (durable state). The guardrail: MCP = tool
+            protocol · LangGraph = control flow · repo = durable truth. Never
+            rebuild the vector DB or MCP runtime inside the graph.
+          </p>
+          <div class="arch">
+            <div class="layer l-surface">
+              <span class="tag">SURFACE</span>
+              <div class="body">
+                <h4>Any client</h4>
+                <p>
+                  VS Code Copilot agents (<b>@Governor v5</b>) · CLI
+                  <span class="mono">solar-governor</span> · HTTP/SSE later ·
+                  CI. IDE-agnostic.
+                </p>
+              </div>
+            </div>
+            <div class="layer l-control">
+              <span class="tag">CONTROL</span>
+              <div class="body">
+                <h4>Governor graph (LangGraph, own process)</h4>
+                <p>
+                  Material gate → Hermes intake → dispatch → specialist → review
+                  → complete. Interrupts for approval, SQLite checkpoint,
+                  compactor, light/full profiles.
+                </p>
+              </div>
+            </div>
+            <div class="layer l-tool">
+              <span class="tag">TOOLS</span>
+              <div class="body">
+                <h4>MCP servers (local, repo-scoped)</h4>
+                <p>
+                  Workspace (read/edit + write-guard) · exec · repo-index ·
+                  optional hub uplink (owned repos only).
+                </p>
+              </div>
+            </div>
+            <div class="layer l-data">
+              <span class="tag">TRUTH</span>
+              <div class="body">
+                <h4>Repo-local data/context</h4>
+                <p>
+                  <span class="mono">.solar/state</span> (checkpoint) · ledger
+                  (human view) · registry (roles/chains/playbooks) · run-cards ·
+                  handoffs.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <h3>Who’s who</h3>
-    <div class="qwho">
-      <div class="who c"><div class="role">front-door clerk</div><div class="name">Hermes</div>
-        <p>Decodes intent → proposes a flow from the registry playbooks + session context. Returns a decision card; bounces only when unsure.</p>
-        <div class="fn">Never executes. Steps aside after intake.</div></div>
-      <div class="who m"><div class="role">manager</div><div class="name">Governor v5</div>
-        <p>Single entry point. Calls Hermes, narrates the plan, drives the graph via the CLI, surfaces gates, reports run-cards.</p>
-        <div class="fn">The face you talk to. Thin shell — the graph decides.</div></div>
-      <div class="who g"><div class="role">the brain</div><div class="name">Governor graph</div>
-        <p>LangGraph nodes + edges: material gate → dispatch → specialist → review → complete. SQLite checkpoint, compactor, profiles.</p>
-        <div class="fn">Deterministic. Vendor-agnostic. Headless-runnable.</div></div>
-      <div class="who s"><div class="role">workers</div><div class="name">Specialists</div>
-        <p>Registry roles (investigator, architect, uiux, engineers, docs, reviewer) that do the real work — and can chain to each other.</p>
-        <div class="fn">Stateless per link; context carried forward.</div></div>
-    </div>
+      <!-- ============ 2 WHEN ============ -->
+      <section id="when">
+        <h2 class="sec"><span class="q">02</span>When to use it</h2>
+        <p class="lead">
+          Reach for the harness when the work is
+          <b>more than a single quick edit</b> — when you’d otherwise trust one
+          agent to reason, act, and self-certify across many steps.
+        </p>
+        <div class="grid g2">
+          <div class="card accent-teal li-teal">
+            <div class="kicker t">Use it when…</div>
+            <ul>
+              <li>
+                <b>Multi-role work</b> — an epic or story spanning design,
+                frontend, backend, docs, review.
+              </li>
+              <li>
+                <b>Tasks that must survive restarts</b> — long jobs where losing
+                state mid-way is expensive.
+              </li>
+              <li>
+                <b>You need gates &amp; approvals</b> — plan approval, design
+                preview, adversarial review before “done”.
+              </li>
+              <li>
+                <b>Agents keep getting it wrong</b> — early “done”, missing
+                context, hours in the wrong direction.
+              </li>
+              <li>
+                <b>Deterministic routing matters</b> — the same request should
+                route the same way, reproducibly.
+              </li>
+              <li>
+                <b>Vendor/IDE independence</b> — one engine, many fronts
+                (Copilot today, anything later).
+              </li>
+            </ul>
+          </div>
+          <div class="card accent-red">
+            <div class="kicker r">Skip it when…</div>
+            <ul>
+              <li>
+                <b>A single, tiny change</b> — one file, no gates needed; just
+                ask the matching specialist directly.
+              </li>
+              <li>
+                <b>Pure Q&amp;A / chat</b> — “explain this”, “what does this do”
+                — no execution flow to govern.
+              </li>
+              <li>
+                <b>You want zero ceremony</b> — the harness adds gates +
+                telemetry; sometimes that’s overhead you don’t need.
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout">
+          <b>Rule of thumb:</b> if you’d be annoyed that an agent “finished”
+          without really finishing — that’s the pain SOLAR exists to remove. If
+          you don’t care, you don’t need it yet.
+        </div>
+      </section>
 
-    <h3>The request lifecycle</h3>
-    <div class="flow">
-      <div class="node clerk"><div class="n">You</div><div class="r">request</div></div>
-      <div class="arrow"></div>
-      <div class="node hot"><div class="n">Hermes</div><div class="r">intake</div></div>
-      <div class="arrow"></div>
-      <div class="node mgr"><div class="n">Governor v5</div><div class="r">narrate · run</div></div>
-      <div class="arrow"></div>
-      <div class="node"><div class="n">Graph</div><div class="r">route · gate</div></div>
-      <div class="arrow"></div>
-      <div class="node"><div class="n">Specialist(s)</div><div class="r">do the work</div></div>
-      <div class="arrow"></div>
-      <div class="node hot"><div class="n">Run-card</div><div class="r">verdict + ledger</div></div>
-    </div>
-    <p class="dim" style="text-align:center">Hermes is confident → governor runs. Not confident → one clearance bounce (you pick) → run. Human-owned gates (e.g. UIUX design preview) pause the chain for approval.</p>
-
-    <div class="grid g2" style="margin-top:10px">
-      <div class="card accent">
-        <div class="kicker">Two run modes</div>
-        <table style="margin-top:6px">
-          <tr><th style="width:30%">Mode</th><th>Meaning</th></tr>
-          <tr><td><b>Role-pinned</b><br><span class="mono">--role</span></td><td>Hermes says “this is a backend fix” → run exactly that specialist. Deterministic, no keyword guessing.</td></tr>
-          <tr><td><b>Named chain</b><br><span class="mono">--chain epic</span></td><td>Dispatch the chain <i>entry</i> once; it runs the rest itself. <span class="dim">investigator → architect → uiux → fe+be → docs → reviewer</span></td></tr>
+      <!-- ============ 3 WHY ============ -->
+      <section id="why">
+        <h2 class="sec"><span class="q">03</span>Why use it</h2>
+        <p class="lead">
+          Each failure mode of naive agentic coding has a named SOLAR
+          countermeasure — and in v5 that countermeasure is
+          <b>enforced by graph edges and state</b>, not by hoping a prompt
+          holds.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 44%">The pain (agent fails by…)</th>
+              <th>The SOLAR answer</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Declaring the task done before it actually is</td>
+              <td>
+                <b>Ralph Loop</b> — bounded rework ≤ 3 + explicit exit;
+                <span class="mono">TASK_COMPLETE</span> only after the gate
+                passes.
+              </td>
+            </tr>
+            <tr>
+              <td>Starting with missing context, failing mid-way</td>
+              <td>
+                <b>Material Gate</b> —
+                <span class="mono">MATERIAL_INSUFFICIENT</span> stops the run
+                before any specialist is dispatched.
+              </td>
+            </tr>
+            <tr>
+              <td>Hours of code before you notice it misunderstood</td>
+              <td>
+                <b>Design / intake gates</b> — Hermes decodes intent; plans are
+                confirmed before implementation agents run.
+              </td>
+            </tr>
+            <tr>
+              <td>Self-certifying its own output</td>
+              <td>
+                <b>Adversarial review</b> — a non-author (Code Reviewer)
+                verifies; read-only, catches what the author missed.
+              </td>
+            </tr>
+            <tr>
+              <td>Losing all progress when the session ends</td>
+              <td>
+                <b>Ledger + SQLite checkpoint</b> — resume by thread id; the
+                ledger is a render of durable state.
+              </td>
+            </tr>
+            <tr>
+              <td>Changing one agent breaking the whole team</td>
+              <td>
+                <b>Registry-as-data</b> — roles, chains, playbooks are entries
+                you edit; swap without rewiring.
+              </td>
+            </tr>
+          </tbody>
         </table>
-        <p style="margin-top:10px;font-size:13px"><b>Runners</b> decide how a specialist executes:
-          <span class="badge amber">agent-dispatch</span> run the repo’s IDE agent (DeepSeek via extension)
-          <span class="badge teal">http</span> OpenAI-compatible API
-          <span class="badge blue">stub</span> offline/deterministic tests.</p>
-      </div>
-      <div class="card accent-teal">
-        <div class="kicker t">Profiles</div>
-        <table style="margin-top:6px">
-          <tr><th style="width:24%">Profile</th><th>Best for</th><th>Gates</th><th>Compactor</th></tr>
-          <tr><td><b>Light</b></td><td>Fast-moving repos</td><td class="no">few / none</td><td class="no">off</td></tr>
-          <tr><td><b>Full</b></td><td>Spec-driven work</td><td class="yes">design + adversarial + approval</td><td class="yes">mandatory</td></tr>
-        </table>
-        <p style="margin-top:10px;font-size:13px"><b>Deep trade:</b> light sacrifices verification + gates for speed and low tokens; full keeps the judgement gates. What always survives is the parts that encode <i>judgement</i>.</p>
-      </div>
+        <div class="grid g3" style="margin-top: 16px">
+          <div class="card accent">
+            <h4>Auditable</h4>
+            <p>
+              Every run writes a run-card (thread, role, chain, tokens, verdict)
+              + decisions log. You can say what happened, not guess.
+            </p>
+          </div>
+          <div class="card accent-teal">
+            <h4>Deterministic</h4>
+            <p>
+              Routing is registry + graph, not vibes. Same request → same flow →
+              replayable runs.
+            </p>
+          </div>
+          <div class="card accent-blue">
+            <h4>Cost-bounded</h4>
+            <p>
+              Compactor digests between specialists (~≤40% of raw). Profiles
+              trade depth for tokens when you want speed.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 4 WHERE ============ -->
+      <section id="where">
+        <h2 class="sec"><span class="q">04</span>Where to use it</h2>
+        <p class="lead">
+          One engine, <b>four install fronts</b> — the same
+          <span class="mono">.solar</span> runtime and registry drop into a
+          repo, then you drive it from whatever surface fits.
+        </p>
+        <div class="grid g4">
+          <div class="card accent">
+            <h4>IDE / Copilot</h4>
+            <p>
+              Custom agents (<b>@Governor v5</b>, Hermes, specialists) run the
+              graph via the CLI. DeepSeek-through-extension, agent-dispatch
+              runner.
+            </p>
+          </div>
+          <div class="card accent-teal">
+            <h4>CLI</h4>
+            <p>
+              <span class="mono">solar-governor run</span> headless. Init,
+              doctor, run, resume — scriptable, testable.
+            </p>
+          </div>
+          <div class="card accent-blue">
+            <h4>Container</h4>
+            <p>
+              Headless cloud runs; state → volume / object store. No IDE
+              required.
+            </p>
+          </div>
+          <div class="card accent-green">
+            <h4>CI action</h4>
+            <p>
+              Install + run in CI, zero local setup,
+              <span class="mono">profile:</span> knob. Non-interactive.
+            </p>
+          </div>
+        </div>
+        <div class="callout blue">
+          <b>Who is it for:</b> solo engineers &amp; small teams who ship
+          multi-step features with AI and want it <i>trustworthy</i>; repos that
+          are AI-active (mandarin, the resume hub, any codebase you let agents
+          edit). <b>Not</b> a replacement for your agent — it’s the harness
+          <i>around</i> it.
+        </div>
+      </section>
+
+      <!-- ============ 5 HOW ============ -->
+      <section id="how">
+        <h2 class="sec"><span class="q">05</span>How to use it</h2>
+        <p class="lead">
+          One request, one thread, a narrated flow. Here is the whole journey at
+          concept level.
+        </p>
+
+        <h3>Who’s who</h3>
+        <div class="qwho">
+          <div class="who c">
+            <div class="role">front-door clerk</div>
+            <div class="name">Hermes</div>
+            <p>
+              Decodes intent → proposes a flow from the registry playbooks +
+              session context. Returns a decision card; bounces only when
+              unsure.
+            </p>
+            <div class="fn">Never executes. Steps aside after intake.</div>
+          </div>
+          <div class="who m">
+            <div class="role">manager</div>
+            <div class="name">Governor v5</div>
+            <p>
+              Single entry point. Calls Hermes, narrates the plan, drives the
+              graph via the CLI, surfaces gates, reports run-cards.
+            </p>
+            <div class="fn">
+              The face you talk to. Thin shell — the graph decides.
+            </div>
+          </div>
+          <div class="who g">
+            <div class="role">the brain</div>
+            <div class="name">Governor graph</div>
+            <p>
+              LangGraph nodes + edges: material gate → dispatch → specialist →
+              review → complete. SQLite checkpoint, compactor, profiles.
+            </p>
+            <div class="fn">
+              Deterministic. Vendor-agnostic. Headless-runnable.
+            </div>
+          </div>
+          <div class="who s">
+            <div class="role">workers</div>
+            <div class="name">Specialists</div>
+            <p>
+              Registry roles (investigator, architect, uiux, engineers, docs,
+              reviewer) that do the real work — and can chain to each other.
+            </p>
+            <div class="fn">Stateless per link; context carried forward.</div>
+          </div>
+        </div>
+
+        <h3>The request lifecycle</h3>
+        <div class="flow">
+          <div class="node clerk">
+            <div class="n">You</div>
+            <div class="r">request</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="node hot">
+            <div class="n">Hermes</div>
+            <div class="r">intake</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="node mgr">
+            <div class="n">Governor v5</div>
+            <div class="r">narrate · run</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="node">
+            <div class="n">Graph</div>
+            <div class="r">route · gate</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="node">
+            <div class="n">Specialist(s)</div>
+            <div class="r">do the work</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="node hot">
+            <div class="n">Run-card</div>
+            <div class="r">verdict + ledger</div>
+          </div>
+        </div>
+        <p class="dim" style="text-align: center">
+          Hermes is confident → governor runs. Not confident → one clearance
+          bounce (you pick) → run. Human-owned gates (e.g. UIUX design preview)
+          pause the chain for approval.
+        </p>
+
+        <div class="grid g2" style="margin-top: 10px">
+          <div class="card accent">
+            <div class="kicker">Two run modes</div>
+            <table style="margin-top: 6px">
+              <tr>
+                <th style="width: 30%">Mode</th>
+                <th>Meaning</th>
+              </tr>
+              <tr>
+                <td>
+                  <b>Role-pinned</b><br /><span class="mono">--role</span>
+                </td>
+                <td>
+                  Hermes says “this is a backend fix” → run exactly that
+                  specialist. Deterministic, no keyword guessing.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Named chain</b><br /><span class="mono">--chain epic</span>
+                </td>
+                <td>
+                  Dispatch the chain <i>entry</i> once; it runs the rest itself.
+                  <span class="dim"
+                    >investigator → architect → uiux → fe+be → docs →
+                    reviewer</span
+                  >
+                </td>
+              </tr>
+            </table>
+            <p style="margin-top: 10px; font-size: 13px">
+              <b>Runners</b> decide how a specialist executes:
+              <span class="badge amber">agent-dispatch</span> run the repo’s IDE
+              agent (DeepSeek via extension)
+              <span class="badge teal">http</span> OpenAI-compatible API
+              <span class="badge blue">stub</span> offline/deterministic tests.
+            </p>
+          </div>
+          <div class="card accent-teal">
+            <div class="kicker t">Profiles</div>
+            <table style="margin-top: 6px">
+              <tr>
+                <th style="width: 24%">Profile</th>
+                <th>Best for</th>
+                <th>Gates</th>
+                <th>Compactor</th>
+              </tr>
+              <tr>
+                <td><b>Light</b></td>
+                <td>Fast-moving repos</td>
+                <td class="no">few / none</td>
+                <td class="no">off</td>
+              </tr>
+              <tr>
+                <td><b>Full</b></td>
+                <td>Spec-driven work</td>
+                <td class="yes">design + adversarial + approval</td>
+                <td class="yes">mandatory</td>
+              </tr>
+            </table>
+            <p style="margin-top: 10px; font-size: 13px">
+              <b>Deep trade:</b> light sacrifices verification + gates for speed
+              and low tokens; full keeps the judgement gates. What always
+              survives is the parts that encode <i>judgement</i>.
+            </p>
+          </div>
+        </div>
+
+        <h3>Commands you’ll actually type</h3>
+        <div class="cmd">
+          <span class="c">solar-governor init</span> --repo &lt;path&gt;
+          --runner agent-dispatch
+          <span class="cm"># install: writes .solar/ config + registry</span>
+        </div>
+        <div class="cmd">
+          <span class="c">solar-governor doctor</span> --repo &lt;path&gt;
+          --json
+          <span class="cm"
+            ># self-check: config · checkpoint · graph · registry · runner</span
+          >
+        </div>
+        <div class="cmd">
+          <span class="c">solar-governor run</span> "epic 25 …" --repo
+          &lt;path&gt; --chain epic --json
+          <span class="cm"># run a named chain (one step, exit 10/11/0/2)</span>
+        </div>
+        <div class="cmd">
+          <span class="c">solar-governor run</span> "fix the review endpoint"
+          --repo &lt;path&gt; --role backend-engineer --result result.md
+          <span class="cm"># pinned specialist + resume</span>
+        </div>
+        <p class="dim" style="margin-top: 6px">
+          In the IDE you usually don’t type these — you pick
+          <b>@Governor v5</b> and talk. Hermes + Governor translate.
+        </p>
+
+        <div class="callout">
+          <b>Start small:</b> init on a branch →
+          <span class="mono">doctor</span> → run one quick
+          <span class="mono">--role</span> task → then the
+          <span class="mono">--chain epic</span> pilot. Every step lands a
+          run-card you can read, so adoption is a series of reviewable runs, not
+          a leap of faith.
+        </div>
+      </section>
+
+      <footer>
+        SOLAR-Ralph v5.3 — governor-as-graph · status: <b>IMPLEMENTING</b> ·
+        pilot: mandarin epic 25 · source:
+        <span class="mono">agentic-devops-solar-ralph</span> · docs:
+        <span class="mono">docs/versions/v5.md</span>
+      </footer>
     </div>
-
-    <h3>Commands you’ll actually type</h3>
-    <div class="cmd"><span class="c">solar-governor init</span> --repo &lt;path&gt; --runner agent-dispatch <span class="cm"># install: writes .solar/ config + registry</span></div>
-    <div class="cmd"><span class="c">solar-governor doctor</span> --repo &lt;path&gt; --json <span class="cm"># self-check: config · checkpoint · graph · registry · runner</span></div>
-    <div class="cmd"><span class="c">solar-governor run</span> "epic 25 …" --repo &lt;path&gt; --chain epic --json <span class="cm"># run a named chain (one step, exit 10/11/0/2)</span></div>
-    <div class="cmd"><span class="c">solar-governor run</span> "fix the review endpoint" --repo &lt;path&gt; --role backend-engineer --result result.md <span class="cm"># pinned specialist + resume</span></div>
-    <p class="dim" style="margin-top:6px">In the IDE you usually don’t type these — you pick <b>@Governor v5</b> and talk. Hermes + Governor translate.</p>
-
-    <div class="callout"><b>Start small:</b> init on a branch → <span class="mono">doctor</span> → run one quick <span class="mono">--role</span> task → then the <span class="mono">--chain epic</span> pilot. Every step lands a run-card you can read, so adoption is a series of reviewable runs, not a leap of faith.</div>
-  </section>
-
-  <footer>
-    SOLAR-Ralph v5.3 — governor-as-graph · status: <b>IMPLEMENTING</b> · pilot: mandarin epic 25 ·
-    source: <span class="mono">agentic-devops-solar-ralph</span> · docs: <span class="mono">docs/versions/v5.md</span>
-  </footer>
-</div>
-</body>
+  </body>
 </html>

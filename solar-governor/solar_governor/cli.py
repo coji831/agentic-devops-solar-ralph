@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import executor, runcard
+from . import bench, executor, runcard, server
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
@@ -247,6 +247,20 @@ def main():
     p_doct.add_argument("--repo", default=".")
     p_doct.add_argument("--json", action="store_true")
     p_doct.set_defaults(fn=cmd_doctor)
+
+    p_serve = sub.add_parser("serve", help="run the headless HTTP API (POST /run)")
+    p_serve.add_argument("--repo", default=".")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8787)
+    p_serve.set_defaults(fn=lambda a: server.serve(a.repo, a.host, a.port))
+
+    p_bench = sub.add_parser("bench", help="run a task N times and aggregate numbers")
+    p_bench.add_argument("--repo", default=".")
+    p_bench.add_argument("--task", required=True)
+    p_bench.add_argument("--n", type=int, default=3)
+    p_bench.add_argument("--role", default="")
+    p_bench.add_argument("--chain", default="")
+    p_bench.set_defaults(fn=lambda a: bench.run(a.repo, a.task, a.n, a.role, a.chain))
 
     args = ap.parse_args()
     args.fn(args)
