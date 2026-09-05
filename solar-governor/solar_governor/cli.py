@@ -50,6 +50,15 @@ def cmd_run(args):
     cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
     thread = args.thread or "t1"
     started = time.time()
+    if args.chain and args.role:
+        print("❌ --chain and --role are mutually exclusive", file=sys.stderr)
+        sys.exit(2)
+    if args.role:
+        reg = load_registry(cfg.root / ".solar" / "registry.json")
+        if args.role not in role_keys(reg):
+            print(f"❌ no role '{args.role}' in registry (have: {role_keys(reg)})",
+                  file=sys.stderr)
+            sys.exit(2)
     if args.chain:
         cm = load_chains(cfg.root / ".solar" / "registry.json")
         if args.chain not in cm:
@@ -60,7 +69,8 @@ def cmd_run(args):
         return _cmd_run_json(cfg, args, thread, started)
     # interactive/one-shot path (stdin prompts at interrupts)
     state = run_task(cfg, args.task, thread=thread, approve=args.approve,
-                     resume_result=args.result, chain=args.chain or "")
+                     resume_result=args.result, chain=args.chain or "",
+                     role=args.role or "")
     _write_artifacts(cfg, state, thread, started)
     runner = executor.select_runner(cfg.runner)
     chain = f" chain={state.get('chain')}" if state.get("chain") else ""
@@ -127,7 +137,8 @@ def _cmd_run_json(cfg, args, thread, started) -> None:
                   EXIT_USAGE)
         return
 
-    state = run_step(cfg, args.task, thread, resume=resume, chain=args.chain or "")
+    state = run_step(cfg, args.task, thread, resume=resume, chain=args.chain or "",
+                     role=args.role or "")
     _write_artifacts(cfg, state, thread, started)
 
     if "__interrupt__" in state:
@@ -221,6 +232,9 @@ def main():
                        help="run a named chain from the registry: dispatch the chain "
                             "entry; it runs the whole chain itself (handoff marks it "
                             "CHAIN ENTRY)")
+    p_run.add_argument("--role", default=None,
+                       help="pin dispatch to one registry role (skip keyword classify) — "
+                            "e.g. a Hermes intake decision")
     p_run.add_argument("--approve", choices=["approve", "deny"], default=None)
     p_run.add_argument("--result", default=None,
                        help="agent-dispatch: supply the agent result text/path non-interactively")

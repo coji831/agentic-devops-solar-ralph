@@ -97,10 +97,38 @@ def test_run_chain_entry_with_parallel_group_text():
     shutil.rmtree(r)
 
 
+def test_run_pinned_role_skips_classify():
+    """--role pins dispatch to one role regardless of task wording (Hermes decision)."""
+    r = _tmp_repo()
+    cfg = Config(repo=str(r), runner="agent-dispatch")
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    # task says 'investigate' but we pin to architect -> dispatch must honour the pin
+    state = run_task(cfg, "review the login screen", thread="r1", chain="",
+                     role="architect", resume_result="architecture pinned run done")
+    assert state.get("role") == "architect"
+    assert state.get("stage") == "complete"
+    shutil.rmtree(r)
+
+
+def test_role_pin_invalid_role_falls_back():
+    """A pinned role that is not in the registry is ignored (falls back to classify)."""
+    r = _tmp_repo()
+    cfg = Config(repo=str(r), runner="agent-dispatch")
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    state = run_task(cfg, "review the login screen", thread="r2", role="ghost-role",
+                     resume_result="x")
+    # 'ghost-role' not in registry -> classify sees no repo role keyword for this task,
+    # generic 'review' keyword wins -> reviewer
+    assert state.get("role") == "reviewer"
+    shutil.rmtree(r)
+
+
 if __name__ == "__main__":
     for fn in (test_role_keys_skip_structural, test_chain_resolution,
                test_run_chain_routes_to_entry_and_marks_handoff,
-               test_run_chain_entry_with_parallel_group_text):
+               test_run_chain_entry_with_parallel_group_text,
+               test_run_pinned_role_skips_classify,
+               test_role_pin_invalid_role_falls_back):
         fn()
         print(f"PASS {fn.__name__}")
     print("all chain tests passed")

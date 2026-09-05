@@ -10,7 +10,7 @@ from langgraph.types import Command, interrupt
 
 from . import executor
 from .core import Config, SolarState
-from .registry import chain_entry, chain_text, load as load_registry
+from .registry import chain_entry, chain_text, load as load_registry, role_keys
 
 MAX_ATTEMPTS = 3
 
@@ -128,11 +128,14 @@ def build_nodes(cfg: Config):
     def dispatch(state: SolarState) -> dict:
         reg = load_registry(cfg.root / ".solar" / "registry.json")
         chain_name = state.get("chain") or ""
+        pinned = state.get("role") or ""
         role = None
         if chain_name:
             cm = reg.get("chains") or {}
             if chain_name in cm:
                 role = chain_entry(cm, chain_name)
+        if role is None and pinned and pinned in role_keys(reg):
+            role = pinned                       # --role: pin dispatch (Hermes decision)
         if role is None:
             role = _classify(state.get("objective", ""), reg)
         return {"role": role, "chain": chain_name, "stage": "dispatched",
@@ -181,17 +184,19 @@ def build_graph(cfg: Config):
     return b
 
 
-def initial_state(task: str, chain: str = "") -> dict:
+def initial_state(task: str, chain: str = "", role: str = "") -> dict:
     """v5 §4: initial channel values for a light-profile run."""
-    return {"objective": task, "chain": chain, "work_queue": [], "decisions_log": [],
-            "materials_status": "PENDING", "stage": "start", "attempts": 0}
+    return {"objective": task, "chain": chain, "role": role, "work_queue": [],
+            "decisions_log": [], "materials_status": "PENDING", "stage": "start",
+            "attempts": 0}
 
 
 def run_step(cfg: Config, task: str, thread: str | None = None,
-             resume: str | None = None, chain: str = "") -> dict:
+             resume: str | None = None, chain: str = "", role: str = "") -> dict:
     """Execute exactly ONE graph step on a thread (SQLite checkpoint).
 
-    - resume=None  -> fresh start for a new thread (optionally as a named chain).
+    - resume=None  -> fresh start for a new thread (optionally as a named chain,
+        or pinned to a specific role via `role`).
     - resume=<str> -> resume the thread's pending interrupt with that value
         (agent-dispatch: result text or result-file path; review:
         'approve'|'deny').
@@ -208,7 +213,7 @@ def run_step(cfg: Config, task: str, thread: str | None = None,
         graph = build_graph(cfg).compile(checkpointer=cp)
         if resume is not None:
             return graph.invoke(Command(resume=resume), config)
-        return graph.invoke(initial_state(task, chain=chain), config)
+        return graph.invoke(initial_state(task, chain=chain, role=role), config)
 
 
 def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
@@ -233,7 +238,7 @@ def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
 
 def run_task(cfg: Config, task: str, thread: str | None = None,
              approve: str | None = None, resume_result: str | None = None,
-             chain: str = "") -> dict:
+             chain: str = "", role: str = "") -> dict:
     """Interactive/one-shot runner: loop run_step until complete.
 
     Answers each interrupt on stdin when no value was supplied (kept for the
@@ -246,7 +251,7 @@ def run_task(cfg: Config, task: str, thread: str | None = None,
       - review (human_approval): answered via `approve` ('approve'|'deny').
     """
     thread = thread or "t1"
-    result = run_step(cfg, task, thread, chain=chain)
+    result = run_step(cfg, task, thread, chain=chain, role=role)
     while "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
         kind = payload.get("kind", "review")
