@@ -42,8 +42,10 @@ def load(registry_path: Path | None = None) -> dict:
 
 
 def role_keys(registry: dict) -> list[str]:
-    """Role keys only (skips structural keys such as 'chains'/'default_chain')."""
-    return [k for k, v in registry.items() if isinstance(v, dict) and "role" in v]
+    """Role keys only (a real role spec carries a `system` prompt; structural
+    keys such as 'chains' and 'playbooks' — whose entries may also carry a
+    'role' slot — are excluded)."""
+    return [k for k, v in registry.items() if isinstance(v, dict) and "system" in v]
 
 
 def chains(registry_path: Path | None = None) -> dict:

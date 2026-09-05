@@ -29,7 +29,8 @@ def _registry_role_hint(task: str, registry: dict) -> str | None:
     # repo roles = registry minus generic defaults and structural keys
     generic = set(_ROLE_HINTS)
     for role, spec in registry.items():
-        if role in generic or not isinstance(spec, dict):
+        # a real role spec carries a `system` prompt; playbook/chain entries do not
+        if role in generic or not isinstance(spec, dict) or "system" not in spec:
             continue
         name = str(spec.get("role", role)).lower()
         if name.replace(" ", "-") in low or name.split()[-1] in low or role.replace("_", "-") in low:
