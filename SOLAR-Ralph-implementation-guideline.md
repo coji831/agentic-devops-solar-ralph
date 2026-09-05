@@ -2,6 +2,11 @@
 
 A guide for installing, running, and extending the SOLAR-Ralph agent harness in your repository.
 
+> **Scope:** this guide covers the classic **`.github/` agent-harness** install
+> (IDE-native Copilot). The current control layer is the `solar-governor`
+> runtime — install it with `pip install ./solar-governor` then
+> `solar-governor init` (see [`docs/versions/v5.md`](docs/versions/v5.md)).
+
 ---
 
 ## 1. Installation

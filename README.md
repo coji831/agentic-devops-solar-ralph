@@ -8,30 +8,46 @@
 
 Agents declare success too early. They start work with missing context and fail mid-way. They implement in the wrong direction for hours before you notice. They self-certify their own output. They lose all state when the session ends. And changing one agent breaks everything else.
 
-SOLAR-Ralph is an installable harness for VS Code + GitHub Copilot that solves each of these with a structured five-layer protocol. One install command. No custom runtime. No vendor lock-in.
+SOLAR-Ralph is a **harness around your agents**: deterministic control
+(LangGraph runtime, `solar-governor/`) + your own specialists as workers. It
+keeps the agentic system intact and stops multi-step AI work from declaring
+success early, drifting off-task, or losing state. Same five pillars, two
+install forms:
+
+| Form | Where | Control |
+| :--- | :---- | :------ |
+| **Runtime engine** | any repo, any surface (CLI / HTTP / IDE) | graph-as-code: routing + gates + checkpoints (`solar-governor`, `.solar/`) |
+| **`.github/` agent harness** | IDE-native Copilot | the classic prompt+agents form (installed via `solar-install.prompt.md`) |
 
 ---
 
-## v5.3.0 — Governor-as-graph runtime (released 2026-09-05)
+## Governor-as-graph runtime (current control layer)
 
-The v5 line adds a real runtime, `solar-governor/`: a LangGraph control layer
-with SQLite checkpointing, repo-scoped tools, run-cards per dispatch, and CLI /
-HTTP surfaces that are IDE-agnostic. Proven on the mandarin pilot
-(`solar-v5-wire`, kept as **reference only**): driver-orchestrated chains,
-T1–T5 PASS, epic-25 Phase A + verify close-out APPROVED, and a known-answer
-eval battery at 18/18.
+The runtime, `solar-governor/`, is the deterministic control layer: LangGraph
+nodes/edges route and gate, SQLite checkpoints make runs restart-safe, tools
+are repo-bounded, and every dispatch writes a run-card. IDE-agnostic —
+Copilot/VS Code is one client. Pilot-validated on the mandarin repo
+(`solar-v5-wire`, kept as reference proof): driver-orchestrated chains,
+T1–T5 PASS, epic-25 Phase A + verify close-out APPROVED, known-answer eval
+battery 18/18. Chains are **driver-orchestrated** (agents never self-chain).
 
 ```bash
-# v5 runtime quick start (from this repo)
-pip install ./solar-governor          # or: pip install -e ./solar-governor
-solar-governor init --repo <target>    # write .solar/ config + registry
-solar-governor doctor --repo <target>  # install self-check
+# runtime quick start (from this repo)
+pip install ./solar-governor            # or: pip install -e ./solar-governor
+solar-governor init --repo <target>      # write .solar/ config + registry
+solar-governor doctor --repo <target>    # install self-check
 solar-governor run "<task>" --chain epic --auto
-solar-governor eval --repo <target>    # known-answer quality battery
+solar-governor eval --repo <target>      # known-answer quality battery
 ```
 
-The classic v4 `.github/` agent harness below remains installable via
-`solar-install.prompt.md` (legacy form).
+Full design: [`docs/versions/v5.md`](docs/versions/v5.md) · concept:
+[`docs/solar-ralph-concept.md`](docs/solar-ralph-concept.md) · harness visual:
+[`docs/solar-agentic-harness.html`](docs/solar-agentic-harness.html).
+
+The sections below describe the **`.github/` agent-harness form** (the
+IDE-native Copilot install, still shipped and swappable via
+`solar-install.prompt.md`); its runtime equivalents are mapped in
+[`docs/versions/v5.md`](docs/versions/v5.md) §12.
 
 ---
 

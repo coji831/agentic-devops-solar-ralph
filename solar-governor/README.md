@@ -5,12 +5,13 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Implementing — v5.3 track (implement → install on a mandarin branch →
-non-invasive tests → merge → pilot epic 25). Currently: light-profile graph
-end-to-end with SQLite checkpoint + CLI + doctor + **model executor + workspace
-tool + run-cards + `--json` step contract** (for the v4-like UI driver agent).
-Mandarin's 8 agents are wired as its `SPECIALISTS` registry on branch
-`solar-v5-wire`. Next: real-model pilot run + merge.
+Released (tagged `v5.3.x`). Pilot-validated on the mandarin repo (branch
+`solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
+delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
+battery 18/18. Chaining is **driver-orchestrated** — agents never self-chain
+(nested agents lack a spawn tool): headless `--chain <name> --auto`, or the
+Governor agent drives each link as its own `--role` in the IDE. Next: install
+into the target repo's `main` and run the real epic with the full pipeline.
 
 ## Compatibility with v4 / v5.x
 
@@ -24,12 +25,20 @@ but nothing moved or broken.
 ## Commands
 
 ```bash
-solar-governor init --repo <path> --profile light   # writes .solar/config.json + registry
-solar-governor doctor --repo <path>                 # install self-check (PASS/FAIL)
-solar-governor run "task description" --repo <path> # run through the graph + ledger + run-card
+solar-governor init   --repo <path> --profile light          # write .solar/config.json + registry
+solar-governor doctor --repo <path> [--json]                 # install self-check (PASS/FAIL)
+solar-governor run "<task>" --repo <path>                    # one task through the graph (ledger + run-card)
+solar-governor run "<task>" --repo <path> --role <role>      # pin one specialist (e.g. Hermes decision)
+solar-governor run "<task>" --repo <path> --chain <name> --auto   # whole chain, driver-orchestrated, headless
+solar-governor serve --repo <path>                           # headless HTTP API (POST /run, POST /chain)
+solar-governor bench "<task>" --repo <path> --n 5            # N-run aggregate (tokens/time/verdict)
+solar-governor eval   --repo <path> --n 3                    # known-answer battery (quality signal)
 ```
 
 Run without installing: `python -m solar_governor.cli ...` from this directory.
+Chains are **driver-orchestrated**: a bare `--chain` (no `--auto`) is rejected
+— run headless with `--auto`, or in the IDE drive each link as its own
+`--role` from the Governor agent.
 
 ## Runners — how a specialist executes (provider-agnostic)
 

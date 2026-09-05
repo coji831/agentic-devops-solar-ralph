@@ -2,6 +2,11 @@
 
 Deep-reference catalog for the SOLAR-Ralph framework. Use this alongside the [installation guide](../SOLAR-Ralph-implementation-guideline.md) when customizing individual files.
 
+> **Scope:** this catalog describes the **`.github/` agent-harness** install
+> form (IDE-native Copilot). The current control layer is the
+> `solar-governor` runtime — its registry/state equivalents are mapped in
+> [`versions/v5.md`](versions/v5.md) §12.
+
 ---
 
 ## Layer 1: Agent Roster

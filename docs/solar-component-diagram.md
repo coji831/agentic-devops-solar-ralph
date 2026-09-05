@@ -5,6 +5,10 @@
 >
 > Layout: left column = execution flow (top-to-bottom); right column = shared state backbone.
 > Hooks are **infrastructure support** — they share gate-enforcement workload with the Governor. They are not the adversarial layer.
+>
+> **Scope:** this diagram maps the **`.github/` agent-harness** install form.
+> The current control layer is the `solar-governor` runtime (graph-as-code);
+> see [`versions/v5.md`](versions/v5.md) for that topology.
 
 ```mermaid
 graph LR
