@@ -159,15 +159,15 @@ agent-spawn tool may you delegate… NEVER fabricate downstream links".)
 - In `instructions:` add (use the corrected description):
 
 ```yaml
-  - file: ".github/instructions/solar-agent-chain.instructions.md"
-    description: "SOLAR v5 driver-orchestrated chain contract — the Governor driver (or --auto) runs each link in order; you are ONE link. Never spawn or compose downstream links yourself (nested agents lack the spawn tool)."
+- file: ".github/instructions/solar-agent-chain.instructions.md"
+  description: "SOLAR v5 driver-orchestrated chain contract — the Governor driver (or --auto) runs each link in order; you are ONE link. Never spawn or compose downstream links yourself (nested agents lack the spawn tool)."
 ```
 
 - In `agents:` add (alphabetical):
 
 ```yaml
-  - ".github/agents/governor-v5.agent.md"
-  - ".github/agents/hermes.agent.md"
+- ".github/agents/governor-v5.agent.md"
+- ".github/agents/hermes.agent.md"
 ```
 
 - Bump `last-verified: 2026-08-24` → `last-verified: 2026-09-05` (after the
@@ -190,7 +190,7 @@ agent-spawn tool may you delegate… NEVER fabricate downstream links".)
 > In a chain run the coordinator (Governor driver) runs the next link after
 > you — you never delegate or spawn it yourself.
 
-   Keep every other repo-specific instruction (tools, tokens, gates) intact.
+Keep every other repo-specific instruction (tools, tokens, gates) intact.
 
 3. **No v4 hooks/prompts/`solar-system` to delete** — `main` is already clean.
 
