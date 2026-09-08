@@ -23,6 +23,48 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Prototype:** `experiments/governor-graph/` — 6 evals (interrupt, checkpoint-resume, deterministic routing, streaming, hub KB MCP call, compactor). Decision gate after B2.
 **Supersedes:** TD-4-1/2/3/4 (effort steering → model routing), TD-4-5 (routing policy → graph edges).
 
+## v5.4 — Backlog (post v5.3.1; evidence from the real epic-25 pilot on mandarin main)
+
+### TD-5.4-1: Per-node model routing
+
+**Status:** Open
+**Goal:** Wire each registry role's `model` field into the executor so a chain/node can run `deepseek-v4-flash` (default) vs `deepseek-v4-pro` per role — e.g., flash for read/verify/docs, pro for hard ACs and cross-domain refactors. Today only the global knob works (`SOLAR_MODEL` env / `cfg.model`); registry `model` is stored but unused (`executor.run` gets `cfg.model`, never the role's). Per-run env override still wins.
+**Why now:** the epic-25 pilot collects where flash degrades; that data picks the roles that justify pro (~cost lever). Verified ids on the account: `deepseek-v4-flash` · `deepseek-v4-pro` · `deepseek-v4-flash-vision-exp`.
+**Files:** `executor.py` (resolve role model), `graph.py _role_spec/_execute` (pass it).
+
+### TD-5.4-2: Reasoning / thinking-effort passthrough
+
+**Status:** Open
+**Goal:** Optional reasoning-effort / thinking param on the chat call for reasoner-tier nodes; document which provider models honor it. Currently the `http` runner sends no effort control (`model_name` only).
+**Why:** heavy verify/review nodes (code-reviewer, verify chains) may need deeper reasoning; measure vs cost on the epic-25 data.
+**Files:** `executor.py` chat payload + config/env knob.
+
+### TD-5.4-3: Mid-chain human gate (pause-after-link / approval mode)
+
+**Status:** Open
+**Goal:** Add `--chain <name> --auto --pause-after <link>` (and/or an approval mode) so the auto chain runner stops at a named link for human review (e.g., after `uiux-designer`) then resumes headless; honor `human_approval` gates in that mode instead of always auto-approving.
+**Why:** Flow B (implement) needs "review the UI playbook before wiring logic" without losing headless automation for the rest of the chain. Today only `--json`/HTTP step-driving or IDE per-link (`@Governor v5`) can pause mid-chain; `chain.py` auto-approves by design.
+**Files:** `chain.py` (runner + per-link gate), `cli.py` flag, `graph.py` review.
+
+### TD-5.4-4: Per-repo eval cases (mandarin main battery)
+
+**Status:** Open
+**Goal:** The default eval battery's cases target `solar-v5-wire` files that do not exist on mandarin `main` (e.g. `apps/frontend/src/shared/utils/cn.ts`, epic-25 artifacts) — so eval is not a valid signal on main yet. Define a main-scoped battery (per-repo `--cases` file or parametrized defaults) once the real epic-25 lands.
+**Files:** `eval.py` `DEFAULT_CASES` / per-repo cases file.
+
+### TD-5.4-5: `uplink` wiring (hub knowledge uplink)
+
+**Status:** Open
+**Goal:** Implement `uplink: none | hub:<url>` beyond the stored config placeholder: push curated record (digests/run-cards/decisions) to an owned hub endpoint with graceful degradation; repo stays source of truth. Currently `uplink` exists only in `core.py` defaults + `Config` — no runtime module reads it.
+**Why:** design intent (v5 §11); defer until a hub exists / the epic-25 data shows the need.
+**Files:** core field (exists), new uplink module + ledger/runcard hooks.
+
+### TD-5.4-6: `doctor` reports the resolved model
+
+**Status:** Open
+**Goal:** `doctor` should echo the model that will actually run (env `SOLAR_MODEL` → `cfg.model` → default `deepseek-chat` → concrete id) so a mis-set alias or env is caught before a run. The mandarin config now pins `model: "deepseek-v4-flash"` (concrete id, not the `deepseek-chat` alias, which can be re-pointed).
+**Files:** `cli.py` doctor checks.
+
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 
 ### TD-4-1: Instructional steering in agent bodies for direct invocations
