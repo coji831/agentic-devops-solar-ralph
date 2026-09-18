@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solar-governor"
-version = "5.7.2"
+version = "5.7.3"
 description = "SOLAR-Ralph v5 governor-as-graph runtime (LangGraph control layer)."
 requires-python = ">=3.11"
 dependencies = [

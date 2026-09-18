@@ -18,6 +18,66 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.7.3 — Released (2026-09-19) — bench leaves evidence, and the count is named for what it counts
+
+**Theme:** `bench` is the instrument the local-vs-cloud comparison is meant to run on, and it kept
+no evidence. Two `--n 2` runs printed `2/2 passed`, wrote **no run-cards** (`.solar/runs/` stayed
+empty), kept no answer anywhere, and "passed" meant `stage=complete` + `verdict=APPROVED` — a
+verdict the graph grants **itself** when `human_approval: false`. Both arms scored 2/2 in the
+session that found it, while the model had answered one of three questions wrong.
+
+### Fixed — a table with nothing behind it
+
+- **One run-card per repetition.** `bench` writes each via `runcard.write`, the same writer `run`,
+  `serve` and `chain` use, so the table and the artefact cannot drift apart.
+- **The answer is in the row.** Every row carries `output`, `output_chars`, `output_sha256` and
+  `run_card`, and `agg["rows"]` is returned rather than only printed. Two runs can now be
+  **compared** instead of counted: an identical hash is the same answer, and it is visible without
+  re-running anything.
+- **`passed` → `approved`, `failed` → `not_approved`.** The table carries what the number means:
+  `approved = stage=complete + verdict=APPROVED, which the graph grants itself when human_approval
+is false. It is not a check of the answer — grade answers with solar-governor eval.` `bench`
+  measures cost and duration; `eval` measures the model. The defect was the **name**, so the fix is
+  the name — a second checker here would have been a weaker `eval`.
+- **`bench --n 0` is refused** (it used to reach `rows[0]` with an empty list).
+- **The run-card carries the answer.** `runcard.write` had no `output` key and neither does a ledger
+  section, so the claim in `ledger.py` that "the run-card carries the decisions, so the structured
+  record is complete on its own" was true of the process and false of the result. The answer is now
+  in the card, capped at `MAX_OUTPUT_CHARS = 20_000` with a marker that names the true length
+  (v5.7.2's rule: a truncated answer must not read as a short one). Every path that writes a card
+  gains this, not only `bench`.
+
+### Measured
+
+Two real runs of `solar-local:latest` (Ollama, keyless, `--role investigator`, one read task):
+
+|                       | `#0`            | `#1`            |
+| :-------------------- | :-------------- | :-------------- |
+| approved              | yes             | yes             |
+| tokens in / out       | 2,305 / 973     | 1,538 / 426     |
+| duration              | 20,214 ms       | 8,302 ms        |
+| answer (`chars`/hash) | `82ch/1b38ad20` | `82ch/1b38ad20` |
+
+The two rows produced the **same answer** at **half the input tokens** — the cost column moves run
+to run while the result does not. That is what `n` is for, and it is the thing a `bench` without the
+answers could not have shown.
+
+One run of the same task with `SOLAR_MODEL=solar-local:latest` and no endpoint set went to
+`api.deepseek.com` and came back `400`. Before this release the card read `model:
+solar-local:latest · tokens 0/0 · verdict: REJECTED`, and that was the whole story. It now carries
+the endpoint's own sentence ("The supported API model names are deepseek-flash, deepseek-v4-pro, but
+you passed solar-local:latest") next to `provider: api.deepseek.com`. A failure whose cause is
+unrecoverable is a failure that gets re-explained from memory.
+
+Tests **219 → 229** (`tests/test_bench.py`, new — 10 offline tests with `run_task` patched: the
+instrument is what is under test, not the endpoint).
+
+### Not changed, on purpose
+
+No `--expect` flag. Correctness already has a home with a real known-answer battery (`eval`), and a
+second, weaker checker inside `bench` would be one more number that reads as a score. The pointer is
+printed in every table instead.
+
 ## v5.7.2 — Released (2026-09-19) — a range bounds lines, not chars
 
 **Theme:** the one thing that could still blow a 16k local window outright. Found while wiring RTK,
@@ -27,8 +87,8 @@ tokens** for a file whose only line is 282,604 chars long.
 ### Fixed — the ranged read was unbounded
 
 `workspace.read_file` capped the WHOLE-FILE path at 40,000 chars and capped nothing on the ranged
-path, because its docstring named an assumption that is false: *"WITH a range only those lines are
-read, so a large file can be inspected in bounded slices"*. A bounded number of **lines** is not a
+path, because its docstring named an assumption that is false: _"WITH a range only those lines are
+read, so a large file can be inspected in bounded slices"_. A bounded number of **lines** is not a
 bounded number of **chars**. A `.tsbuildinfo`, a minified bundle, a lockfile or a one-line data blob
 is a single enormous line, and the model then carries it in history for the rest of the run.
 
@@ -49,12 +109,12 @@ that reads as a success (v5.6.2) and `tokens: 0/0` (v5.6.4).
 
 ### Measured
 
-| read on one 282,604-byte single-line file | chars | ≈tokens |
-| :---------------------------------------- | ----: | ------: |
-| `read_file(rel, 1, 60)` before             | 282,669 | 70,667 |
-| `read_file(rel, 1, 60)` after              | **4,113** | **1,028** |
-| `read_file(rel)` (whole file, unchanged)   | 40,061 | 10,015 |
-| 60 real lines of a normal source file      | 1,573 | 393 |
+| read on one 282,604-byte single-line file |     chars |   ≈tokens |
+| :---------------------------------------- | --------: | --------: |
+| `read_file(rel, 1, 60)` before            |   282,669 |    70,667 |
+| `read_file(rel, 1, 60)` after             | **4,113** | **1,028** |
+| `read_file(rel)` (whole file, unchanged)  |    40,061 |    10,015 |
+| 60 real lines of a normal source file     |     1,573 |       393 |
 
 Tests **215 → 219** (`tests/test_workspace.py`), one of which asserts the ordinary small range is
 byte-identical — a bound that changes normal reads is a bound that gets reverted.

@@ -408,7 +408,13 @@ marker that names the file and the line, and say in the result that it was cappe
 
 ### TD-5.7-6: `bench` persists nothing, and "passed" is not "correct"
 
-**Status:** Open (found 2026-09-19 while testing RTK)
+**Status:** Resolved 2026-09-19 — shipped in **v5.7.3**. `bench` now writes one run-card per
+repetition via `runcard.write`, returns `rows` (each with `output`, `output_chars`, `output_sha256`,
+`run_card`), prints where the cards went, and counts `approved` / `not_approved` under a line that
+says the graph grants that verdict to itself. Verified end to end against `solar-local:latest`:
+`2/2 approved`, `cards: 2 written`, both rows carrying the same answer hash (`82ch/1b38ad20`) at
+2,305 vs 1,538 input tokens — the comparison this TD existed to make possible. 10 offline tests in
+`tests/test_bench.py`; suite 219 → 229.
 **Measured:** two `bench --n 2` runs printed `2/2 passed` and wrote **no run-cards and no report** —
 `.solar/runs/` stayed empty — and the per-run rows carry no `output`, so the answers are
 unrecoverable. "Passed" is `stage=complete` + `verdict=APPROVED`, which with `human_approval: false`
@@ -421,7 +427,17 @@ meant to run on.
 **Shape of the fix:** write one run-card per repetition via `runcard.write` (the CLI already does),
 record `output` (or its length + hash) in the row, and carry a `correct` field that stays empty
 unless the caller passes an expectation — so `passed` can never be read as "answered correctly".
-**Files:** `bench.py`, `tests/test_bench.py` (new), README bench section.
+**Shipped instead:** the card, the row evidence, and the rename — `passed` → `approved`.
+**Deliberately NOT done:** the `correct` field / an `--expect` flag. Correctness already has a home
+with a real known-answer battery (`eval`); a second checker inside `bench` would be a weaker `eval`
+and one more number that reads as a score. Every table prints "_grade answers with
+`solar-governor eval`_" instead, and `eval`'s `passed` keeps its meaning.
+**Also fixed on the way:** `runcard.write` had no `output` key — so `ledger.py`'s claim that "the
+run-card carries the decisions, so the structured record is complete on its own" was true of the
+process and false of the result. The answer is now in the card (capped at 20,000 chars with a marker
+naming the true length), for every path that writes one. And `bench --n 0` reached `rows[0]` with an
+empty list; it is refused.
+**Files:** `bench.py`, `runcard.py`, `tests/test_bench.py` (new), `README.md`, `ledger.py` (doc).
 
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 

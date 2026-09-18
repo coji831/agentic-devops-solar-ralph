@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.7.2** — a range bounds lines, not chars). The runner
+Released (**v5.7.3** — bench leaves evidence, and the count is named for what it counts). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -35,7 +35,11 @@ from a committed config, with no environment variable set), and `doctor` prints 
 role goes. **v5.7.2** bounds the ranged `read_file`: a range bounds LINES, not CHARS, so one
 line is clipped at 4,000 chars and a whole selection at 40,000 — each with a marker that says
 what was elided, because a single-line `.tsbuildinfo` used to return 282,669 chars (about 70k
-tokens) into a 16k window.
+tokens) into a 16k window. **v5.7.3** makes `bench` leave evidence: one run-card per repetition,
+the answer with its length and hash in every row, and `passed` renamed to **`approved`** — because
+that count was `stage=complete` + `verdict=APPROVED`, a verdict the graph grants itself, so
+`2/2 passed` was reported while the model had answered a question wrong. Correctness stays in
+`eval`; the run-card now carries the run's output, so a finished run's conclusion is recoverable.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -63,11 +67,31 @@ solar-governor run "<task>" --repo <path> --role <role>      # pin one specialis
 solar-governor run "<task>" --repo <path> --runner http      # choose the runner for THIS run only
 solar-governor run "<task>" --repo <path> --chain <name> --auto   # whole chain, driver-orchestrated, headless
 solar-governor serve --repo <path>                           # headless HTTP API (POST /run, POST /chain)
-solar-governor bench "<task>" --repo <path> --n 5            # N-run aggregate (tokens/time/verdict)
+solar-governor bench "<task>" --repo <path> --n 5            # N-run aggregate (cost + duration; not a score)
 solar-governor eval   --repo <path> --n 3                    # known-answer battery (quality signal)
 ```
 
 Run without installing: `python -m solar_governor.cli ...` from this directory.
+
+### `bench` — cost and duration, not correctness
+
+`bench` runs the same task N times and reports what it **cost**: tokens in/out, wall time, tool
+calls. Every repetition writes a run-card to `.solar/runs/`, every row carries the answer with its
+length and `sha256`, and `agg["rows"]` is returned as well as printed — so two runs can be
+**compared** rather than counted, and `2/2 approved` with the same hash twice is a fact instead of an
+impression.
+
+It does **not** score the answer. `approved` is `stage=complete` + `verdict=APPROVED`, and with
+`human_approval: false` that verdict is the graph approving _itself_: a wrong answer is approved too
+(measured 2026-09-19 — `2/2 passed` while the model answered one of three questions wrong). That is
+why the count is named `approved`, why it is printed with what it means, and why the fix stopped
+there: **grade answers with `eval`**, which checks a known-answer battery. `bench` measures the
+instrument; `eval` measures the model.
+
+```python
+agg = bench.run(repo, task, n=2)
+agg["rows"][0]["output"], agg["rows"][0]["output_sha256"], agg["cards"]
+```
 
 ### Re-installing (safe, and meant to be re-run)
 
