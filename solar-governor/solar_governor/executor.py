@@ -56,8 +56,17 @@ def base_url() -> str:
     return os.environ.get("SOLAR_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
-def model_name(cfg_model: str = "") -> str:
-    return os.environ.get("SOLAR_MODEL") or cfg_model or DEFAULT_MODEL
+def model_name(cfg_model: str = "", role_model: str = "") -> str:
+    """Resolve the model id for one call (TD-5.4-1).
+
+    Precedence: `SOLAR_MODEL` env > the ROLE's registry `model` > `cfg.model` >
+    the default. The env knob stays first so a per-run override always wins; the
+    role's own value beats the global config so one chain can mix tiers (flash for
+    read/verify/docs, pro for hard work). An empty value at any level is skipped,
+    so a registry that leaves `model` as "" keeps inheriting, as it did before.
+    """
+    return (os.environ.get("SOLAR_MODEL") or role_model or cfg_model
+            or DEFAULT_MODEL)
 
 
 def available() -> bool:
@@ -79,7 +88,8 @@ def select_runner(cfg_runner: str = "") -> str:
 
 
 def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
-                  cfg_model: str = "", attempt: int = 1, chain_note: str = "") -> Path:
+                  cfg_model: str = "", attempt: int = 1, chain_note: str = "",
+                  role_model: str = "") -> Path:
     """AgentDispatchRunner: write a task handoff for one .agent.md specialist.
 
     Returns the handoff markdown path (under <repo>/.solar/handoffs/). The human
@@ -98,7 +108,7 @@ def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
     # the same file instead of spawning duplicates
     slug = hashlib.md5((objective or "").encode("utf-8")).hexdigest()[:6]
     path = hdir / f"{role}-attempt{attempt}-{slug}.md"
-    model_hint = model_name(cfg_model)
+    model_hint = model_name(cfg_model, role_model)
     body = (f"# SOLAR handoff — specialist: {role}\n\n"
             f"_model routing: {model_hint} (via IDE agent) · generated "
             f"{datetime.now().isoformat(timespec='seconds')} · attempt {attempt}_\n\n"
@@ -156,7 +166,8 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the workspace
-    tool layer so policy derives from the ROLE, not the process.
+    tool layer so policy derives from the ROLE, not the process, and its `model`
+    is the per-node model override (TD-5.4-1).
 
     Falls back to a stub (no network) when no API key is present, so the graph
     stays runnable/testable without credentials.
@@ -177,7 +188,7 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         return ExecutorResult(output=f"ERROR initializing client: {e}",
                               usage={"in": 0, "out": 0}, tool_calls=0, error=str(e),
                               model=model_name(cfg_model))
-    model = model_name(cfg_model)
+    model = model_name(cfg_model, (spec or {}).get("model", ""))
     ws = Workspace(repo, spec)
     messages: list[dict] = [
         {"role": "system",

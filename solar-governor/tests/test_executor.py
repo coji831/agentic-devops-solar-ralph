@@ -132,6 +132,78 @@ def test_run_task_agent_dispatch_resumes():
     shutil.rmtree(r)
 
 
+def test_model_precedence_env_over_role_over_cfg_over_default():
+    """TD-5.4-1 ladder: SOLAR_MODEL env > role `model` > cfg.model > default.
+
+    The role beating cfg.model is the whole point of the change: it is what lets
+    one chain run flash for read/verify and pro for hard nodes, while cfg.model
+    stays the repo-wide default.
+    """
+    # no env: the ROLE wins over the repo-wide config
+    assert executor.model_name("cfg-model", "role-model") == "role-model"
+
+    # env beats the role - a per-run override must always be able to win
+    os.environ["SOLAR_MODEL"] = "env-model"
+    try:
+        assert executor.model_name("cfg-model", "role-model") == "env-model"
+    finally:
+        os.environ.pop("SOLAR_MODEL", None)
+
+    # role empty (how existing registries spell 'inherit'): cfg.model wins
+    assert executor.model_name("cfg-model", "") == "cfg-model"
+
+
+def test_model_precedence_skips_empty_levels():
+    """An empty string at any level falls through - registries leave `model` as
+    "" to mean 'inherit', and that must keep working exactly as before."""
+    assert executor.model_name("cfg-model", "") == "cfg-model"
+    assert executor.model_name("", "role-model") == "role-model"
+    assert executor.model_name("", "") == executor.DEFAULT_MODEL
+
+
+def test_run_resolves_the_role_model_from_the_spec():
+    """`run()` must consult the role's `model`, not only cfg.model.
+
+    The resolver is replaced with a sentinel rather than allowed to continue:
+    `run()` returns the stub BEFORE resolving a model when no key is present, and
+    a real call would need the network. `model_name` sits outside run()'s
+    try/except, so the sentinel propagates and is caught here.
+    """
+    class _Stop(Exception):
+        pass
+
+    seen: dict = {}
+
+    def _spy(cfg_model: str = "", role_model: str = "") -> str:
+        seen.update(cfg_model=cfg_model, role_model=role_model)
+        raise _Stop()
+
+    orig_key, orig_name = executor.api_key, executor.model_name
+    executor.api_key = lambda: "sk-test-not-used"
+    executor.model_name = _spy
+    try:
+        executor.run("implementer", "sys", "obj", Path(tempfile.gettempdir()),
+                     cfg_model="deepseek-chat", spec={"model": "deepseek-v4-pro"})
+    except _Stop:
+        pass
+    else:
+        raise AssertionError("run() never resolved a model")
+    finally:
+        executor.api_key, executor.model_name = orig_key, orig_name
+
+    assert seen == {"cfg_model": "deepseek-chat", "role_model": "deepseek-v4-pro"}
+
+
+def test_handoff_hint_reports_the_role_model():
+    """The handoff header must name the model that will actually run."""
+    r = _tmp_repo()
+    path = executor.write_handoff("implementer", "sys", "obj", r, attempt=1,
+                                  cfg_model="deepseek-chat",
+                                  role_model="deepseek-v4-pro")
+    assert "deepseek-v4-pro" in path.read_text(encoding="utf-8")
+    shutil.rmtree(r)
+
+
 if __name__ == "__main__":
     for fn in (test_executor_stub_when_no_key, test_workspace_list_and_read,
                test_workspace_confinement_blocks_escape, test_workspace_write_roundtrip,

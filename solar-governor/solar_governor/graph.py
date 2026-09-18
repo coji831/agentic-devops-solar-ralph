@@ -122,7 +122,8 @@ def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
     handoff = executor.write_handoff(role=role, system_prompt=_role_prompt(spec, role),
                                      objective=state.get("objective", ""),
                                      repo=cfg.root, cfg_model=cfg.model,
-                                     attempt=attempts, chain_note=chain_note)
+                                     attempt=attempts, chain_note=chain_note,
+                                     role_model=spec.get("model", ""))
     resumed = interrupt({"kind": "agent-dispatch",
                          "role": role,
                          "attempt": attempts,
