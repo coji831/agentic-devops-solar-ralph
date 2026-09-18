@@ -37,11 +37,17 @@ class SolarState(TypedDict):
 
 DEFAULTS: dict = {
     "profile": "light",
-    "repo": ".",
+    # "" since v5.6.0: an empty repo means DERIVE the root from the config file's own
+    # location, so the persisted config carries no absolute path.
+    "repo": "",
     "state_dir": ".solar/state",
     "ledger": ".solar/ledger.md",
     "uplink": "none",
     "model": "",          # "" = deterministic stub executor (no API key needed)
+    # Tier alternative to a concrete id (v5.6.0): "fast" resolves to the provider's
+    # current id for that tier, so a provider rename is ONE edit in the runtime
+    # instead of one edit per repo. An explicit `model` at the same level still wins.
+    "model_tier": "",
     "human_approval": False,
     # Reasoning/thinking effort passed through to the provider (TD-5.4-2). "" sends
     # no such field, which is the default: providers disagree about the scale and
@@ -58,18 +64,39 @@ DEFAULTS: dict = {
 @dataclasses.dataclass
 class Config:
     profile: str = DEFAULTS["profile"]
+    # OPTIONAL. Left empty, `root` is derived from the config file's own location
+    # (`<root>/.solar/config.json`), which is what makes a config portable: a stored
+    # absolute path was its only machine-specific field, and it is why the two
+    # engagements disagreed about whether the file could be committed at all.
     repo: str = DEFAULTS["repo"]
     state_dir: str = DEFAULTS["state_dir"]
     ledger: str = DEFAULTS["ledger"]
     uplink: str = DEFAULTS["uplink"]
     model: str = DEFAULTS["model"]
+    model_tier: str = DEFAULTS["model_tier"]
     human_approval: bool = DEFAULTS["human_approval"]
     reasoning_effort: str = DEFAULTS["reasoning_effort"]
     runner: str = DEFAULTS["runner"]
+    # Where this config was read from. Runtime-only: never persisted, because it IS
+    # the file's location - and it is how `root` is derived.
+    loaded_from: Path | None = dataclasses.field(default=None, repr=False, compare=False)
+
+    # fields that exist in memory but never in the file
+    _RUNTIME_FIELDS = frozenset({"loaded_from"})
 
     @property
     def root(self) -> Path:
-        return Path(self.repo).expanduser().resolve()
+        """The repo this config governs.
+
+        Precedence: an explicit `repo` > the directory holding this config's
+        `.solar/`. So a committed config travels with its repo and still points at
+        itself, wherever the clone lands.
+        """
+        if self.repo:
+            return Path(self.repo).expanduser().resolve()
+        if self.loaded_from is not None:
+            return Path(self.loaded_from).expanduser().resolve().parent.parent
+        return Path(".").expanduser().resolve()
 
     @property
     def checkpoint_path(self) -> Path:
@@ -80,7 +107,19 @@ class Config:
         return self.root / self.ledger
 
     def to_dict(self) -> dict:
-        return dataclasses.asdict(self)
+        """The persisted shape - portable by construction.
+
+        `loaded_from` is never written (it is the file's location), and an empty
+        `repo` is omitted rather than written as "": a derived config round-trips as
+        a file with no machine-specific content, which is what makes committing it
+        correct in every repo.
+        """
+        d = dataclasses.asdict(self)
+        for name in self._RUNTIME_FIELDS:
+            d.pop(name, None)
+        if not d.get("repo"):
+            d.pop("repo", None)
+        return d
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,8 +127,11 @@ class Config:
 
     @classmethod
     def load(cls, path: Path) -> "Config":
+        path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"no config at {path} — run `solar-governor init`")
         d = json.loads(path.read_text(encoding="utf-8"))
-        keys = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in keys})
+        keys = {f.name for f in dataclasses.fields(cls)} - cls._RUNTIME_FIELDS
+        cfg = cls(**{k: v for k, v in d.items() if k in keys})
+        cfg.loaded_from = path
+        return cfg

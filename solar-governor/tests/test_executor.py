@@ -25,6 +25,7 @@ os.environ.pop("DEEPSEEK_API_KEY", None)
 os.environ.pop("SOLAR_MODEL", None)
 os.environ.pop("SOLAR_RUNNER", None)
 os.environ.pop("SOLAR_TEMPERATURE", None)
+os.environ.pop("SOLAR_BASE_URL", None)   # so provider families resolve deterministically
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -174,36 +175,38 @@ def test_model_precedence_skips_empty_levels():
 
 
 def test_run_resolves_the_role_model_from_the_spec():
-    """`run()` must consult the role's `model`, not only cfg.model.
+    """`run()` must consult the role's `model` AND its `model_tier`, not only cfg.
 
     The resolver is replaced with a sentinel rather than allowed to continue:
-    `run()` returns the stub BEFORE resolving a model when no key is present, and
-    a real call would need the network. `model_name` sits outside run()'s
-    try/except, so the sentinel propagates and is caught here.
+    `run()` returns the stub BEFORE resolving a model when no key is present, and a
+    real call would need the network. `resolve_model` is called outside run()'s
+    ValueError guard, so the sentinel propagates and is caught here.
     """
     class _Stop(Exception):
         pass
 
     seen: dict = {}
 
-    def _spy(cfg_model: str = "", role_model: str = "") -> str:
-        seen.update(cfg_model=cfg_model, role_model=role_model)
+    def _spy(**kwargs) -> tuple:
+        seen.update(kwargs)
         raise _Stop()
 
-    orig_key, orig_name = executor.api_key, executor.model_name
+    orig_key, orig_resolve = executor.api_key, executor.resolve_model
     executor.api_key = lambda: "sk-test-not-used"
-    executor.model_name = _spy
+    executor.resolve_model = _spy
     try:
         executor.run("implementer", "sys", "obj", Path(tempfile.gettempdir()),
-                     cfg_model="deepseek-chat", spec={"model": "deepseek-v4-pro"})
+                     cfg_model="deepseek-chat", cfg_tier="",
+                     spec={"model": "deepseek-v4-pro", "model_tier": "fast"})
     except _Stop:
         pass
     else:
         raise AssertionError("run() never resolved a model")
     finally:
-        executor.api_key, executor.model_name = orig_key, orig_name
+        executor.api_key, executor.resolve_model = orig_key, orig_resolve
 
-    assert seen == {"cfg_model": "deepseek-chat", "role_model": "deepseek-v4-pro"}
+    assert seen == {"cfg_model": "deepseek-chat", "role_model": "deepseek-v4-pro",
+                    "cfg_tier": "", "role_tier": "fast"}
 
 
 def test_handoff_hint_reports_the_role_model():
@@ -523,8 +526,8 @@ def test_a_rejected_run_does_not_exit_zero():
 def test_resolve_model_reports_which_level_supplied_the_id():
     """TD-5.4-6 needs the provenance, not just the id: a deliberate env override and
     a stale config pin otherwise resolve to the same kind of string."""
-    assert executor.resolve_model("cfg-m", "role-m") == ("role-m", "role")
-    assert executor.resolve_model("cfg-m", "") == ("cfg-m", "config")
+    assert executor.resolve_model("cfg-m", "role-m") == ("role-m", "role model")
+    assert executor.resolve_model("cfg-m", "") == ("cfg-m", "config model")
     assert executor.resolve_model("", "") == (executor.DEFAULT_MODEL, "default")
     os.environ["SOLAR_MODEL"] = "env-m"
     try:
@@ -533,18 +536,69 @@ def test_resolve_model_reports_which_level_supplied_the_id():
         os.environ.pop("SOLAR_MODEL", None)
 
 
+def test_model_tiers_resolve_to_concrete_ids():
+    """The point of tiers: a provider rename becomes ONE edit in the runtime instead
+    of an edit per repo per file, which is how a phantom id appeared in three places."""
+    assert executor.resolve_tier("fast") == "deepseek-flash"
+    assert executor.resolve_tier("reasoner") == "deepseek-v4-pro"
+    try:
+        executor.resolve_tier("turbo")
+    except ValueError as e:
+        assert "turbo" in str(e) and "have:" in str(e)
+    else:
+        raise AssertionError("an unknown tier was accepted")
+
+
+def test_a_tier_can_supply_the_model_and_names_itself_as_the_source():
+    os.environ.pop("SOLAR_MODEL", None)
+    assert executor.resolve_model("", cfg_tier="fast") == ("deepseek-flash",
+                                                            "config model_tier=fast")
+    assert executor.resolve_model("", "", "", "fast") == ("deepseek-flash",
+                                                            "role model_tier=fast")
+    # an explicit id beats a tier at the SAME level...
+    assert executor.resolve_model("deepseek-chat", cfg_tier="fast")[0] == "deepseek-chat"
+    # ...and a nearer level beats a further one
+    assert executor.resolve_model("", "role-id", "cfg-tier", "fast") == ("role-id",
+                                                                          "role model")
+
+
+def test_an_unresolvable_tier_fails_the_run_rather_than_picking_a_model():
+    """A run must not proceed with a model nobody asked for."""
+    orig = executor.api_key
+    executor.api_key = lambda: "sk-test-unused"
+    try:
+        res = executor.run("implementer", "sys", "obj", Path(tempfile.gettempdir()),
+                           cfg_tier="turbo")
+    finally:
+        executor.api_key = orig
+    assert res["error"] and "turbo" in res["error"]
+    assert res["model"] == "unresolved"
+    assert res["output"].startswith("ERROR")
+
+
+def test_doctor_catches_an_ide_display_name_in_a_runtime_config():
+    """`model: DeepSeek V4 Flash (deepseek)` belongs to the IDE plane; the runtime needs
+    the provider's API id. Transcribing between the two planes is exactly where a
+    phantom `deepseek-v4-flash` came from."""
+    status, detail = cli._model_check(Config(model="DeepSeek V4 Flash (deepseek)"), {})
+    assert status == "WARN" and "IDE display name" in detail
+
+
 def test_doctor_names_the_model_that_will_run():
     cfg = Config(model="deepseek-flash")
     status, detail = cli._model_check(cfg, {})
-    assert status == "PASS" and "deepseek-flash (from config" in detail
+    assert status == "PASS" and "deepseek-flash (from config model" in detail
+    # a tier is shown with the tier that produced it, so a rename is traceable
+    status, detail = cli._model_check(Config(model_tier="fast"), {})
+    assert status == "PASS" and "deepseek-flash (from config model_tier=fast" in detail
     os.environ["SOLAR_MODEL"] = "deepseek-v4-pro"
     try:
         status, detail = cli._model_check(cfg, {})
         assert status == "PASS" and "from env SOLAR_MODEL" in detail
     finally:
         os.environ.pop("SOLAR_MODEL", None)
-    # a role's model beats the config, so doctor has to name the roles that do it
-    _, detail = cli._model_check(cfg, {"investigator": {"model": "deepseek-flash"}})
+    # a role's model or tier beats the config, so doctor has to name the roles that do it
+    _, detail = cli._model_check(cfg, {"investigator": {"model_tier": "fast"}})
     assert "1 role(s) override: investigator" in detail
 
 

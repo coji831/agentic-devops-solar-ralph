@@ -18,12 +18,27 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .commands import CommandRunner
 from .workspace import Workspace
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"
+
+# Tier -> concrete id, per provider family (v5.6.0). Repos declare a TIER, so a provider
+# rename is ONE edit here instead of one edit per repo per file. That duplication is how a
+# single non-existent id (`deepseek-v4-flash`) came to sit in one config unreviewed.
+#
+# Keyed by a substring of the base-url host. A family we do not know cannot have its tiers
+# resolved, and that is reported rather than guessed.
+MODEL_TIERS: dict[str, dict[str, str]] = {
+    "deepseek": {
+        "fast": "deepseek-flash",
+        "reasoner": "deepseek-v4-pro",
+        "alias": "deepseek-chat",
+    },
+}
 # model round-trips per specialist node; configurable via SOLAR_MAX_ROUNDS
 # (complex read-heavy roles like investigator/code-reviewer exceed a low cap)
 MAX_TOOL_ROUNDS = int(os.environ.get("SOLAR_MAX_ROUNDS", "12"))
@@ -104,29 +119,64 @@ def base_url() -> str:
     return os.environ.get("SOLAR_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
-def resolve_model(cfg_model: str = "", role_model: str = "") -> tuple[str, str]:
+def provider_family() -> str:
+    """Which model family the configured endpoint speaks ("" when unknown)."""
+    host = (urlparse(base_url()).hostname or "").lower()
+    for family in MODEL_TIERS:
+        if family in host:
+            return family
+    return ""
+
+
+def resolve_tier(tier: str) -> str:
+    """The concrete id for a tier. Raises when it cannot be answered honestly.
+
+    An unknown tier, or a tier asked of an unknown provider, is a configuration error:
+    falling through to a default would run a different model than the one asked for,
+    the same class of defect as a failed check reading as a pass.
+    """
+    family = provider_family()
+    if not family:
+        raise ValueError(
+            f"cannot resolve model tier {tier!r}: no known provider family for "
+            f"{base_url()!r} (set an explicit model id, or add the family to MODEL_TIERS)")
+    table = MODEL_TIERS[family]
+    if tier not in table:
+        raise ValueError(f"unknown model tier {tier!r} for {family} "
+                         f"(have: {', '.join(sorted(table))})")
+    return table[tier]
+
+
+def resolve_model(cfg_model: str = "", role_model: str = "", cfg_tier: str = "",
+                  role_tier: str = "") -> tuple[str, str]:
     """Resolve the model id for one call, and say which level supplied it.
 
-    Precedence (TD-5.4-1): `SOLAR_MODEL` env > the ROLE's registry `model` >
-    `cfg.model` > the default. The env knob stays first so a per-run override
-    always wins; the role's own value beats the global config so one chain can mix
-    tiers (flash for read/verify/docs, pro for hard work). An empty value at any
-    level is skipped, so a registry that leaves `model` as "" keeps inheriting.
+    Precedence (TD-5.4-1, extended v5.6.0): `SOLAR_MODEL` > role `model` > role
+    `model_tier` > `cfg.model` > `cfg.model_tier` > the built-in default. An explicit
+    id beats a tier **at the same level**, and a nearer level beats a further one - so
+    a per-run override stays absolute, and one chain can still mix tiers.
 
-    Returns (id, source) because `doctor` has to SHOW the provenance (TD-5.4-6):
-    knowing the id is not enough to tell a deliberate env override from a stale
-    config pin. One ladder, one place - a second copy would drift.
+    Returns (id, source) because `doctor` has to SHOW the provenance: knowing the id is
+    not enough to tell a deliberate env override from a stale config pin. One ladder,
+    one place - a second copy would drift.
     """
-    for source, value in (("env SOLAR_MODEL", os.environ.get("SOLAR_MODEL") or ""),
-                          ("role", role_model or ""),
-                          ("config", cfg_model or "")):
-        if value:
+    ladder = (("env SOLAR_MODEL", "id", os.environ.get("SOLAR_MODEL") or ""),
+              ("role model", "id", role_model or ""),
+              ("role model_tier", "tier", role_tier or ""),
+              ("config model", "id", cfg_model or ""),
+              ("config model_tier", "tier", cfg_tier or ""))
+    for source, kind, value in ladder:
+        value = value.strip()
+        if not value:
+            continue
+        if kind == "id":
             return value, source
+        return resolve_tier(value), f"{source}={value}"
     return DEFAULT_MODEL, "default"
 
 
 def model_name(cfg_model: str = "", role_model: str = "") -> str:
-    """The resolved model id for one call (see `resolve_model`)."""
+    """The resolved model id (see `resolve_model`)."""
     return resolve_model(cfg_model, role_model)[0]
 
 
@@ -385,7 +435,7 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
 def run(role: str, system_prompt: str, objective: str, repo: Path,
         cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
         spec: dict | None = None, human_approval: bool = False,
-        cfg_reasoning: str = "") -> ExecutorResult:
+        cfg_reasoning: str = "", cfg_tier: str = "") -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
@@ -413,7 +463,17 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         return ExecutorResult(output=f"ERROR initializing client: {e}",
                               usage={"in": 0, "out": 0}, tool_calls=0, error=str(e),
                               model=model_name(cfg_model))
-    model = model_name(cfg_model, (spec or {}).get("model", ""))
+    try:
+        model, _source = resolve_model(cfg_model=cfg_model,
+                                       role_model=(spec or {}).get("model", ""),
+                                       cfg_tier=cfg_tier,
+                                       role_tier=(spec or {}).get("model_tier", ""))
+    except ValueError as e:
+        # An unresolvable tier is a configuration error, and the honest place for it is
+        # the executor's error path: the review node then REJECTS the run instead of
+        # approving output produced with a model nobody asked for.
+        return ExecutorResult(output=f"ERROR: {e}", usage={"in": 0, "out": 0},
+                              tool_calls=0, error=str(e), model="unresolved")
     ws = _ToolLayer(Workspace(repo, spec),
                     CommandRunner(repo, spec, human_approval=human_approval))
     messages: list[dict] = [

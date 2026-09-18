@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bench, chain, eval as eval_mod, executor, runcard, server, uplink
+from . import bench, chain, eval as eval_mod, executor, install, runcard, server, uplink
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
@@ -27,24 +27,64 @@ def _cfg_path(root: Path) -> Path:
 
 
 def cmd_init(args):
+    """Create or REFRESH an install, without destroying what the repo chose.
+
+    Re-running this used to overwrite `config.json` (losing a model pin) while writing
+    `registry.json` only if absent - so nobody re-ran it, and installs drifted from the
+    runtime. Now: existing settings win, new keys are added, the version marker is
+    written, and the generated `.gitignore` block is rewritten in place. Explicit CLI
+    flags still beat the stored value, because that is what a flag means.
+    """
     root = Path(args.repo).expanduser().resolve()
-    cfg = Config(profile=args.profile, repo=str(root), human_approval=args.approval,
-                 runner=args.runner or "")
     solar = root / ".solar"
     (solar / "state").mkdir(parents=True, exist_ok=True)
-    cfg.save(_cfg_path(root))
+
+    existing = install.read_config(root)
+    fresh = Config().to_dict()
+    merged = install.merge_config(existing, fresh)
+    # explicit flags beat what is stored; an absent flag never resets a repo's choice
+    if getattr(args, "profile", None):
+        merged["profile"] = args.profile
+    if getattr(args, "approval", False):
+        merged["human_approval"] = True
+    if getattr(args, "runner", ""):
+        merged["runner"] = args.runner
+
+    # `repo` is dropped when it only restates where this file already lives - that is
+    # what makes the config portable. A path pointing elsewhere is a deliberate (and
+    # unusual) setup, so it is kept, and said out loud.
+    explicit_repo = ""
+    if (merged.get("repo") or "").strip():
+        if Path(merged["repo"]).expanduser().resolve() == root:
+            merged.pop("repo", None)
+        else:
+            explicit_repo = merged["repo"]
+
+    added = sorted(set(merged) - set(existing)) if existing else []
+    tuned = sorted(k for k, v in (existing or {}).items()
+                   if k in merged and merged[k] != fresh.get(k))
+    _cfg_path(root).write_text(json.dumps(merged, indent=2), encoding="utf-8")
+    cfg = Config.load(_cfg_path(root))          # reload so `root` derives the same way
+
     reg_path = solar / "registry.json"
     if not reg_path.exists():
         reg_path.write_text(json.dumps(load_registry(None), indent=2), encoding="utf-8")
-    git = root / ".gitignore"
-    if git.exists():
-        text = git.read_text(encoding="utf-8")
-        if ".solar/state" not in text:
-            git.write_text(text.rstrip() +
-                           "\n.solar/state/\n.solar/ledger.md\n.solar/runs/\n.solar/handoffs/\n.solar/chains/\n",
-                           encoding="utf-8")
-    print(f"✅ initialised solar-governor (profile={cfg.profile}, runner={cfg.runner or 'auto'}) in {root}")
-    print(f"   config: {_cfg_path(root).relative_to(root)}")
+
+    ignore = install.sync_gitignore(root)
+    install.write_version(root)
+
+    state = "refreshed" if existing else "created"
+    print(f"✅ init — {state}: profile={cfg.profile} runner={cfg.runner or 'auto'} in {root}")
+    print(f"   config : {_cfg_path(root).relative_to(root)}"
+          + (f" (kept: {', '.join(tuned)})" if tuned else "")
+          + (f" (added: {', '.join(added)})" if added else ""))
+    print(f"   version: {install.VERSION_FILE} -> {install.read_version(root)}")
+    print(f"   ignore : .gitignore {ignore['action']}")
+    if explicit_repo:
+        print(f"   ⚠️  repo: an explicit path outside this directory is kept ({explicit_repo})")
+    for line_no, rule in ignore["stale"]:
+        print(f"   ⚠️  .gitignore:{line_no} '{rule}' sits OUTSIDE the generated block and "
+              f"still applies — delete it if that path should be tracked")
     print(f"   next: solar-governor run \"<task>\"  |  solar-governor doctor")
 
 
@@ -249,6 +289,7 @@ def cmd_doctor(args):
         checks["runner"] = ("FAIL", str(e))
     checks["model"] = _model_check(cfg, reg)
     checks["uplink"] = uplink.status(cfg)
+    checks["install"] = install.version_status(root)
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
@@ -259,14 +300,25 @@ def cmd_doctor(args):
 def _model_check(cfg, reg: dict) -> tuple:
     """Report the model that will ACTUALLY run, and where it came from (TD-5.4-6).
 
-    Otherwise the only way to discover that `SOLAR_MODEL` is set in the shell, or
-    that the config pins an id the provider does not serve, is to watch the first
-    run fail. Role overrides are named too, since a role's `model` now beats the
-    config and can therefore hide a stale pin.
+    Otherwise the only way to discover that `SOLAR_MODEL` is set in the shell, or that
+    the config pins an id the provider does not serve, is to watch the first run fail.
+    Role overrides are named too, since a role's `model` now beats the config and can
+    therefore hide a stale pin.
     """
-    model, source = executor.resolve_model(cfg.model)
+    try:
+        model, source = executor.resolve_model(cfg.model, cfg_tier=cfg.model_tier)
+    except ValueError as e:
+        return "FAIL", str(e)
+    # Two model PLANES exist and they are named differently: the IDE pins display names
+    # (`model: DeepSeek V4 Flash (deepseek)` in .agent.md frontmatter) while the runtime
+    # needs the provider's API id. Transcribing between them is how a phantom
+    # `deepseek-v4-flash` reached a config, so catch that shape before even probing.
+    if any(ch in model for ch in " ()"):
+        return "WARN", (f"{model!r} (from {source}) looks like an IDE display name; the "
+                        f"runtime needs the provider's API id (e.g. deepseek-flash)")
     overrides = sorted(r for r, spec in (reg or {}).items()
-                       if isinstance(spec, dict) and spec.get("model"))
+                       if isinstance(spec, dict)
+                       and (spec.get("model") or spec.get("model_tier")))
     effort = executor.reasoning_effort(cfg.reasoning_effort)
     detail = f"{model} (from {source}"
     if overrides:
@@ -297,12 +349,17 @@ def main():
     ap = argparse.ArgumentParser(prog="solar-governor", description="SOLAR-Ralph v5 runtime")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p_init = sub.add_parser("init", help="initialise .solar config + registry")
+    p_init = sub.add_parser("init", help="initialise or refresh .solar config + registry")
     p_init.add_argument("--repo", default=".")
-    p_init.add_argument("--profile", choices=["light", "full"], default="light")
-    p_init.add_argument("--approval", action="store_true", help="human_approval on (review interrupt)")
+    p_init.add_argument("--profile", choices=["light", "full"], default=None,
+                        help="override the profile; omitted on a refresh, the stored "
+                             "value is kept")
+    p_init.add_argument("--approval", action="store_true",
+                        help="turn human_approval ON (there is no --no-approval: edit the "
+                             "config to turn it off)")
     p_init.add_argument("--runner", choices=["agent-dispatch", "http", "stub", ""], default="",
-                        help="how specialists execute (default auto: http if key else stub)")
+                        help="how specialists execute (omitted: keep the stored value, or "
+                             "auto = http if a key is set else stub)")
     p_init.set_defaults(fn=cmd_init)
 
     p_run = sub.add_parser("run", help="run a task through the graph")
