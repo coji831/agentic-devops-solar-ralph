@@ -39,7 +39,7 @@ from . import chain, executor, runcard
 from . import __version__          # single source: the package, not a second literal
 from .core import Config
 from .graph import pending_interrupt, run_step
-from .ledger import render
+from .ledger import record
 from .registry import load as load_registry
 from .registry import role_keys
 
@@ -90,7 +90,7 @@ def _run_one_step(repo: str, body: dict) -> tuple[int, dict]:
 
     started = time.time()
     state = run_step(cfg, task, thread, resume=resume, chain=chain, role=role)
-    render(cfg, state)
+    record(cfg, state, thread)
     runcard.write(cfg, state, thread, started)
 
     summary = {k: state.get(k) for k in

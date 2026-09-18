@@ -35,6 +35,9 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "model": state.get("model", "stub"),
         "error": state.get("error", ""),
         "forced_final": bool(state.get("forced_final", False)),
+        # the decisions log lives in the ledger section too, but the structured record
+        # has to stand on its own: the ledger is a growing human view, this is the card
+        "decisions": list(state.get("decisions_log") or []),
         "duration_ms": int((time.time() - started_at) * 1000),
     }
     path = run_dir / f"{thread}.json"

@@ -21,7 +21,7 @@ from pathlib import Path
 from . import executor, runcard
 from .core import Config
 from .graph import run_task
-from .ledger import render
+from .ledger import record
 from .registry import load as load_registry
 
 MAX_CONTEXT_PER_LINK = 4000  # chars of prior output threaded forward per link
@@ -55,11 +55,12 @@ def run_chain(cfg: Config, chain_name: str, objective: str,
         for role in roles:
             task = _link_objective(objective, history)
             started = time.time()
+            link_thread = f"{thread}-{len(links)}"
             try:
-                state = run_task(cfg, task, thread=f"{thread}-{len(links)}",
+                state = run_task(cfg, task, thread=link_thread,
                                  approve=approve, role=role)
-                render(cfg, state)
-                card = runcard.write(cfg, state, f"{thread}-{len(links)}", started)
+                record(cfg, state, link_thread)
+                card = runcard.write(cfg, state, link_thread, started)
                 out = (state.get("output") or "").strip()
                 row = {
                     "link": role, "stage": state.get("stage"),

@@ -9,7 +9,7 @@ from pathlib import Path
 from . import bench, chain, eval as eval_mod, executor, install, runcard, server, uplink
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
-from .ledger import render
+from .ledger import record
 from .registry import chains as load_chains
 from .registry import load as load_registry
 from .registry import role_keys
@@ -152,13 +152,14 @@ def _cmd_run_chain_auto(cfg, args, thread) -> None:
 
 
 def _write_artifacts(cfg, state, thread, started) -> None:
-    """Render the human-view ledger + run-card from a state snapshot.
+    """Write this run's ledger section + run-card from a state snapshot.
 
-    Called at every --json step so progress is on disk even when the run is
-    paused at an interrupt; the final step overwrites the run-card. The uplink
-    push happens last, on the finished record, and prints nothing when disabled.
+    Called at every --json step so progress is on disk even when the run is paused at
+    an interrupt. `ledger.record` updates THIS run's own section, so stepping three
+    times leaves one section rather than three; the run-card is overwritten per step.
+    The uplink push happens last, on the finished record.
     """
-    render(cfg, state)
+    record(cfg, state, thread)
     runcard.write(cfg, state, thread, started)
     line = uplink.push(cfg, state, thread)
     if line:

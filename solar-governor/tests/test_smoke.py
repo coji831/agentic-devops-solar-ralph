@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from solar_governor.core import Config          # noqa: E402
 from solar_governor.graph import build_graph, run_task  # noqa: E402
-from solar_governor.ledger import render        # noqa: E402
+from solar_governor.ledger import record       # noqa: E402
 from solar_governor.registry import load as load_registry  # noqa: E402
 
 
@@ -57,7 +57,8 @@ def test_ledger_renders():
     repo = _tmp_repo()
     cfg = _cfg(repo)
     state = run_task(cfg, "ship a small feature", thread="smoke3")
-    ledger = render(cfg, state)
+    ledger, action = record(cfg, state, "smoke3")
+    assert action == "created"
     text = ledger.read_text(encoding="utf-8")
     assert "Objective" in text and "TASK_COMPLETE" in text
     shutil.rmtree(repo)
