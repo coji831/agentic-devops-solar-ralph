@@ -260,9 +260,31 @@ through `select_runner` as a parameter instead of via the environment.
 
 ## v5.7 — Local hosted models + a provider registry (opened 2026-09-19)
 
-### TD-5.7-1: A `providers` + `models` config, so a model is an alias not an env var
+> Shipped: **v5.7.0** TD-5.7-1 (the `providers` + `models` registry).
 
-**Status:** Open — designed, not built. Blocked on nothing; the v5.6.4 run made it useful.
+### TD-5.7-1: ~~A `providers` + `models` config, so a model is an alias not an env var~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.7.0**. What is built: a shipped `providers`
+table (17 entries, each `base_url` probed unauthenticated before shipping — two candidates that
+"everybody knows" were dropped by that check), a repo-declared `models` map whose aliases win at
+every rung of the existing ladder, `headers` + `extra_body` per provider/alias so a router's own
+fields work, per-role `provider`, and a `provider` check in `doctor` that names the provider, the
+endpoint and whether the credential env var is set. Verified live on DeepSeek: `provider=deepseek`,
+`model=fast -> deepseek-flash`, exit 0, APPROVED, `tokens 699/139 reported: true`.
+**Two things the tests caught that reading would not:** router fields cannot be keyword arguments
+(the SDK rejects unknown keywords and NO request leaves the process — they ride in `extra_body=`,
+with the runner's own keys stripped first), and `resolve_tier`'s `family or provider_family()`
+fallback re-inferred from the environment, so a declared LOCAL provider resolved `fast` to a
+**DeepSeek id**. Both are fixed and tested.
+**Left open on purpose:** no `--provider` flag (it would repeat the `SOLAR_RUNNER` process leak,
+TD-5.6-13 — switching is `SOLAR_MODEL=<alias>`); and Azure OpenAI / Bedrock / Vertex are absent
+because Azure needs its own client + `api-version` and the others are not OpenAI-compatible
+without a gateway — an entry that cannot work is worse than no entry.
+**Still open from the same design:** whether SOLAR should own cross-provider routing/fallbacks or
+delegate them to a gateway (LiteLLM self-hosted, or OpenRouter hosted). Today it delegates: an
+alias can point at a gateway URL, and the gateway owns fallbacks, `context_window_fallbacks` and
+per-model spend. Revisit if the runtime needs to route per role without a gateway running.
+**The measured facts that shaped it, kept as the record:**
 **Goal:** today a repo has one provider and one model, chosen by a ladder over `SOLAR_BASE_URL` /
 `SOLAR_MODEL` / `SOLAR_API_KEY` (env-only, never persisted) and `cfg.model` / `cfg.model_tier`.
 There is no way to say "`local-qwen` is `qwen3:8b` on localhost, `reasoner` is `deepseek-v4-pro`

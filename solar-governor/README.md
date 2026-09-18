@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.6.4** — a local endpoint is reachable). The runner
+Released (**v5.7.0** — name a provider, name a model). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -242,6 +242,62 @@ Three things worth knowing before you measure:
 sent ...)` and `model: PASS - qwen3:8b (from config model) [provider serves 1 id(s)]` when the
 server is up, or `model: WARN - ... cannot list its models (Connection error.)` when it is not.
 
+### Providers and models — name them instead of exporting them
+
+A repo declares WHICH endpoint its models live on, and names the models it uses. Nothing about the
+run changes: same graph, same runners, same run-card — plus `provider` in the record.
+
+```json
+{
+  "provider": "deepseek",
+  "providers": {
+    "local": {"base_url": "http://localhost:11434/v1", "api_key_env": ""}
+  },
+  "models": {
+    "fast":       {"provider": "deepseek", "id": "deepseek-flash"},
+    "local-qwen": {"provider": "local",    "id": "qwen3:8b"}
+  },
+  "model": "local-qwen"
+}
+```
+
+- **`providers`** — 17 shipped entries: `openai`, `deepseek`, `openrouter`, `groq`, `mistral`,
+  `xai`, `together`, `fireworks`, `cerebras`, `anthropic`, `perplexity`, `moonshot`, the local
+  servers `ollama` / `lmstudio` / `vllm` / `llamacpp`, and `gateway` for a self-hosted router
+  (LiteLLM & co). A repo entry merges per FIELD over a shipped one, so repointing a provider at a
+  mirror is one line. Every shipped `base_url` was probed unauthenticated before shipping — 401/403
+  (or 400 on `/chat/completions` where a provider has no model list) means the endpoint exists and
+  wants a key, and a 404 means the path is wrong and the entry is not shipped.
+- **`api_key_env` is a NAME, never a value.** `.solar/config.json` is committed, so a provider
+  entry names the environment variable to read. A provider's credential is read ONLY from its own
+  variable — it is never satisfied by an unrelated key that happens to be set. An empty
+  `api_key_env` is the local case (and needs v5.6.4's placeholder to run).
+- **`models`** maps an alias to a provider and an id. An alias wins at every rung of the model
+  ladder, so it can be named from a config, a role or a chain: `SOLAR_MODEL=local-qwen` switches
+  one run without editing a committed file — which is how you A/B a local model against a cloud one
+  and prove it afterwards from `provider` in the run-card. An alias named after a shipped tier
+  (`fast`, `reasoner`) shadows that tier for this repo.
+- **`headers` / `extra_body`** carry what a router needs: OpenRouter's `HTTP-Referer` and
+  `X-OpenRouter-Title` are headers, and its `provider` routing object, `models` fallback list and
+  `route` are **body** fields (`extra_body`). The runner strips its own keys (`model`, `messages`,
+  `tools`) from `extra_body` first, so a routing object can add fields but never replace the prompt.
+- **`provider` per role** lets one chain put its reasoner in the cloud and its fast steps on a
+  local model.
+- **An unknown provider name is a REJECTED run**, not a fallback to the default endpoint — and it
+  fails even when an alias would have chosen a valid provider, because a name you believe is in
+  effect must not be quietly ignored.
+- **A tier needs a family.** `model_tier: "fast"` resolves through the provider's `family`; a local
+  provider has none, so declare a `models` alias instead (the error says exactly that).
+
+`doctor` reports the chain: `provider: PASS - 17 shipped; overrides: deepseek; 1 model alias(es):
+fast; selected: deepseek` and `model: PASS - deepseek-flash (from config model=fast ->
+deepseek-flash; provider deepseek @ https://api.deepseek.com [SOLAR_API_KEY set]) [provider serves
+2 id(s)]`. Note what it does NOT print: a credential value, ever.
+
+**No config means no change.** A repo with no `providers`/`models` uses `SOLAR_BASE_URL`,
+`SOLAR_API_KEY` and `SOLAR_MODEL` exactly as before, and `to_dict` omits the empty fields so a
+committed config gains no noise.
+
 ### Hub uplink (opt-in, push-only)
 
 `uplink: none | hub:<url>` in `.solar/config.json`. The default is `none`: the repo is
@@ -327,11 +383,12 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python -m pytest tests/           # 193 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 205 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
                                   # doctor + eval case resolution, install surface,
                                   # install paths (fresh clone, BOM), thread reset/resume,
-                                  # stub-runner offline contract, local endpoint (real HTTP)
+                                  # stub-runner offline contract, local endpoint (real HTTP),
+                                  # provider registry (endpoint/headers/body/key on the wire)
 python tests/test_smoke.py        # smoke only
 ```

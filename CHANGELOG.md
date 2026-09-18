@@ -18,6 +18,102 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.7.0 — Released (2026-09-19) — name a provider, name a model
+
+**Theme:** one repo can now point at a cloud provider, a router or a local server by declaring
+it, instead of by editing an environment variable. This is the release that makes "run this
+task on the local model and on the cloud model and compare" a config line.
+
+### Added
+
+- **A `providers` table of 17 entries**, each verified rather than recalled: `openai`,
+  `deepseek`, `openrouter`, `groq`, `mistral`, `xai`, `together`, `fireworks`, `cerebras`,
+  `anthropic`, `perplexity`, `moonshot`, plus the local servers (`ollama`, `lmstudio`, `vllm`,
+  `llamacpp`) and a self-hosted `gateway` (LiteLLM & co). A repo declares one and gets its
+  `base_url` and the NAME of the env var holding the key.
+- **A `models` map of aliases.** `{"fast": {"provider": "deepseek", "id": "deepseek-flash"}}`
+  makes `model: fast` mean that. At every rung of the existing ladder a value naming an alias
+  wins, so an alias can be referred to from a config, a role or a chain, and switched per run
+  with `SOLAR_MODEL=other-alias` without touching a committed file.
+- **`headers` and `extra_body` per provider/alias**, so a router's own fields work — OpenRouter's
+  attribution headers, its `provider` routing object, its `models` fallback list, `route`.
+- **Per-role `provider`**, so one chain can put its reasoner in the cloud and its fast steps on
+  a local model.
+
+### The `api_key_env` rule, which is not optional
+
+`.solar/config.json` is committed in both engagements, so a provider entry carries
+`api_key_env: "OPENAI_API_KEY"` — a **name**, never a value (LiteLLM documents the same
+indirection as `api_key: os.environ/VAR`). A provider's credential is read ONLY from its own
+variable: it is never satisfied by an unrelated key that happens to be set in the environment,
+which would send one provider's key to another provider's endpoint.
+
+### Verified, not remembered
+
+Every shipped `base_url` was probed unauthenticated before shipping: 401/403 on `/models` — or
+400 on `/chat/completions` where a provider exposes no model list — means the endpoint exists and
+wants a key; **404 means the path is wrong**. Two candidates that "everybody knows" were dropped
+by that check instead of shipped on reputation, and two that a `/models` probe rejected are
+shipped with the reason recorded (Google's OpenAI-compatible surface and Perplexity answer on
+`/chat/completions` but expose no model list, so `doctor` reports that as *unverified* rather than
+as an unreachable endpoint).
+
+### Fixed — a router field would have failed every call
+
+`extra_body` fields originally rode as ordinary keyword arguments. **MEASURED: the SDK rejects
+unknown keywords** — `Completions.create() got an unexpected keyword argument 'provider'` — and
+no request leaves the process. They now ride in `extra_body=`, which sends them in the JSON body,
+and the runner's own keys (`model`, `messages`, `tools`) are stripped from it first, because an
+`extra_body` that silently replaced the message list would be a trap rather than a feature. The
+regression test asserts on what a REAL server receives, so the wire is checked, not the intent.
+
+### Changed
+
+- **`resolve_model` is now a two-line view of `resolve_target`** — one ladder, one place, as its
+  own docstring demanded. `resolve_target` additionally carries the provider, endpoint, credential
+  source, headers and extra body, which is what `run` consumes.
+- **A `model_tier` resolves through a provider's declared `family`.** `provider_family` used to
+  infer from the host, so any repo declaring a tier against a LOCAL endpoint RAISED — the host
+  says nothing about a family. A declared provider answers it; without one, host inference is
+  unchanged. An explicitly empty family now raises instead of quietly re-inferring from whatever
+  endpoint is in the environment (which is how a local provider resolved `fast` to a DeepSeek id
+  during development of this release).
+- **An unknown provider NAME is a rejected run, not a fallback** to the default endpoint, and it
+  fails even when an alias would have chosen a valid provider — a name the user believes is in
+  effect must not be silently ignored.
+- **`doctor` gained a `provider` check** and its model check now names the provider, the endpoint
+  and whether the credential env var is SET (never its value).
+- **An empty registry writes nothing.** `to_dict` omits `provider`/`providers`/`models` when
+  empty, so a repo that declares neither gains no noise in a committed file.
+
+### Measured
+
+- **A real provider, end to end:** `provider: deepseek`, `model: fast` → `deepseek-flash` on
+  `https://api.deepseek.com`, `exit 0`, APPROVED, `tokens 699/139 reported: true`, run-card
+  `provider: "deepseek"`.
+- **The alias beat the tier of the same name**: `model: fast` resolved to the alias's id, not to
+  `MODEL_TIERS`.
+- **`doctor`, on the same config:** `model: PASS - deepseek-flash (from config model=fast ->
+  deepseek-flash; provider deepseek @ https://api.deepseek.com [SOLAR_API_KEY set]) [provider
+  serves 2 id(s)]`.
+- **Routing to a real router:** with no OpenRouter key the run was REJECTED with **OpenRouter's
+  own** `401 Missing Authentication header` — their error, not a local exception, which is what
+  proves the request, headers and body reached their gateway. A successful OpenRouter call needs a
+  key that this machine does not have; the wire shape is asserted against a local server instead.
+- **Backward compatibility:** no provider/model blocks means the env endpoint, `SOLAR_API_KEY`,
+  the old source strings and the old `host:port` provenance label, unchanged — asserted by test.
+- Tests **193 → 205** (`tests/test_providers.py`, 12).
+
+### Not done here
+
+- **No `--provider` flag.** `run --runner X` implements itself by setting `SOLAR_RUNNER` for the
+  process and never restoring it (TD-5.6-13), and adding a second environment-backed flag would
+  repeat that leak. Switching provider per run is `SOLAR_MODEL=<alias>`, which is recorded in the
+  run-card anyway.
+- **Azure OpenAI, Bedrock and Vertex are NOT in the table.** Azure needs its own client and an
+  `api-version`, and the others are not OpenAI-compatible without a gateway — shipping an entry
+  that cannot work is worse than shipping none. Put a gateway in front of them and declare it.
+
 ## v5.6.4 — Released (2026-09-19) — a local endpoint is reachable
 
 **Theme:** the http runner could not reach a **keyless** endpoint, which is what every local
