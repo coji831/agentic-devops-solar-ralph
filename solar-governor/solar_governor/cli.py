@@ -1,6 +1,7 @@
 """solar-governor CLI: init | run | doctor (v5 §9 install surface)."""
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -50,6 +51,18 @@ def cmd_run(args):
     cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
     thread = args.thread or "t1"
     started = time.time()
+    if getattr(args, "runner", ""):
+        # `--runner` is a typed front door for SOLAR_RUNNER, the per-run override
+        # (TD-5.4-9). Deliberately NOT written to config.json: the whole point is
+        # to exercise a runner without mutating a live engagement's config. The
+        # env var is what `select_runner` reads, so the flag and the knob cannot
+        # disagree about which runner won.
+        os.environ["SOLAR_RUNNER"] = args.runner
+    try:
+        runner = executor.select_runner(cfg.runner)
+    except ValueError as e:
+        print(f"❌ {e}", file=sys.stderr)
+        sys.exit(2)
     if args.chain and args.role:
         print("❌ --chain and --role are mutually exclusive", file=sys.stderr)
         sys.exit(2)
@@ -79,7 +92,6 @@ def cmd_run(args):
                      resume_result=args.result, chain=args.chain or "",
                      role=args.role or "")
     _write_artifacts(cfg, state, thread, started)
-    runner = executor.select_runner(cfg.runner)
     chain = f" chain={state.get('chain')}" if state.get("chain") else ""
     print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')} "
           f"role={state.get('role')}{chain} runner={runner}")
@@ -208,11 +220,14 @@ def cmd_doctor(args):
         checks["registry"] = ("PASS", detail)
     except Exception as e:
         checks["registry"] = ("FAIL", str(e))
-    runner = executor.select_runner(cfg.runner)
-    detail = {"agent-dispatch": "hand off to .agent.md agents in the IDE",
-              "http": "OpenAI-compatible (SOLAR_API_KEY set)",
-              "stub": "no API key -> deterministic stub"}[runner]
-    checks["runner"] = ("PASS", f"{runner} ({detail})")
+    try:
+        runner = executor.select_runner(cfg.runner)
+        detail = {"agent-dispatch": "hand off to .agent.md agents in the IDE",
+                  "http": "OpenAI-compatible (SOLAR_API_KEY set)",
+                  "stub": "no API key -> deterministic stub"}[runner]
+        checks["runner"] = ("PASS", f"{runner} ({detail})")
+    except ValueError as e:
+        checks["runner"] = ("FAIL", str(e))
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
@@ -256,6 +271,11 @@ def main():
                        help="pin dispatch to one registry role (skip keyword classify) — "
                             "e.g. a Hermes intake decision")
     p_run.add_argument("--approve", choices=["approve", "deny"], default=None)
+    p_run.add_argument("--runner", choices=list(executor.RUNNERS), default=None,
+                       help="run THIS task with another runner without touching "
+                            "config.json (sets SOLAR_RUNNER for this run) — e.g. "
+                            "exercise the http path on a repo that pins "
+                            "agent-dispatch")
     p_run.add_argument("--result", default=None,
                        help="agent-dispatch: supply the agent result text/path non-interactively")
     p_run.add_argument("--json", action="store_true",

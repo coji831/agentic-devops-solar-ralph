@@ -137,8 +137,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.rstrip("/").endswith("/health"):
-            self._send(200, {"ok": True, "version": __version__,
-                             "runner": executor.select_runner(_server_cfg_runner()),
+            # A bad SOLAR_RUNNER / config runner must not take the health endpoint
+            # down with it: report it instead of raising (TD-5.4-9).
+            try:
+                runner, runner_error = executor.select_runner(_server_cfg_runner()), ""
+            except ValueError as e:
+                runner, runner_error = "invalid", str(e)
+            self._send(200, {"ok": True, "version": __version__, "runner": runner,
+                             "runner_error": runner_error,
                              "api_key": executor.api_key() is not None})
         else:
             self._send(404, {"status": "error", "message": f"no route {self.path}"})

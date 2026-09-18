@@ -122,16 +122,38 @@ def available() -> bool:
     return api_key() is not None
 
 
+# The three runners (v5 §3): agent-dispatch hands off to the repo's .agent.md
+# agents in the IDE; http calls an OpenAI-compatible endpoint; stub is
+# deterministic and offline. Kept here so the CLI can offer them as choices.
+RUNNERS = ("agent-dispatch", "http", "stub")
+
+
 def select_runner(cfg_runner: str = "") -> str:
     """Resolve which runner executes specialist work (v5 §3, provider-agnostic).
 
-    Order: explicit config/env > auto (http when a key is set, else stub).
-    Values: "agent-dispatch" (hand off to the repo's .agent.md agents in the
-    IDE) · "http" (OpenAI-compatible) · "stub" (deterministic, offline).
+    Ladder: `SOLAR_RUNNER` (env, or `run --runner`, which sets it for the run) >
+    the repo's `config.json` `runner` > auto (http when a key is set, else stub).
+
+    The env level beating the config is the point (TD-5.4-9). A repo that pins
+    `agent-dispatch` can be exercised through `http` for one run **without
+    editing its config**, which is what the v5.4.1 integration test had to do —
+    editing a live engagement's `.solar/config.json` and restoring it, twice.
+    Before this the config always won, so `SOLAR_RUNNER` could never be reached:
+    the opposite of `SOLAR_MODEL`, where env beats both role and config.
+
+    An unrecognised value **raises** rather than falling through to auto. A typo
+    that silently selects a different runner than the caller asked for is the
+    same class of defect as a failed check reading as a pass.
     """
-    r = cfg_runner or os.environ.get("SOLAR_RUNNER", "")
-    if r in ("agent-dispatch", "http", "stub"):
-        return r
+    for source, value in (("SOLAR_RUNNER", os.environ.get("SOLAR_RUNNER", "")),
+                          ("config runner", cfg_runner)):
+        value = (value or "").strip()
+        if not value:
+            continue
+        if value in RUNNERS:
+            return value
+        raise ValueError(f"unknown runner {value!r} from {source} "
+                         f"(expected one of: {', '.join(RUNNERS)})")
     return "http" if available() else "stub"
 
 

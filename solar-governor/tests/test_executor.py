@@ -3,6 +3,7 @@
 No network: these tests force a key-less environment so the executor falls back
 to the stub regardless of whether SOLAR_API_KEY is set on the dev machine.
 """
+import argparse
 import json
 import os
 import shutil
@@ -15,10 +16,19 @@ from pathlib import Path
 # make these tests deterministic-offline even when a real key is set in the env
 os.environ.pop("SOLAR_API_KEY", None)
 os.environ.pop("DEEPSEEK_API_KEY", None)
+# ...and independent of whatever the developer's shell has exported. An ambient
+# SOLAR_MODEL silently rewrites the model-precedence assertions, SOLAR_RUNNER
+# changes what every runner test resolves, and SOLAR_TEMPERATURE changes the
+# per-round payload the loop tests assert on. (SOLAR_MAX_ROUNDS and
+# SOLAR_TOOL_OUTPUT_CHARS are left alone: those are legitimate tuning knobs to
+# set deliberately for a test run.)
+os.environ.pop("SOLAR_MODEL", None)
+os.environ.pop("SOLAR_RUNNER", None)
+os.environ.pop("SOLAR_TEMPERATURE", None)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from solar_governor import executor               # noqa: E402
+from solar_governor import cli, executor         # noqa: E402
 from solar_governor.core import Config            # noqa: E402
 from solar_governor.graph import build_graph, run_task  # noqa: E402
 from solar_governor.workspace import Workspace    # noqa: E402
@@ -406,6 +416,93 @@ def test_run_card_records_a_forced_answer():
     path = runcard.write(cfg, state, "t-forced", time.time())
     assert json.loads(path.read_text(encoding="utf-8"))["forced_final"] is True
     shutil.rmtree(r)
+
+
+# ---------------------------------------------------------------------------
+# runner selection (TD-5.4-9)
+# ---------------------------------------------------------------------------
+
+
+def test_select_runner_env_beats_the_repo_config():
+    """The per-run override must actually reach the runner.
+
+    Before this the config always won (`cfg_runner or os.environ[...]`), so
+    SOLAR_RUNNER was unreachable on any repo that pinned a runner - which is how
+    testing the http path against Promyro ended up editing a live config twice.
+    """
+    os.environ["SOLAR_RUNNER"] = "stub"
+    try:
+        assert executor.select_runner("agent-dispatch") == "stub"
+    finally:
+        os.environ.pop("SOLAR_RUNNER", None)
+    # without the override the pinned config still stands
+    assert executor.select_runner("agent-dispatch") == "agent-dispatch"
+
+
+def test_select_runner_rejects_an_unknown_value_instead_of_downgrading():
+    """A typo must not silently pick a runner other than the one asked for."""
+    os.environ["SOLAR_RUNNER"] = "https"
+    try:
+        try:
+            executor.select_runner("agent-dispatch")
+        except ValueError as e:
+            assert "https" in str(e) and "SOLAR_RUNNER" in str(e)
+        else:
+            raise AssertionError("an unknown SOLAR_RUNNER was accepted")
+    finally:
+        os.environ.pop("SOLAR_RUNNER", None)
+    try:
+        executor.select_runner("agent-dispatchh")
+    except ValueError as e:
+        assert "config runner" in str(e)
+    else:
+        raise AssertionError("an unknown config runner was accepted")
+
+
+def test_select_runner_treats_blank_values_as_unset():
+    os.environ["SOLAR_RUNNER"] = "   "
+    try:
+        assert executor.select_runner("stub") == "stub"
+    finally:
+        os.environ.pop("SOLAR_RUNNER", None)
+    assert executor.select_runner("  http  ") == "http"     # stray whitespace tolerated
+    assert executor.select_runner("") in ("http", "stub")  # nothing set -> auto
+
+
+def test_the_runner_flag_overrides_a_config_that_pins_another_runner():
+    """`run --runner X` decides the runner for ONE run, config untouched.
+
+    The pinned runner here is `agent-dispatch`, which would write a handoff and
+    pause for an IDE agent. `stub` runs in-process, so the run-card proving
+    `model == "stub"` is proof the flag won - and config.json must come back
+    byte-identical, because the whole point is not to edit a live engagement.
+    """
+    r = _tmp_repo()
+    reg = {"frontend-engineer": {"role": "Frontend Engineer",
+                                 "system": "You build frontend.", "tools": [],
+                                 "next_edges": [], "model": ""}}
+    (r / ".solar").mkdir(parents=True, exist_ok=True)
+    (r / ".solar" / "registry.json").write_text(json.dumps(reg), encoding="utf-8")
+    cfg = Config(repo=str(r), runner="agent-dispatch")
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg.save(r / ".solar" / "config.json")
+
+    ns = argparse.Namespace(repo=str(r), thread="flag1", task="build a login screen",
+                            chain=None, auto=False, role="frontend-engineer",
+                            approve=None, result=None, json=False, runner="stub")
+    os.environ.pop("SOLAR_RUNNER", None)
+    try:
+        cli.cmd_run(ns)
+        assert os.environ["SOLAR_RUNNER"] == "stub"
+        card = json.loads((r / ".solar" / "runs" / "flag1.json").read_text(encoding="utf-8"))
+        assert card["model"] == "stub"          # the flag won, not the pinned runner
+        assert card["verdict"] == "APPROVED"
+        assert not (r / ".solar" / "handoffs").exists()   # agent-dispatch would have
+        assert json.loads((r / ".solar" / "config.json").read_text(
+            encoding="utf-8"))["runner"] == "agent-dispatch"   # untouched
+    finally:
+        os.environ.pop("SOLAR_RUNNER", None)
+        shutil.rmtree(r)
 
 
 if __name__ == "__main__":
