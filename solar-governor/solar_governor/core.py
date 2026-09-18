@@ -43,6 +43,10 @@ DEFAULTS: dict = {
     "uplink": "none",
     "model": "",          # "" = deterministic stub executor (no API key needed)
     "human_approval": False,
+    # Reasoning/thinking effort passed through to the provider (TD-5.4-2). "" sends
+    # no such field, which is the default: providers disagree about the scale and
+    # about whether they accept it, so opting in is explicit.
+    "reasoning_effort": "",
     # Runner = HOW the specialist node executes work (provider-agnostic, v5 §3):
     #   ""             -> auto (http if SOLAR_API_KEY set, else stub)
     #   "http"         -> OpenAI-compatible HTTP client
@@ -60,6 +64,7 @@ class Config:
     uplink: str = DEFAULTS["uplink"]
     model: str = DEFAULTS["model"]
     human_approval: bool = DEFAULTS["human_approval"]
+    reasoning_effort: str = DEFAULTS["reasoning_effort"]
     runner: str = DEFAULTS["runner"]
 
     @property

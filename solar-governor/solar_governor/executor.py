@@ -104,17 +104,70 @@ def base_url() -> str:
     return os.environ.get("SOLAR_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
-def model_name(cfg_model: str = "", role_model: str = "") -> str:
-    """Resolve the model id for one call (TD-5.4-1).
+def resolve_model(cfg_model: str = "", role_model: str = "") -> tuple[str, str]:
+    """Resolve the model id for one call, and say which level supplied it.
 
-    Precedence: `SOLAR_MODEL` env > the ROLE's registry `model` > `cfg.model` >
-    the default. The env knob stays first so a per-run override always wins; the
-    role's own value beats the global config so one chain can mix tiers (flash for
-    read/verify/docs, pro for hard work). An empty value at any level is skipped,
-    so a registry that leaves `model` as "" keeps inheriting, as it did before.
+    Precedence (TD-5.4-1): `SOLAR_MODEL` env > the ROLE's registry `model` >
+    `cfg.model` > the default. The env knob stays first so a per-run override
+    always wins; the role's own value beats the global config so one chain can mix
+    tiers (flash for read/verify/docs, pro for hard work). An empty value at any
+    level is skipped, so a registry that leaves `model` as "" keeps inheriting.
+
+    Returns (id, source) because `doctor` has to SHOW the provenance (TD-5.4-6):
+    knowing the id is not enough to tell a deliberate env override from a stale
+    config pin. One ladder, one place - a second copy would drift.
     """
-    return (os.environ.get("SOLAR_MODEL") or role_model or cfg_model
-            or DEFAULT_MODEL)
+    for source, value in (("env SOLAR_MODEL", os.environ.get("SOLAR_MODEL") or ""),
+                          ("role", role_model or ""),
+                          ("config", cfg_model or "")):
+        if value:
+            return value, source
+    return DEFAULT_MODEL, "default"
+
+
+def model_name(cfg_model: str = "", role_model: str = "") -> str:
+    """The resolved model id for one call (see `resolve_model`)."""
+    return resolve_model(cfg_model, role_model)[0]
+
+
+def reasoning_effort(cfg_effort: str = "", role_effort: str = "") -> str:
+    """Reasoning / thinking effort for one call ("" = send no such field).
+
+    Ladder mirrors the model ladder (TD-5.4-2): `SOLAR_REASONING_EFFORT` env > the
+    ROLE's registry `reasoning` > `cfg.reasoning_effort`.
+
+    Deliberately unvalidated and OFF by default. Providers disagree about the
+    accepted scale and about whether they accept the field at all, so a bad value
+    has to come back as the provider's own error rather than being silently dropped
+    here. Nothing is sent unless some level supplies a value, so this cannot change
+    the behaviour of an existing repo.
+    """
+    return (os.environ.get("SOLAR_REASONING_EFFORT") or role_effort or cfg_effort
+            or "").strip()
+
+
+# Ids a provider serves through an alias it does not list in /models. DeepSeek
+# accepts `deepseek-chat` while `GET /models` returns only `deepseek-flash` and
+# `deepseek-v4-pro`, so absence from that list is not proof of a bad id.
+UNLISTED_ALIASES = ("deepseek-chat",)
+
+
+def known_models(timeout: float = 15.0) -> tuple[list[str] | None, str]:
+    """Ask the provider which model ids it serves: (ids|None, error).
+
+    `doctor`-only. A mis-set id is otherwise invisible until the first chat call
+    comes back 400 - which is how a non-existent `deepseek-v4-flash` pin sat in a
+    repo config unnoticed. Never raises: doctor reports, it does not fail a run.
+    """
+    key = api_key()
+    if key is None:
+        return None, "no API key"
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=key, base_url=base_url(), timeout=timeout)
+        return [m.id for m in client.models.list().data], ""
+    except Exception as e:  # network, auth, or SDK failure
+        return None, str(e)
 
 
 def available() -> bool:
@@ -252,7 +305,8 @@ class ExecutorResult(dict):
     """Thin dict: output / usage(in,out) / tool_calls / error / model / forced_final."""
 
 
-def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int) -> ExecutorResult:
+def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
+               effort: str = "") -> ExecutorResult:
     """Run the model/tool loop for one specialist node.
 
     Three termination rules, each added because the loop was measured returning
@@ -288,6 +342,8 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int) ->
         payload: dict = {"model": model, "messages": messages}
         if temp is not None:
             payload["temperature"] = temp
+        if effort:
+            payload["reasoning_effort"] = effort
         if not final_round:
             payload["tools"] = tools
         try:
@@ -328,13 +384,15 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int) ->
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
         cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
-        spec: dict | None = None, human_approval: bool = False) -> ExecutorResult:
+        spec: dict | None = None, human_approval: bool = False,
+        cfg_reasoning: str = "") -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
     policy derives from the ROLE, not the process: which tools are offered, where the
     role may write, and which commands it may run. Its `model` is the per-node model
-    override (TD-5.4-1). `human_approval` reaches the command layer's approval gate.
+    override (TD-5.4-1) and its `reasoning` the per-node effort (TD-5.4-2).
+    `human_approval` reaches the command layer's approval gate.
 
     Falls back to a stub (no network) when no API key is present, so the graph
     stays runnable/testable without credentials.
@@ -367,4 +425,5 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                       "no tool call needed."},
         {"role": "user", "content": objective},
     ]
-    return _tool_loop(client, model, messages, ws, max_rounds)
+    effort = reasoning_effort(cfg_reasoning, (spec or {}).get("reasoning", ""))
+    return _tool_loop(client, model, messages, ws, max_rounds, effort)

@@ -285,11 +285,11 @@ def _calls(*tc):
     return _FakeResponse(_FakeMessage(content=None, tool_calls=list(tc)))
 
 
-def _loop(client, ws=None, max_rounds=3):
+def _loop(client, ws=None, max_rounds=3, effort=""):
     return executor._tool_loop(client, "test-model",
                                [{"role": "system", "content": "sys"},
                                 {"role": "user", "content": "obj"}],
-                               ws or _StubWs(), max_rounds)
+                               ws or _StubWs(), max_rounds, effort)
 
 
 def test_tool_loop_sends_an_explicit_temperature():
@@ -492,7 +492,12 @@ def test_the_runner_flag_overrides_a_config_that_pins_another_runner():
                             approve=None, result=None, json=False, runner="stub")
     os.environ.pop("SOLAR_RUNNER", None)
     try:
-        cli.cmd_run(ns)
+        try:
+            cli.cmd_run(ns)
+        except SystemExit as e:
+            assert e.code == cli.EXIT_OK      # completed, and APPROVED
+        else:
+            raise AssertionError("cmd_run did not exit")
         assert os.environ["SOLAR_RUNNER"] == "stub"
         card = json.loads((r / ".solar" / "runs" / "flag1.json").read_text(encoding="utf-8"))
         assert card["model"] == "stub"          # the flag won, not the pinned runner
@@ -503,6 +508,81 @@ def test_the_runner_flag_overrides_a_config_that_pins_another_runner():
     finally:
         os.environ.pop("SOLAR_RUNNER", None)
         shutil.rmtree(r)
+
+
+def test_a_rejected_run_does_not_exit_zero():
+    """TD-5.4-10: every `max_rounds` failure in the v5.4.1 integration test exited 0
+    while carrying `verdict: REJECTED`, so a wrapper driving on exit codes read a hard
+    failure as a pass. "The graph finished" and "the work was accepted" are different
+    claims, and now have different codes."""
+    assert cli._exit_for({"verdict": "REJECTED"}) == cli.EXIT_REJECTED == 12
+    assert cli._exit_for({"verdict": "APPROVED"}) == cli.EXIT_OK
+    assert cli._exit_for({}) == cli.EXIT_OK          # still running: not a failure
+
+
+def test_resolve_model_reports_which_level_supplied_the_id():
+    """TD-5.4-6 needs the provenance, not just the id: a deliberate env override and
+    a stale config pin otherwise resolve to the same kind of string."""
+    assert executor.resolve_model("cfg-m", "role-m") == ("role-m", "role")
+    assert executor.resolve_model("cfg-m", "") == ("cfg-m", "config")
+    assert executor.resolve_model("", "") == (executor.DEFAULT_MODEL, "default")
+    os.environ["SOLAR_MODEL"] = "env-m"
+    try:
+        assert executor.resolve_model("cfg-m", "role-m") == ("env-m", "env SOLAR_MODEL")
+    finally:
+        os.environ.pop("SOLAR_MODEL", None)
+
+
+def test_doctor_names_the_model_that_will_run():
+    cfg = Config(model="deepseek-flash")
+    status, detail = cli._model_check(cfg, {})
+    assert status == "PASS" and "deepseek-flash (from config" in detail
+    os.environ["SOLAR_MODEL"] = "deepseek-v4-pro"
+    try:
+        status, detail = cli._model_check(cfg, {})
+        assert status == "PASS" and "from env SOLAR_MODEL" in detail
+    finally:
+        os.environ.pop("SOLAR_MODEL", None)
+    # a role's model beats the config, so doctor has to name the roles that do it
+    _, detail = cli._model_check(cfg, {"investigator": {"model": "deepseek-flash"}})
+    assert "1 role(s) override: investigator" in detail
+
+
+def test_doctor_warns_on_an_id_the_provider_does_not_serve():
+    """The exact bug that sat unnoticed in a real repo config: a pin of
+    `deepseek-v4-flash`, which does not exist."""
+    orig = executor.known_models
+    executor.known_models = lambda timeout=15.0: (["deepseek-flash", "deepseek-v4-pro"], "")
+    try:
+        status, detail = cli._model_check(Config(model="deepseek-v4-flash"), {})
+        assert status == "WARN" and "deepseek-v4-flash" in detail
+        # ...but an alias the provider serves without listing it is NOT a warning
+        status, _ = cli._model_check(Config(model="deepseek-chat"), {})
+        assert status == "PASS"
+    finally:
+        executor.known_models = orig
+
+
+def test_reasoning_effort_ladder_and_default():
+    """TD-5.4-2. Off by default: a field the provider may reject must not be sent
+    unless some level asks for it."""
+    assert executor.reasoning_effort("", "") == ""
+    assert executor.reasoning_effort("cfg-e", "") == "cfg-e"
+    assert executor.reasoning_effort("cfg-e", "role-e") == "role-e"
+    os.environ["SOLAR_REASONING_EFFORT"] = "env-e"
+    try:
+        assert executor.reasoning_effort("cfg-e", "role-e") == "env-e"
+    finally:
+        os.environ.pop("SOLAR_REASONING_EFFORT", None)
+
+
+def test_reasoning_effort_is_absent_unless_configured():
+    client = _FakeClient([_text("ok")])
+    _loop(client)
+    assert "reasoning_effort" not in client.payloads[0]
+    client = _FakeClient([_text("ok")])
+    _loop(client, effort="high")
+    assert client.payloads[0]["reasoning_effort"] == "high"
 
 
 if __name__ == "__main__":

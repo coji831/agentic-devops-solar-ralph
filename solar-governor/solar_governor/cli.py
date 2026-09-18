@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bench, chain, eval as eval_mod, executor, runcard, server
+from . import bench, chain, eval as eval_mod, executor, runcard, server, uplink
 from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import render
@@ -19,6 +19,7 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_AGENT_DISPATCH = 10   # paused: run the specialist, resume with --result
 EXIT_REVIEW = 11           # paused: ask the human, resume with --approve
+EXIT_REJECTED = 12         # the graph completed, but the verdict is REJECTED
 
 
 def _cfg_path(root: Path) -> Path:
@@ -101,6 +102,7 @@ def cmd_run(args):
     print(f"   output:\n{out}")
     print(f"   ledger: {cfg.ledger_path}")
     print(f"   run-card: {cfg.root / '.solar' / 'runs' / f'{thread}.json'}")
+    sys.exit(_exit_for(state))
 
 
 def _cmd_run_chain_auto(cfg, args, thread) -> None:
@@ -113,10 +115,26 @@ def _write_artifacts(cfg, state, thread, started) -> None:
     """Render the human-view ledger + run-card from a state snapshot.
 
     Called at every --json step so progress is on disk even when the run is
-    paused at an interrupt; the final step overwrites the run-card.
+    paused at an interrupt; the final step overwrites the run-card. The uplink
+    push happens last, on the finished record, and prints nothing when disabled.
     """
     render(cfg, state)
     runcard.write(cfg, state, thread, started)
+    line = uplink.push(cfg, state, thread)
+    if line:
+        print(f"   {line}")
+
+
+def _exit_for(state: dict) -> int:
+    """Exit code for a completed step (TD-5.4-10).
+
+    A REJECTED verdict is NOT success. The text "0 complete" invited a wrapper to
+    read a hard failure as a pass: every `max_rounds` failure in the v5.4.1
+    integration test exited 0 while carrying `verdict: REJECTED`. "The graph
+    reached its end" and "the work was accepted" are different claims, so they get
+    different codes.
+    """
+    return EXIT_REJECTED if state.get("verdict") == "REJECTED" else EXIT_OK
 
 
 def _state_summary(state: dict) -> dict:
@@ -192,7 +210,7 @@ def _cmd_run_json(cfg, args, thread, started) -> None:
                "output": state.get("output", ""),
                "ledger": str(cfg.ledger_path),
                "run_card": str(cfg.root / ".solar" / "runs" / f"{thread}.json"),
-               "state": _state_summary(state)}, EXIT_OK)
+               "state": _state_summary(state)}, _exit_for(state))
 
 
 def cmd_doctor(args):
@@ -212,6 +230,7 @@ def cmd_doctor(args):
         checks["graph-compiles"] = ("PASS", "")
     except Exception as e:
         checks["graph-compiles"] = ("FAIL", str(e))
+    reg: dict = {}
     try:
         reg = load_registry(root / ".solar" / "registry.json")
         n_roles = len(role_keys(reg))
@@ -228,16 +247,49 @@ def cmd_doctor(args):
         checks["runner"] = ("PASS", f"{runner} ({detail})")
     except ValueError as e:
         checks["runner"] = ("FAIL", str(e))
+    checks["model"] = _model_check(cfg, reg)
+    checks["uplink"] = uplink.status(cfg)
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
     _print_doctor(checks)
-    sys.exit(0 if all(v[0] == "PASS" for v in checks.values()) else 1)
+    sys.exit(1 if any(v[0] == "FAIL" for v in checks.values()) else 0)
+
+
+def _model_check(cfg, reg: dict) -> tuple:
+    """Report the model that will ACTUALLY run, and where it came from (TD-5.4-6).
+
+    Otherwise the only way to discover that `SOLAR_MODEL` is set in the shell, or
+    that the config pins an id the provider does not serve, is to watch the first
+    run fail. Role overrides are named too, since a role's `model` now beats the
+    config and can therefore hide a stale pin.
+    """
+    model, source = executor.resolve_model(cfg.model)
+    overrides = sorted(r for r, spec in (reg or {}).items()
+                       if isinstance(spec, dict) and spec.get("model"))
+    effort = executor.reasoning_effort(cfg.reasoning_effort)
+    detail = f"{model} (from {source}"
+    if overrides:
+        shown = ", ".join(overrides[:4]) + ("..." if len(overrides) > 4 else "")
+        detail += f"; {len(overrides)} role(s) override: {shown}"
+    if effort:
+        detail += f"; reasoning_effort={effort}"
+    detail += ")"
+    ids, err = executor.known_models()
+    if ids is None:
+        # no key, or the endpoint did not answer: nothing to compare against, and a
+        # doctor has no business inventing a verdict without evidence
+        return "PASS", detail
+    if model in ids or model in executor.UNLISTED_ALIASES:
+        return "PASS", f"{detail} [provider serves {len(ids)} id(s)]"
+    return "WARN", (f"{detail} - not in the provider's model list "
+                    f"({', '.join(ids)}); may be an alias, or a typo")
 
 
 def _print_doctor(checks: dict[str, tuple]) -> None:
+    marks = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌"}
     for name, (status, detail) in checks.items():
-        mark = "✅" if status == "PASS" else "❌"
+        mark = marks.get(status, "?")
         print(f"{mark} {name}: {status}{(' - ' + str(detail)) if detail else ''}")
 
 
@@ -280,7 +332,7 @@ def main():
                        help="agent-dispatch: supply the agent result text/path non-interactively")
     p_run.add_argument("--json", action="store_true",
                        help="one graph step, machine-readable (exit 0 complete · "
-                            "10 agent-dispatch · 11 review · 2 error)")
+                            "10 agent-dispatch · 11 review · 12 rejected · 2 error)")
     p_run.set_defaults(fn=cmd_run)
 
     p_doct = sub.add_parser("doctor", help="install self-check")
