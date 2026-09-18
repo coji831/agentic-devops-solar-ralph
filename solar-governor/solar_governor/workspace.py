@@ -29,13 +29,30 @@ _WRITE_DENY_NAMES = {".mcp.json", "package.json", "package-lock.json",
                      "docker-compose.yml", "makefile"}
 
 
+def _norm_prefixes(value) -> list[str]:
+    """Normalise a registry prefix list to repo-relative, forward-slashed form."""
+    if isinstance(value, str):
+        value = [value]
+    if not value:
+        return []
+    return [str(v).replace("\\", "/").strip("/") for v in value if str(v).strip("/")]
+
+
 class Workspace:
     """Repo-bounded file access for one governor run.
 
     `spec` is the ROLE's registry entry (v5 §6), passed in by the executor so
-    policy can be derived from the role rather than the process. It is carried
-    but not yet read — the write policy (B2) and the offered tool set (B1) are
-    what consume it. Deep-copied so a caller's registry dict is never mutated.
+    policy can be derived from the role rather than the process: which tools the
+    role is OFFERED (`tools`, `write`) and where it may write (`write_deny`,
+    `write_scope`). Deep-copied so a caller's registry dict is never mutated.
+
+    Registry contract (all optional; absent means unchanged historical behaviour):
+
+        tools        ["workspace", "exec"]  tool GROUPS (absent/[] = "workspace")
+        write        false                 the role is read-only: `write_file` is
+                                           neither offered nor permitted
+        write_deny   ["emails"]            extra path prefixes this role may not write
+        write_scope  ["repos/pvl-rentals"] if set, writes MUST fall under one of these
     """
 
     def __init__(self, root: Path, spec: dict | None = None):
@@ -53,9 +70,12 @@ class Workspace:
     def _write_denial(self, rel: str) -> str | None:
         """Why `rel` may not be written, or None when it may.
 
-        This is the light profile's only write guard, so it is deliberately
-        unconditional: it does not consult the role, the objective, or anything
-        the model can influence. A deny here is not a suggestion.
+        Two layers. The first is UNCONDITIONAL — agent config and
+        execution-defining files, matched on any segment at any depth; it does
+        not consult the role, the objective, or anything the model influences.
+        The second is per-ROLE, from the registry spec: extra denied prefixes
+        and, when `write_scope` is set, confinement to an allowed subtree.
+        Neither is a suggestion.
         """
         parts = [p for p in rel.replace("\\", "/").split("/") if p not in ("", ".")]
         for part in parts[:-1]:
@@ -64,7 +84,45 @@ class Workspace:
         name = parts[-1] if parts else ""
         if name.lower() in _WRITE_DENY_NAMES:
             return f"{name} is protected (defines tooling, deps or CI)"
+        return self._role_write_denial("/".join(parts))
+
+    def _role_write_denial(self, norm: str) -> str | None:
+        """The per-role half of the write policy: denied prefixes, then scope."""
+        for prefix in _norm_prefixes(self.spec.get("write_deny")):
+            if norm == prefix or norm.startswith(prefix + "/"):
+                return f"{prefix}/ is denied for this role"
+        scope = _norm_prefixes(self.spec.get("write_scope"))
+        if scope and not any(norm == a or norm.startswith(a + "/") for a in scope):
+            return ("outside this role's write scope "
+                    f"({', '.join(a + '/' for a in scope)})")
         return None
+
+    # --- role capability --------------------------------------------------
+    def _declared_tools(self) -> set[str]:
+        """The tool GROUPS this role declares.
+
+        Absent or empty means "workspace": that was the de-facto behaviour of
+        every registry before this key was read, so it must stay the default.
+        """
+        declared = self.spec.get("tools")
+        if not declared:
+            return {"workspace"}
+        return {str(t).lower() for t in declared}
+
+    def allows_write(self) -> bool:
+        """Whether this role may be offered — or use — `write_file` at all.
+
+        Capability rather than compliance, deliberately: this node overrides
+        prose constraints (0/8 on an explicit read-only instruction), so the way
+        to make a role read-only is to not hand it the tool. `write_file` ALSO
+        refuses when this is False, because a model can emit a call for a tool it
+        was never offered and "not offered" is not by itself an enforcement.
+
+        No spec at all (a legacy direct call) leaves write access unchanged.
+        """
+        if not self.spec:
+            return True
+        return bool(self.spec.get("write", True))
 
     # --- tools (each returns a string for the LLM) ------------------------
     def list_tree(self, rel: str = ".", depth: int = 3) -> str:
@@ -147,10 +205,13 @@ class Workspace:
     def write_file(self, rel: str, content: str) -> str:
         """Create/overwrite a file inside the repo.
 
-        Two refusals, both structural: a path that escapes the repo root, and a
-        path on the write deny-list. The deny-list is what stops an injected
-        objective from rewriting the agent's own registry entry.
+        Three refusals, all structural: a role that is not permitted to write at
+        all, a path that escapes the repo root, and a path on the write policy
+        (unconditional deny-list, per-role deny, or outside the role's scope).
         """
+        if not self.allows_write():
+            return (f"ERROR: refusing to write {rel}: this role is read-only "
+                    f"(`write` is false in the registry)")
         try:
             p = self._resolve(rel)
         except ValueError as e:
@@ -166,7 +227,13 @@ class Workspace:
 
     # --- OpenAI-compatible function schema --------------------------------
     def tool_schemas(self) -> list[dict]:
-        return [
+        """The function schemas for the tools THIS role may be offered.
+
+        Gated by the role. A read-only role is never handed `write_file`: a tool
+        that is not in the list cannot be argued into use, and this node overrides
+        prose constraints (0/8 on an explicit read-only instruction).
+        """
+        schemas = [
             {"type": "function", "function": {
                 "name": "list_tree",
                 "description": "List the repo directory tree (skips vendored/build dirs).",
@@ -200,6 +267,12 @@ class Workspace:
                     "content": {"type": "string", "description": "full file content"}},
                     "required": ["rel", "content"]}}},
         ]
+        if "workspace" not in self._declared_tools():
+            return []
+        if not self.allows_write():
+            return [s for s in schemas
+                    if s["function"]["name"] != "write_file"]
+        return schemas
 
     def call_tool(self, name: str, args: dict) -> str:
         fn = getattr(self, name, None)

@@ -367,6 +367,103 @@ def test_call_tool_contains_the_escape_as_an_error_string():
     shutil.rmtree(r)
 
 
+# --- role-gated capability (Part B1) -----------------------------------------
+# A read-only role must never be OFFERED write_file. The role prompts already say
+# "read-only" in prose and this node overrides prose (0/8), so the fix is
+# capability: do not hand it the tool.
+
+def test_read_only_role_is_not_offered_write_file():
+    r = _tmp_repo()
+    ws = Workspace(r, {"tools": ["workspace"], "write": False})
+    names = {s["function"]["name"] for s in ws.tool_schemas()}
+    assert "write_file" not in names
+    assert {"list_tree", "read_file", "glob"} <= names
+    shutil.rmtree(r)
+
+
+def test_write_capable_roles_are_offered_write_file():
+    """Absent `write` keeps historical behaviour; so does an explicit true."""
+    r = _tmp_repo()
+    for spec in ({}, {"tools": ["workspace"]}, {"tools": ["workspace"], "write": True}):
+        names = {s["function"]["name"] for s in Workspace(r, spec).tool_schemas()}
+        assert "write_file" in names, spec
+    shutil.rmtree(r)
+
+
+def test_no_spec_leaves_write_untouched():
+    """A direct Workspace(root) call is not a registry run; do not change it."""
+    r = _tmp_repo()
+    ws = Workspace(r)
+    assert ws.allows_write() is True
+    assert ws.write_file("apps/ok.ts", "x").startswith("wrote")
+    shutil.rmtree(r)
+
+
+def test_read_only_role_write_file_call_is_refused_anyway():
+    """Defence in depth: a model can emit a call for a tool it was NOT offered.
+
+    Being absent from the schema is not itself an enforcement, so write_file
+    refuses on the role as well.
+    """
+    r = _tmp_repo()
+    ws = Workspace(r, {"tools": ["workspace"], "write": False})
+    out = ws.write_file("apps/ok.ts", "x")
+    assert out.startswith("ERROR: refusing to write")
+    assert "read-only" in out
+    assert not (r / "apps" / "ok.ts").exists()
+    # ...and the read tools still work for that role
+    assert "export const x" in ws.read_file("apps/a.test.ts")
+    shutil.rmtree(r)
+
+
+def test_role_without_the_workspace_group_gets_no_workspace_tools():
+    r = _tmp_repo()
+    assert Workspace(r, {"tools": ["exec"]}).tool_schemas() == []
+    shutil.rmtree(r)
+
+
+def test_empty_tools_defaults_to_the_workspace_group():
+    """`tools: []` is how pre-existing registries spell it; must stay permissive."""
+    r = _tmp_repo()
+    names = {s["function"]["name"] for s in Workspace(r, {"tools": []}).tool_schemas()}
+    assert names == {"list_tree", "read_file", "glob", "write_file"}
+    shutil.rmtree(r)
+
+
+def test_per_role_write_deny_blocks_that_prefix_only():
+    r = _tmp_repo()
+    ws = Workspace(r, {"write_deny": ["emails"]})
+    assert ws.write_file("emails/draft.md", "x").startswith("ERROR: refusing")
+    assert ws.write_file("emails", "x").startswith("ERROR: refusing")
+    assert ws.write_file("emails2/x.md", "x").startswith("wrote")   # not a prefix of this
+    shutil.rmtree(r)
+
+
+def test_per_role_write_scope_confines_writes():
+    r = _tmp_repo()
+    ws = Workspace(r, {"write_scope": ["repos/pvl-rentals"]})
+    assert ws.write_file("repos/pvl-rentals/src/a.ts", "x").startswith("wrote")
+    out = ws.write_file("records/notes.md", "x")
+    assert out.startswith("ERROR: refusing")
+    assert "write scope" in out
+    shutil.rmtree(r)
+
+
+def test_write_deny_accepts_a_bare_string():
+    r = _tmp_repo()
+    ws = Workspace(r, {"write_deny": "emails"})
+    assert ws.write_file("emails/x.md", "x").startswith("ERROR: refusing")
+    shutil.rmtree(r)
+
+
+def test_per_role_deny_cannot_override_the_unconditional_list():
+    """A role's own policy is additive; it can never re-open `.solar/`."""
+    r = _tmp_repo()
+    ws = Workspace(r, {"write": True, "write_scope": [".solar"]})
+    assert ws.write_file(".solar/registry.json", "x").startswith("ERROR: refusing")
+    shutil.rmtree(r)
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:
