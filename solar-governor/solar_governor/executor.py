@@ -120,6 +120,47 @@ def base_url() -> str:
     return os.environ.get("SOLAR_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
+# A local OpenAI-compatible server needs no credential, but the SDK insists on a
+# non-empty string. This is the convention those projects document themselves -
+# llama.cpp's examples pass `sk-no-key-required`, Ollama's pass `ollama`
+# ("required but ignored"), LiteLLM's local config writes `api_key: none` - so it is a
+# recognised value in a server log, not a secret someone forgot to set.
+NO_KEY_PLACEHOLDER = "sk-no-key-required"
+
+
+def resolved_key(runner: str = "") -> str | None:
+    """The credential to send: the env key, else a placeholder for an EXPLICIT http run.
+
+    Requiring a key the endpoint does not want is what made a local endpoint unreachable:
+    `run --runner http` against a perfectly healthy Ollama/llama.cpp server fell back to
+    the STUB, reported APPROVED, and recorded `tokens 0/0` - a run that never happened,
+    reading as a success, on the runner whose whole purpose was to make a local model
+    measurable.
+
+    Only an explicit `http` gets the placeholder. Auto still resolves to the stub with no
+    key (see `select_runner`), so nothing that works today changes behaviour, and the
+    placeholder is never sent to a provider you did not ask to call.
+    """
+    key = api_key()
+    if key:
+        return key
+    return NO_KEY_PLACEHOLDER if runner == "http" else None
+
+
+def endpoint_label(runner: str = "") -> str:
+    """Where a run actually went, for the record: "stub", or the endpoint's host:port.
+
+    Provenance, because the model id cannot carry it: `qwen3:8b` on a laptop and a hosted
+    `qwen3:8b` are the same string, and the run-card recorded neither. A local-vs-cloud
+    comparison that cannot say which endpoint produced a number is not evidence, so the
+    endpoint is recorded next to the model rather than left to be inferred.
+    """
+    if runner == "stub":
+        return "stub"
+    parsed = urlparse(base_url())
+    return parsed.netloc or base_url()
+
+
 def provider_family() -> str:
     """Which model family the configured endpoint speaks ("" when unknown)."""
     host = (urlparse(base_url()).hostname or "").lower()
@@ -203,14 +244,19 @@ def reasoning_effort(cfg_effort: str = "", role_effort: str = "") -> str:
 UNLISTED_ALIASES = ("deepseek-chat",)
 
 
-def known_models(timeout: float = 15.0) -> tuple[list[str] | None, str]:
+def known_models(timeout: float = 15.0, runner: str = "") -> tuple[list[str] | None, str]:
     """Ask the provider which model ids it serves: (ids|None, error).
 
     `doctor`-only. A mis-set id is otherwise invisible until the first chat call
     comes back 400 - which is how a non-existent `deepseek-v4-flash` pin sat in a
     repo config unnoticed. Never raises: doctor reports, it does not fail a run.
+
+    Uses the same key resolution as a run, so a KEYLESS local endpoint can be listed
+    (sending the placeholder is what makes it reachable at all), and the returned error is
+    what lets `doctor` say "the endpoint did not answer" instead of PASS - the one check
+    that answers "is my local server actually up?".
     """
-    key = api_key()
+    key = resolved_key(runner)
     if key is None:
         return None, "no API key"
     try:
@@ -380,11 +426,12 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
     temp = temperature()
     tools = ws.tool_schemas()
     total_in = total_out = tool_calls = 0
+    usage_reported = False          # did the ENDPOINT report usage, or is 0/0 just "unknown"?
 
     def _result(output: str, err: str | None, forced: bool) -> ExecutorResult:
         return ExecutorResult(output=output, usage={"in": total_in, "out": total_out},
                               tool_calls=tool_calls, error=err, model=model,
-                              forced_final=forced)
+                              forced_final=forced, usage_reported=usage_reported)
 
     for rnd in range(1, rounds + 1):
         final_round = rnd == rounds
@@ -402,6 +449,7 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
         try:
             resp = client.chat.completions.create(**payload)
             if getattr(resp, "usage", None):
+                usage_reported = True        # a real endpoint told us; 0/0 now means zero
                 total_in += resp.usage.prompt_tokens or 0
                 total_out += resp.usage.completion_tokens or 0
             msg = resp.choices[0].message
@@ -449,7 +497,8 @@ def stub_result(role: str, objective: str, why: str) -> ExecutorResult:
                 f"  - read the relevant files (workspace tool)\n"
                 f"  - implement the minimal change\n"
                 f"  - self-check + tests"),
-        usage={"in": 0, "out": 0}, tool_calls=0, error=None, model="stub")
+        usage={"in": 0, "out": 0}, tool_calls=0, error=None, model="stub",
+        usage_reported=False)
 
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
@@ -475,7 +524,7 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     """
     if runner == "stub":
         return stub_result(role, objective, "runner=stub, by request")
-    key = api_key()
+    key = resolved_key(runner)
     if key is None:
         return stub_result(role, objective, "no SOLAR_API_KEY set")
     try:

@@ -73,14 +73,32 @@ def test_a_repo_that_declares_nothing_extra_gets_no_arithmetic(capsys):
         shutil.rmtree(root)
 
 
-def test_doctor_warns_when_the_selected_runner_cannot_run(capsys):
-    """`http` without a key still falls back to the stub. Saying PASS and describing
-    provider calls would describe a run that is not going to happen."""
+def test_a_keyless_http_runner_is_not_reported_as_broken(capsys):
+    """CHANGED IN v5.6.4. This check used to WARN "no SOLAR_API_KEY, so specialist calls
+    fall back to the stub" — true when the stub was chosen on a missing key, and exactly
+    wrong once an explicit `http` run sends the placeholder instead. A local endpoint has
+    no key by design, so calling that a defect reported a healthy install as broken."""
     root = _repo(_seven_roles(), runner="http")
     try:
         check = _doctor(root, capsys)["runner"]
+        assert check["status"] == "PASS"
+        assert "placeholder" in check["detail"]
+        assert "401" in check["detail"]      # and says what a CLOUD endpoint would do
+    finally:
+        shutil.rmtree(root)
+
+
+def test_doctor_warns_when_the_endpoint_does_not_answer(capsys, monkeypatch):
+    """The check that answers "is my local server actually up?". A silent PASS here would
+    be a report about a run that cannot happen; for a local endpoint it is the only signal
+    that the server is down rather than slow."""
+    monkeypatch.setenv("SOLAR_BASE_URL", "http://127.0.0.1:9/v1")   # nothing listens
+    monkeypatch.delenv("SOLAR_API_KEY", raising=False)
+    root = _repo(_seven_roles(), runner="http")
+    try:
+        check = _doctor(root, capsys)["model"]
         assert check["status"] == "WARN"
-        assert "SOLAR_API_KEY" in check["detail"]
+        assert "cannot list its models" in check["detail"]
     finally:
         shutil.rmtree(root)
 

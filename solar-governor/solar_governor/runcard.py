@@ -30,9 +30,13 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "verdict": state.get("verdict", ""),
         "attempts": state.get("attempts", 0),
         "steps": len(state.get("decisions_log", [])),
-        "tokens": {"in": state.get("tokens_in", 0), "out": state.get("tokens_out", 0)},
+        # `reported` is not decoration: an endpoint may omit usage, and 0/0 from a real
+        # model is otherwise the same numbers a stub reports (TD-5.6-12).
+        "tokens": {"in": state.get("tokens_in", 0), "out": state.get("tokens_out", 0),
+                   "reported": bool(state.get("usage_reported", False))},
         "tool_calls": state.get("tool_calls", 0),
         "model": state.get("model", "stub"),
+        "provider": state.get("provider", ""),
         "error": state.get("error", ""),
         "forced_final": bool(state.get("forced_final", False)),
         # the decisions log lives in the ledger section too, but the structured record

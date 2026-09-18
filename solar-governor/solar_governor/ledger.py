@@ -69,6 +69,7 @@ def _section(thread: str, state: dict) -> str:
         lines.append(f"- {entry}")
     lines += ["", f"_stage: {state.get('stage','')} · verdict: {state.get('verdict','-')} · "
                   f"attempts: {state.get('attempts',0)} · model: {state.get('model','-')} · "
+                  f"endpoint: {state.get('provider','-') or '-'} · "
                   f"thread: {thread}_", "", END]
     return "\n".join(lines)
 

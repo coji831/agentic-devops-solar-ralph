@@ -106,6 +106,8 @@ def _execute(cfg: Config, state: SolarState, runner: str = "") -> dict:
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),
+        "provider": executor.endpoint_label(runner),
+        "usage_reported": bool(res.get("usage_reported", False)),
         "tokens_in": res.get("usage", {}).get("in", 0),
         "tokens_out": res.get("usage", {}).get("out", 0),
         "tool_calls": res.get("tool_calls", 0),

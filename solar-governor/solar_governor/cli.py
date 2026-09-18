@@ -193,7 +193,7 @@ def _state_summary(state: dict) -> dict:
     return {k: state.get(k) for k in
             ("objective", "role", "materials_status", "stage", "verdict",
              "attempts", "tokens_in", "tokens_out", "tool_calls", "error",
-             "forced_final")}
+             "forced_final", "provider", "usage_reported")}
 
 
 def _json_out(obj: dict, code: int) -> None:
@@ -259,6 +259,7 @@ def _cmd_run_json(cfg, args, thread, started) -> None:
                "stage": state.get("stage"), "verdict": state.get("verdict"),
                "role": state.get("role"), "attempts": state.get("attempts", 0),
                "model": state.get("model", "stub"),
+               "provider": state.get("provider", ""),
                "output": state.get("output", ""),
                "ledger": str(cfg.ledger_path),
                "run_card": str(cfg.root / ".solar" / "runs" / f"{thread}.json"),
@@ -308,21 +309,27 @@ def cmd_doctor(args):
         checks["registry"] = ("PASS", detail)
     except Exception as e:
         checks["registry"] = ("FAIL", str(e))
+    runner = ""
     try:
         runner = executor.select_runner(cfg.runner)
         detail = {"agent-dispatch": "hand off to .agent.md agents in the IDE",
                   "http": "OpenAI-compatible chat calls with workspace tools",
                   "stub": "deterministic and offline: no provider call at all"}[runner]
-        if runner == "http" and not executor.available():
-            # The selected runner is reported, but it cannot do what it is named for
-            # without a key. Saying PASS here would describe a run that will not happen.
-            checks["runner"] = ("WARN", f"{runner} ({detail}) — no SOLAR_API_KEY, so "
-                                        f"specialist calls fall back to the stub")
+        if not executor.available():
+            # v5.6.4: no key is no longer a defect for `http` — a placeholder is sent, which
+            # a local endpoint ignores and a cloud one rejects with a 401. What IS worth
+            # saying is which of the two situations this is: a `stub` here was chosen by
+            # AUTO, and a stub that answers reads exactly like a successful run.
+            note = ("no SOLAR_API_KEY: a placeholder is sent, which a local endpoint "
+                    "ignores and a cloud one rejects with 401" if runner == "http" else
+                    "no SOLAR_API_KEY and no runner chosen: auto selects the stub, so no "
+                    "provider call will be made")
+            checks["runner"] = ("PASS", f"{runner} ({detail}) — {note}")
         else:
             checks["runner"] = ("PASS", f"{runner} ({detail})")
     except ValueError as e:
         checks["runner"] = ("FAIL", str(e))
-    checks["model"] = _model_check(cfg, reg)
+    checks["model"] = _model_check(cfg, reg, runner)
     checks["uplink"] = uplink.status(cfg)
     checks["install"] = install.version_status(root)
     if args.json:
@@ -332,13 +339,18 @@ def cmd_doctor(args):
     sys.exit(1 if any(v[0] == "FAIL" for v in checks.values()) else 0)
 
 
-def _model_check(cfg, reg: dict) -> tuple:
+def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
     """Report the model that will ACTUALLY run, and where it came from (TD-5.4-6).
 
     Otherwise the only way to discover that `SOLAR_MODEL` is set in the shell, or that
     the config pins an id the provider does not serve, is to watch the first run fail.
     Role overrides are named too, since a role's `model` now beats the config and can
     therefore hide a stale pin.
+
+    `runner` is passed in so the model LIST probe resolves its key the same way a run
+    does. That is what lets a keyless local endpoint be listed at all, and what turns
+    "the endpoint did not answer" into a WARN instead of a PASS - the check that answers
+    "is my local server actually up?"
     """
     try:
         model, source = executor.resolve_model(cfg.model, cfg_tier=cfg.model_tier)
@@ -362,11 +374,15 @@ def _model_check(cfg, reg: dict) -> tuple:
     if effort:
         detail += f"; reasoning_effort={effort}"
     detail += ")"
-    ids, err = executor.known_models()
+    ids, err = executor.known_models(runner=runner)
     if ids is None:
-        # no key, or the endpoint did not answer: nothing to compare against, and a
-        # doctor has no business inventing a verdict without evidence
-        return "PASS", detail
+        if err == "no API key":
+            # nothing to compare against, and nothing was asked: not a WARN
+            return "PASS", detail
+        # The endpoint did not answer. A silent PASS here would be a report about a run
+        # that cannot happen - and for a local endpoint it is the one signal that the
+        # server is down rather than merely slow.
+        return "WARN", f"{detail} — cannot list its models ({err[:100]})"
     if model in ids or model in executor.UNLISTED_ALIASES:
         return "PASS", f"{detail} [provider serves {len(ids)} id(s)]"
     return "WARN", (f"{detail} - not in the provider's model list "

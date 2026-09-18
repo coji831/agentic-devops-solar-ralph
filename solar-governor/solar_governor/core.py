@@ -51,6 +51,8 @@ class SolarState(TypedDict):
     tool_calls: Annotated[int, operator.add]   # workspace tool calls
     error: str                                 # executor error, if any
     forced_final: bool                         # answer came from the tool-less last round
+    provider: str                              # endpoint the run went to (host:port, or "stub")
+    usage_reported: bool                       # endpoint reported usage (0/0 is "unknown" if not)
 
 
 DEFAULTS: dict = {

@@ -647,7 +647,8 @@ def test_doctor_warns_on_an_id_the_provider_does_not_serve():
     """The exact bug that sat unnoticed in a real repo config: a pin of
     `deepseek-v4-flash`, which does not exist."""
     orig = executor.known_models
-    executor.known_models = lambda timeout=15.0: (["deepseek-flash", "deepseek-v4-pro"], "")
+    executor.known_models = lambda timeout=15.0, runner="": (["deepseek-flash",
+                                                             "deepseek-v4-pro"], "")
     try:
         status, detail = cli._model_check(Config(model="deepseek-v4-flash"), {})
         assert status == "WARN" and "deepseek-v4-flash" in detail
