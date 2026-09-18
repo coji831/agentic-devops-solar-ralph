@@ -67,8 +67,8 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ### TD-5.4-7: ~~A command vocabulary per repo (mandarin has none)~~
 
-**Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. Mandarin's `.solar/commands.json` declares **20** commands derived from its own `package.json` (16 `check`: typecheck, lint, test, test*full, format_check, design_lint, design_audit, the five `check:*` sweeps, three `validate:*` content validators; 4 `read`: git head/status/diff/log). `exec_allow`: frontend-engineer 12, backend-engineer 12, docs-writer 8 — **0 dangling grants**, verified by resolving every name against the loaded vocabulary. Destructive scripts are deliberately excluded: `format`, `format:all`, `cleanup:radical-content`, `logs:prune`, and `generate:system-map --emit`; only its `--check` form is reachable. Also fixed the config's non-existent `deepseek-v4-flash` pin (caught by the new doctor check).
-**Goal:** Promyro now has `.solar/commands.json` (17 commands) and per-role `exec_allow`. **Mandarin has neither** — its role prompts name \_activities* ("frontend-audit (Parts 1-4)", "design-audit", "codegraph"), not commands, so its vocabulary cannot be copied from Promyro and has to be derived from its own `package.json` scripts.
+**Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. Mandarin's `.solar/commands.json` declares **20** commands derived from its own `package.json` (16 `check`: typecheck, lint, test, test*full, format_check, design_lint, design_audit, the five `check:*`sweeps, three`validate:_`content validators; 4`read`: git head/status/diff/log). `exec_allow`: frontend-engineer 12, backend-engineer 12, docs-writer 8 — **0 dangling grants**, verified by resolving every name against the loaded vocabulary. Destructive scripts are deliberately excluded: `format`, `format:all`, `cleanup:radical-content`, `logs:prune`, and `generate:system-map --emit`; only its `--check`form is reachable. Also fixed the config's non-existent`deepseek-v4-flash`pin (caught by the new doctor check).
+**Goal:** Promyro now has`.solar/commands.json`(17 commands) and per-role`exec_allow`. **Mandarin has neither** — its role prompts name \_activities_ ("frontend-audit (Parts 1-4)", "design-audit", "codegraph"), not commands, so its vocabulary cannot be copied from Promyro and has to be derived from its own `package.json` scripts.
 **Why:** until it exists, mandarin's exec-declaring roles (frontend-engineer, backend-engineer, docs-writer) carry the `exec` group but resolve to zero commands. `granted()` correctly returns none and the tool is simply absent — safe, but those roles cannot run their own checkers.
 **Files:** mandarin `.solar/commands.json` (new) + `exec_allow` per role.
 
@@ -96,7 +96,7 @@ Add new items under the relevant version section. Resolved items stay in the fil
 ### TD-5.6-1: ~~Portable config + refreshable install~~
 
 **Status:** Resolved 2026-09-19 — shipped in **v5.6.0**. `Config.repo` is optional and `root` derives from the config file's own location; `to_dict` omits `repo` when empty and never persists runtime-only fields, so a saved config names nothing machine-specific. `init` now MERGES (existing wins, new keys added, output names what was kept/added) instead of overwriting `config.json` while skipping `registry.json` - the asymmetry nobody could re-run. `.solar/VERSION` records the installed runtime and `doctor` WARNs on drift. The `.gitignore` block is marker-delimited and rewritten in place, replacing a guard (`if ".solar/state" not in text`) that could neither revise a block nor tell a duplicate from a conflict. **Note:** this is the enabling fix, not the commit: the engagement repos' `.solar/` data is still uncommitted, and both carry pre-existing unrelated modifications, so staging it is the owner's call.
-**Why it mattered:** the two engagements had *opposite* rules for `.solar/config.json`, and the one that ignored it is the one where a non-existent model id sat unreviewed.
+**Why it mattered:** the two engagements had _opposite_ rules for `.solar/config.json`, and the one that ignored it is the one where a non-existent model id sat unreviewed.
 
 ### TD-5.6-2: ~~Model ids duplicated across repos~~
 
@@ -114,6 +114,24 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Status:** Open
 **Goal:** §10 has described install verification as "MCP servers connect · model endpoints reachable · smoke task runs end-to-end on THIS repo" since v5. What `doctor` actually does is config, checkpoint, graph compile, registry, runner, model resolution + provider list, uplink validity and install version (§10 now says which). The MCP check and the end-to-end smoke task are still missing, so a repo can pass `doctor` and still fail its first dispatch.
 **Files:** `cli.py` `cmd_doctor` + probably `server.py`/MCP config discovery.
+
+### TD-5.6-5: ~~The ledger overwrote itself, destroying whatever else was there~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.1**. `ledger.render` built three sections from the current state and did a wholesale `write_text`, so the ledger was a view of the *last* run and anything else at that path was destroyed. It destroyed a 115-line hand-written task brief in a real engagement when an unrelated integration run wrote over it. `ledger.record` now appends: one section per run keyed by thread, each wrapped in its own begin/end markers, so re-recording the same thread updates its OWN section and prose before/between/after sections is untouched. Nothing is ever deleted. `chain.py`/`cli.py`/`server.py` pass the thread; `runcard` carries `decisions` so the structured record stands alone. **Note:** this is why the install block's line about ledger.md is now accurate — it had described an accumulation the code did not perform.
+**Files:** `ledger.py`, `cli.py` `_write_artifacts`, `chain.py`, `server.py`, `runcard.py`, `tests/test_ledger.py`.
+
+### TD-5.6-6: Reusing a thread id accumulates `work_queue` and `decisions_log`
+
+**Status:** Open
+**Goal:** Both channels are `Annotated[list, operator.add]`, so a second `run` on the same thread inherits the first run's lists. The default thread is a fixed `t1`, which makes this the NORMAL path rather than an edge case: a second `solar-governor run "<task>"` with no `--thread` produces a work queue with two rows and a decisions log with the first run's entries still in it. Observed while proving the v5.6.1 ledger change (one section showing two `T1` rows and `material_gate -> READY` twice).
+**Why:** the state a run reports is wrong, and it is wrong for anyone who ever runs more than one task without naming a thread. A fresh start needs either a per-invocation thread id or an explicit reset of the accumulating channels on a non-resume start - the constraint is that `run --json` followed by `--approve` must still resume the SAME thread, so the default cannot simply become random.
+**Files:** `graph.py` `initial_state`/`run_task`, `cli.py` thread default, `core.py` channel annotations.
+
+### TD-5.6-7: `--runner stub` still calls the provider when a key is present
+
+**Status:** Open
+**Goal:** `executor.run` falls back to the stub on a missing KEY, not on the selected runner, so `run --runner stub` with `SOLAR_API_KEY` set performs a real HTTP call. The README's runner table says the stub is "Deterministic plan text (offline structure tests)", which is only true while the key is unset - a mismatch that would surprise anyone reaching for `--runner stub` precisely to stay offline, and it spends tokens when the intent was not to.
+**Files:** `executor.py` `run` (honour the selected runner), `cli.py` help text, README runner table.
 
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 

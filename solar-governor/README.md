@@ -5,15 +5,16 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.6.0** — install consistency). The runner work: full role capacity without a
-shell (line ranges, write policy, a closed command vocabulary, an approval gate, shaped
-checkers, per-node model routing); a tool loop that terminates (`v5.4.1`); a runner
-choosable per run (`v5.4.2`). `v5.5.0` added the operator's surface: `doctor` names the
-model that will actually run, `eval` resolves cases per repo, `uplink` posts the run
-digest. **v5.6.0** makes an install portable and re-runnable: `config.json` stores no
-absolute path, `init` merges instead of clobbering, `.solar/VERSION` records what the repo
-was installed against, the `.gitignore` block is generated, and repos declare a model
-**tier** so a provider rename is one edit.
+Released (**v5.6.1** — install consistency, and a ledger that is a record). The runner
+work: full role capacity without a shell (line ranges, write policy, a closed command
+vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
+terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
+operator's surface: `doctor` names the model that will actually run, `eval` resolves cases
+per repo, `uplink` posts the run digest. `v5.6.0` made an install portable and re-runnable:
+`config.json` stores no absolute path, `init` merges instead of clobbering,
+`.solar/VERSION` records what the repo was installed against, the `.gitignore` block is
+generated, and repos declare a model **tier**. **v5.6.1** makes `.solar/ledger.md` an
+append-only record — one section per run, and hand-written content in it is never touched.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -257,13 +258,15 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 - SQLite checkpoint (durable, resume by thread_id) + interrupt-over-CLI when
   `human_approval` is on.
 - Runner abstraction: `agent-dispatch` (IDE handoff) · `http` · `stub`.
-- Run-card JSON per run at `.solar/runs/<thread>.json` (tokens, verdict, model).
+- Ledger (`record`) appends one section per run and never rewrites content it did not
+  write; run-card JSON per run at `.solar/runs/<thread>.json` (tokens, verdict, model,
+  decisions).
 - Ledger render (human view from state).
 
 ## Test
 
 ```bash
-python -m pytest tests/           # 155 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 165 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
                                   # doctor + eval case resolution, install surface

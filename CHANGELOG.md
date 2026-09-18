@@ -18,6 +18,33 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.6.1 — Released (2026-09-19) — the ledger is a record, not a scratch file
+
+**Theme:** a defect found while committing an engagement's install, and fixed rather than
+documented away.
+
+### Fixed
+
+- **`ledger.render` REPLACED the whole file on every run.** It built three sections from the current state and did a wholesale `write_text`, so anything else living at that path was destroyed. Not hypothetical: it destroyed a **115-line hand-written task brief** in a real engagement, when an unrelated integration run wrote its own 18-line view over the top. Caught during a commit review and restored from `HEAD` before staging.
+- `ledger.record` (was `render`) now **appends**: one section per run, keyed by thread, each wrapped in its own begin/end markers. Re-recording the same thread updates **its own** section — a run that steps three times leaves one section, not three — and nothing else is touched. Prose before, between or *after* runtime sections survives exactly.
+- Nothing is ever deleted: the file grows by one section per run.
+
+### Changed
+
+- `chain.py`, `cli.py` and `server.py` now pass the run's **thread** to the ledger, which is what makes "this run's own section" well-defined at all.
+- `runcard.write` carries `decisions` too, so the structured card stands on its own instead of the decisions log being unique to the ledger.
+- The install block's description of `.solar/ledger.md` is now **true**. It said "the human-view run record", which implied an accumulation the code did not perform — and a generated block that describes behaviour the runtime does not have is exactly the drift this whole line of work is about.
+
+### Measured
+
+- Live on a real repo: a hand-written brief placed at `.solar/ledger.md`, then three runs — two distinct threads plus a re-run of the first. Result: **the brief verbatim, and 2 sections rather than 3.** The re-run updated its own section instead of appending another.
+- Tests **156 → 165**, with a new `tests/test_ledger.py` whose regression case is `test_hand_written_prose_at_the_ledger_path_is_never_touched`.
+
+### Found while doing this, not fixed here
+
+- **Reusing a thread id accumulates state.** `work_queue` and `decisions_log` are `operator.add` channels, so a second `run` on the same thread inherits the first run's lists — the live proof shows a doubled work queue and a doubled decisions log in one section. The default thread is a fixed `t1`, so this is the *normal* path, not an edge case. TD-5.6-6.
+- **`--runner stub` does not stub when a key is present.** `executor.run` falls back to the stub on a missing KEY, not on the selected runner, so the README's "Deterministic plan text (offline structure tests)" holds only while `SOLAR_API_KEY` is unset. TD-5.6-7.
+
 ## v5.6.0 — Released (2026-09-19) — install consistency
 
 **Theme:** two installs of the same harness had drifted into **opposite** policies for the
