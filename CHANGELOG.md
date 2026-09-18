@@ -18,6 +18,38 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.5.0 — Released (2026-09-18) — the operator's surface: doctor, eval, uplink
+
+**Theme:** the runtime could run; it could not tell you what it was about to do, whether
+its quality signal applied to the repo in front of it, or where its records went. This
+release closes the six remaining v5.4.x items.
+
+### Added
+
+- **`doctor` names the model that will actually run** (TD-5.4-6) — `<id> (from env SOLAR_MODEL | role | config | default)`, plus the roles whose own `model` overrides the config, plus `reasoning_effort` when set. With a key present it also asks the provider for its model list and reports **WARN** when the resolved id is neither served nor a known unlisted alias. Provenance comes from `executor.resolve_model`, now the single model ladder — a second copy would have drifted.
+- **`eval` resolves cases per repo** (TD-5.4-4): `--cases <file>` > `<repo>/.solar/eval-cases.json` > the built-in battery. Running the built-ins against a repo they do not describe now prints a warning **before** the numbers, and the source travels in the aggregate as `cases_source`. A wrong signal is worse than no signal, because it gets acted on.
+- **`uplink` is implemented** (TD-5.4-5): `uplink: none | hub:<url>`. `uplink.push` posts the curated run digest — routing, verdict, metrics, decisions, output *length* — after the ledger and run-card are written. Push-only (there is no download path anywhere in the module), and it never raises: unreachable, refused or HTTP-erroring hubs degrade to a printed status line. `doctor` validates the value.
+- **`reasoning_effort` pass-through** (TD-5.4-2) — `SOLAR_REASONING_EFFORT` > role `reasoning` > `cfg.reasoning_effort`, sent only when a level supplies one.
+
+### Fixed
+
+- **A `REJECTED` run exited `0`** (TD-5.4-10). `--json` documented "0 complete", and every `max_rounds` failure in the v5.4.1 integration test exited 0 while carrying `verdict: REJECTED` — so a wrapper driving on exit codes read a hard failure as a pass. `12` now means completed-but-rejected, on both the `--json` and one-shot paths.
+- **Mandarin had no command vocabulary** (TD-5.4-7). `.solar/commands.json` now declares 20 vetted commands derived from its own `package.json`, and `frontend-engineer` (12), `backend-engineer` (12) and `docs-writer` (8) each carry an `exec_allow`. Destructive scripts are deliberately absent — `format`, `format:all`, `cleanup:radical-content`, `logs:prune` and `generate:system-map --emit` are not in the vocabulary, and `generate:system-map` is reachable only through its `--check` form.
+- Mandarin's `.solar/config.json` pinned `deepseek-v4-flash`, which does not exist. The new `doctor` model check flagged it on first run; corrected to `deepseek-flash`.
+- `doctor` now supports **WARN** as a third state (documented in §10, previously unreachable in the code): output marks it, and only `FAIL` produces a non-zero exit.
+
+### Measured
+
+- `doctor` on both real engagements: Promyro `model: PASS - deepseek-chat (from config) [provider serves 2 id(s)]` — no false alarm on an alias the provider serves without listing. Mandarin `model: WARN - deepseek-v4-flash ... not in the provider's model list (deepseek-flash, deepseek-v4-pro)` — the real bug, caught before a run rather than by one.
+- Mandarin after the fix: 20 commands, **0 dangling grants** (every `exec_allow` name resolves in the vocabulary), `frontend-engineer` offered `run_command` + `write_file`, `code-reviewer` offered neither.
+- Tests **127 → 141**.
+
+### Not in this release
+
+- **Mandarin's `main` battery is still not authored.** The mechanism is in place and the gap is now visible rather than silently wrong, but the cases themselves need ground truth from `main`, which is not this branch.
+- `uplink` has no hub to talk to yet: the module is complete and tested against a refused connection, but no endpoint has consumed a digest.
+- **TD-5.4-3** (mid-chain pause gate) is untouched.
+
 ## v5.4.2 — Released (2026-09-18) — the runner can be chosen per run
 
 **Theme:** the v5.4.1 integration test had to edit a live engagement's
@@ -32,7 +64,7 @@ There is now.
 ### Fixed
 
 - **`SOLAR_RUNNER` was unreachable.** `select_runner` was `cfg_runner or os.environ.get("SOLAR_RUNNER", "")`, so a repo whose `config.json` pinned a runner **always** won and the documented env override did nothing — the opposite of `SOLAR_MODEL`, where env beats both role and config. The ladder is now `SOLAR_RUNNER` > config > auto.
-- **A typo no longer downgrades silently.** `select_runner` raises on an unrecognised runner instead of falling through to auto: `runner: "https"` used to select a *different* runner than the config asked for, with no signal. `doctor` reports it as `FAIL runner`, and `/health` returns `runner: "invalid"` plus `runner_error` rather than failing the endpoint.
+- **A typo no longer downgrades silently.** `select_runner` raises on an unrecognised runner instead of falling through to auto: `runner: "https"` used to select a _different_ runner than the config asked for, with no signal. `doctor` reports it as `FAIL runner`, and `/health` returns `runner: "invalid"` plus `runner_error` rather than failing the endpoint.
 
 ### Measured
 

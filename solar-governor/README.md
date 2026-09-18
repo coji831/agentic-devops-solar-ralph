@@ -5,13 +5,14 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.4.2** — the `http` runner has full role capacity without a shell:
-line ranges, write policy, a closed command vocabulary, an approval gate, shaped
-checkers; plus per-node model routing. **v5.4.1** adds the stop rule the tool loop was
-missing — an explicit temperature, a budget notice near the end, and a final round called
-with no tools offered, so a node hands back what it established instead of failing.
-**v5.4.2** makes the runner choosable per run (`run --runner X`) and makes
-`SOLAR_RUNNER` actually win over the repo config).
+Released (**v5.5.0** — the operator's surface). The runner work: full role capacity
+without a shell (line ranges, write policy, a closed command vocabulary, an approval
+gate, shaped checkers, per-node model routing); a tool loop that terminates
+(`v5.4.1`); a runner choosable per run (`v5.4.2`). **v5.5.0** adds what an operator has
+to be able to see: `doctor` names the model that will actually run and warns on an id the
+provider does not serve, `eval` resolves cases per repo and says when its battery does
+not apply, `uplink` posts the curated run digest to an opt-in hub, `reasoning_effort` is
+pass-through, and a `REJECTED` run exits 12 instead of 0.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -152,10 +153,28 @@ solar-governor run "<task>" --repo <path> --role investigator --runner stub
 $env:SOLAR_API_KEY  = "<your deepseek/openrouter key>"   # or DEEPSEEK_API_KEY
 $env:SOLAR_BASE_URL = "https://api.deepseek.com"          # default; any OpenAI-compatible host
 $env:SOLAR_MODEL    = "deepseek-chat"                     # or cfg.model
+$env:SOLAR_RUNNER            = "http"    # same as `run --runner http`
+$env:SOLAR_TEMPERATURE       = "0.2"     # tool-loop sampling; "default" omits the field
+$env:SOLAR_REASONING_EFFORT  = ""        # provider pass-through; unset sends nothing
+$env:SOLAR_MAX_ROUNDS        = "12"      # model round-trips per node (read at import)
+$env:SOLAR_TOOL_OUTPUT_CHARS = "8000"    # cap on one tool result, 0 = unlimited (read at import)
 ```
 
 Tools (repo-bounded, refuse to escape the repo root): `list_tree` / `read_file` /
-`glob` / `write_file`.
+`glob` / `write_file`, plus `run_command` for a role with an `exec_allow` grant.
+
+### Hub uplink (opt-in, push-only)
+
+`uplink: none | hub:<url>` in `.solar/config.json`. The default is `none`: the repo is
+the source of truth and the harness is fully standalone on any repo, including
+third-party ones. When set, the run digest — routing, verdict, metrics, decisions,
+output *length* — is POSTed to `<url>/run` after the ledger and run-card are written.
+
+- **Push-only.** `uplink.py` contains no download path, so a hub cannot inject content
+  into a repo's context.
+- **Never in the critical path.** Unreachable, refused or HTTP-erroring hubs degrade to a
+  printed status line; a hub cannot fail a run or change its verdict.
+- `doctor` validates the value without touching the network.
 
 ### `agent-dispatch` flow (mandarin pilot)
 
@@ -214,8 +233,9 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python -m pytest tests/           # 127 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 141 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
-                                  # tool-loop termination, runner selection
+                                  # tool-loop termination, runner selection, uplink,
+                                  # doctor + eval case resolution
 python tests/test_smoke.py        # smoke only
 ```
