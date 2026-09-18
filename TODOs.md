@@ -350,13 +350,13 @@ something it isn't. The fix is to pass the resolved target (or its model + provi
 **Raised as:** "put a TODO … to reduce/refactor its code, some of the code files reaching 1000 lines".
 **Measured 2026-09-19 — nothing is at 1000 lines yet, and the largest is the fastest-growing:**
 
-| module                 | lines | | module                    | lines |
-| :--------------------- | ----: | - | :------------------------ | ----: |
-| `executor.py`          |   823 | | `server.py`               |   229 |
-| `cli.py`               |   595 | | `install.py`              |   200 |
-| `graph.py`             |   387 | | `eval.py`                 |   191 |
-| `commands.py`          |   350 | | `core.py`                 |   173 |
-| `workspace.py`         |   302 | | `ledger.py`               |   143 |
+| module         | lines |     | module       | lines |
+| :------------- | ----: | --- | :----------- | ----: |
+| `executor.py`  |   823 |     | `server.py`  |   229 |
+| `cli.py`       |   595 |     | `install.py` |   200 |
+| `graph.py`     |   387 |     | `eval.py`    |   191 |
+| `commands.py`  |   350 |     | `core.py`    |   173 |
+| `workspace.py` |   302 |     | `ledger.py`  |   143 |
 
 Tests: `test_executor.py` 697, `test_commands.py` 495, `test_workspace.py` 472,
 `test_role_routing.py` 341, `test_providers.py` 288.
@@ -368,8 +368,8 @@ is "execute a model call". It grew ~330 lines in v5.7.0 and ~90 in v5.7.1, becau
 work is the surface the product is actively moving. `cli.py` holds argparse + four `doctor` checks +
 the run commands in one file.
 **Adopt a trigger rule, so this never becomes a taste argument:** a module over **600 lines**, or one
-that answers to more than one *nameable* concern, gets split — and a split is judged by "can this
-file be described in one sentence without *and*".
+that answers to more than one _nameable_ concern, gets split — and a split is judged by "can this
+file be described in one sentence without _and_".
 **Proposed seams, lowest risk first:**
 
 1. `executor.py` → **`providers.py`** (the shipped table, `providers_table`, `resolve_target`,
@@ -385,13 +385,20 @@ also keeps the existing tests honest as a regression net.
 
 ### TD-5.7-5: `read_file(rel, start, end)` is not bounded — a line range is not a size bound
 
-**Status:** Open (found 2026-09-19 while testing RTK)
+**Status:** Resolved 2026-09-19 — shipped in **v5.7.2**. The ranged branch now clips **one line**
+(`MAX_LINE_CHARS = 4_000`, the size this runtime already gives one COMMAND's output) and caps the
+**whole selection** (`MAX_READ_CHARS`), each with a marker that names what was elided and how to get
+around it. Re-measured on the same file: `read_file(rel, 1, 60)` **282,669 → 4,113 chars**
+(≈70,667 → ≈1,028 tokens), the whole-file path is unchanged at 40,061, and a normal code file is
+untouched (1,573 chars for 60 real lines). The range still reaches past the whole-file cap, which
+is why it exists — the defect was only that a bounded number of lines is not a bounded number of
+chars. Four tests pin it (`tests/test_workspace.py`), including the byte-identical no-op case.
 **Measured:** on a 282,604-byte **single-line** file (`.tsbuildinfo`), `read_file(rel)` returned
 40,061 chars (capped — correct), while `read_file(rel, 1, 60)` returned **282,669 chars ≈ 70k
 tokens** into a window whose local-model budget is 16k.
 **Why:** the ranged branch of `workspace.read_file` has no `MAX_READ_CHARS` check, and its docstring
-names the assumption that makes it unsafe — *"WITH a range only those lines are read, so a large
-file can be inspected in bounded slices"*. A bounded number of LINES is not a bounded number of
+names the assumption that makes it unsafe — _"WITH a range only those lines are read, so a large
+file can be inspected in bounded slices"_. A bounded number of LINES is not a bounded number of
 CHARS: minified JS/JSON, lockfiles, `.tsbuildinfo` and single-line data blobs all break it, and the
 result then stays in history for the rest of the run.
 **Shape of the fix:** cap the ranged result as well, truncate an over-long individual line with a

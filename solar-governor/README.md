@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.7.1** — route per role, reach a keyless endpoint). The runner
+Released (**v5.7.2** — a range bounds lines, not chars). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -32,7 +32,10 @@ exporting them (17 shipped endpoints, aliases, per-provider headers and body fie
 its model id lives on, a declared KEYLESS provider is sent the placeholder rather than an
 unrelated cloud key, auto picks `http` for an endpoint that needs no key (a local model runs
 from a committed config, with no environment variable set), and `doctor` prints where each
-role goes.
+role goes. **v5.7.2** bounds the ranged `read_file`: a range bounds LINES, not CHARS, so one
+line is clipped at 4,000 chars and a whole selection at 40,000 — each with a marker that says
+what was elided, because a single-line `.tsbuildinfo` used to return 282,669 chars (about 70k
+tokens) into a 16k window.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -108,9 +111,13 @@ role may not use is **not offered at all** — it is not a rule in the prompt:
 | `workspace` | `list_tree`, `read_file`, `glob`, `write_file` | `tools` (group), `write`, `write_scope`, `write_deny` |
 | `exec`      | `run_command`                                  | `tools` (group), `exec_allow`                         |
 
-`read_file(rel, start, end)` takes a 1-based inclusive line range, and a ranged read
-**bypasses the 40000-char whole-file cap** — so a large file is read in bounded slices
-instead of being truncated mid-file and re-read.
+`read_file(rel, start, end)` takes a 1-based inclusive line range, and a ranged read reaches
+**past** the 40000-char whole-file cap — so a large file is read in bounded slices instead of
+being truncated mid-file and re-read. **A range bounds LINES, not CHARS** (v5.7.2), so the
+range is bounded too: a line over 4000 chars is elided with a marker naming the line and its
+real length (a `.tsbuildinfo` or minified bundle is one 282k-char line), and a selection over
+40000 chars is elided in the middle with a marker saying to narrow the range. Neither elision
+is silent, because a model that cannot see the gap will report reading what it did not.
 
 ### The write guard
 
@@ -295,19 +302,20 @@ run changes: same graph, same runners, same run-card — plus `provider` in the 
 
 ```json
 {
-  "architect":    { "system": "...", "model": "fast" },
+  "architect": { "system": "...", "model": "fast" },
   "investigator": { "system": "...", "model": "local-qwen" }
 }
 ```
 
-  The same config then runs both, in one chain, against two different providers. Measured:
-  `[architect] APPROVED model=deepseek-flash` and `[investigator] APPROVED
+The same config then runs both, in one chain, against two different providers. Measured:
+`[architect] APPROVED model=deepseek-flash` and `[investigator] APPROVED
   model=solar-local:latest`, run-cards recording `provider: deepseek` and `provider: local`.
-  A role's `model` names the model; a `provider` beside it applies to ids that carry none,
-  because **the alias decides the endpoint its id lives on** — `model: local-qwen` sends
-  `qwen3:8b` to the local provider, and a role-level `provider: deepseek` next to it is reported
-  by `doctor` (`routing: WARN - ... its own provider 'deepseek' is NOT in effect`) rather than
-  silently sending a local model id to a cloud endpoint.
+A role's `model` names the model; a `provider` beside it applies to ids that carry none,
+because **the alias decides the endpoint its id lives on** — `model: local-qwen` sends
+`qwen3:8b` to the local provider, and a role-level `provider: deepseek` next to it is reported
+by `doctor` (`routing: WARN - ... its own provider 'deepseek' is NOT in effect`) rather than
+silently sending a local model id to a cloud endpoint.
+
 - **`api_key_env` is three-valued, and the middle one is a security rule.** A NAME reads that
   variable and only it. An **empty** string means the provider needs no credential: the request
   carries `sk-no-key-required` and is never handed an unrelated key that happens to be set — a

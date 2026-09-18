@@ -18,6 +18,47 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.7.2 — Released (2026-09-19) — a range bounds lines, not chars
+
+**Theme:** the one thing that could still blow a 16k local window outright. Found while wiring RTK,
+from a measurement rather than a reading: `read_file(rel, 1, 60)` returned **282,669 chars ≈ 70k
+tokens** for a file whose only line is 282,604 chars long.
+
+### Fixed — the ranged read was unbounded
+
+`workspace.read_file` capped the WHOLE-FILE path at 40,000 chars and capped nothing on the ranged
+path, because its docstring named an assumption that is false: *"WITH a range only those lines are
+read, so a large file can be inspected in bounded slices"*. A bounded number of **lines** is not a
+bounded number of **chars**. A `.tsbuildinfo`, a minified bundle, a lockfile or a one-line data blob
+is a single enormous line, and the model then carries it in history for the rest of the run.
+
+Two bounds, both of them explicit:
+
+- **One line** is clipped at `MAX_LINE_CHARS = 4_000` — the same size this runtime already gives one
+  COMMAND's output — with a marker naming the line and its real length:
+  `…[line 1 elided: 282604 chars, first 4000 shown]`.
+- **The whole selection** is capped at `MAX_READ_CHARS`, elided in the middle (head and tail kept,
+  for the reason the command layer clips that way) with a marker that names the fix:
+  `…[elided N chars between lines X and Y; narrow the range with start/end]…`. The header also
+  carries `[capped]`.
+
+**The range still reaches past the whole-file cap** — that is what it is for, and
+`test_read_file_range_bypasses_the_char_truncation` still passes. Neither elision is silent: a model
+that cannot see a gap will report reading what it did not, which is the same defect class as the stub
+that reads as a success (v5.6.2) and `tokens: 0/0` (v5.6.4).
+
+### Measured
+
+| read on one 282,604-byte single-line file | chars | ≈tokens |
+| :---------------------------------------- | ----: | ------: |
+| `read_file(rel, 1, 60)` before             | 282,669 | 70,667 |
+| `read_file(rel, 1, 60)` after              | **4,113** | **1,028** |
+| `read_file(rel)` (whole file, unchanged)   | 40,061 | 10,015 |
+| 60 real lines of a normal source file      | 1,573 | 393 |
+
+Tests **215 → 219** (`tests/test_workspace.py`), one of which asserts the ordinary small range is
+byte-identical — a bound that changes normal reads is a bound that gets reverted.
+
 ## v5.7.1 — Released (2026-09-19) — route per role, and reach a keyless endpoint
 
 **Theme:** the registry (v5.7.0) could name a provider; this release makes a **role**'s routing
@@ -73,7 +114,7 @@ in the path rather than in the registry. Measured, fixed, and pinned by test.
 - **Two providers, one run, no environment variables:** a chain with one role on the cloud and one
   on a local model, run with no `SOLAR_RUNNER`, no `SOLAR_MODEL`, no `SOLAR_BASE_URL` and no
   `SOLAR_API_KEY` in the shell — `2/2 links passed`; `architect APPROVED model=deepseek-flash
-  in 1447 out 53`, `investigator APPROVED model=solar-local:latest in 703 out 284`, run-cards
+in 1447 out 53`, `investigator APPROVED model=solar-local:latest in 703 out 284`, run-cards
   recording `provider: "deepseek"` and `provider: "local"` separately.
 - **A reachable-but-wrong local id is loud:** the same run with an id the local server does not
   serve was REJECTED with **Ollama's own** `404 model 'qwen3:8b' not found`, not a stub and not a
