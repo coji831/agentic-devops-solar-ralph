@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.6.2** — two silent wrong answers, fixed). The runner
+Released (**v5.6.3** — the install path, verified against a live provider). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -18,7 +18,11 @@ append-only record — one section per run, and hand-written content in it is ne
 **v5.6.2** fixes the two defects v5.6.1 recorded rather than fixed: a re-used thread no
 longer inherits the previous run's state (a start with no pending interrupt clears that
 thread's own history; a resume continues), and `--runner stub` is offline **even when a key
-is set**.
+is set**. **v5.6.3** verifies the `http` runner against the live provider and fixes the two
+defects found on the way to it: a fresh clone can now `--json` (the checkpoint directory is
+created by both graph paths, not one), and every human-editable `.solar/` file is read
+BOM-tolerantly — so a `config.json` written by PowerShell or Notepad still works, and an
+unreadable one exits **2** with a reason instead of a traceback.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -275,14 +279,18 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
   decisions).
 - Thread state is not cumulative: a fresh start clears that thread's own history, a
   resume continues it.
+- Install paths that work on a clone: the checkpoint directory is created on demand by both
+  `run_step` and `pending_interrupt`, `doctor`'s checkpoint check tests creatability, and the
+  `.solar/` files a human edits are read BOM-tolerantly.
 
 ## Test
 
 ```bash
-python -m pytest tests/           # 175 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 186 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
                                   # doctor + eval case resolution, install surface,
-                                  # thread reset/resume, stub-runner offline contract
+                                  # install paths (fresh clone, BOM), thread reset/resume,
+                                  # stub-runner offline contract
 python tests/test_smoke.py        # smoke only
 ```

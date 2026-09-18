@@ -33,10 +33,12 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ### TD-5.4-2: ~~Reasoning / thinking-effort passthrough~~
 
-**Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. Ladder `SOLAR_REASONING_EFFORT` > role `reasoning` > `cfg.reasoning_effort`, resolved by `executor.reasoning_effort()` and sent as `reasoning_effort` on the chat call. **Off by default**: nothing is sent unless a level supplies a value, so no existing repo changes behaviour. The value is deliberately **not** validated here — providers disagree about the scale and about whether they accept the field at all, so a wrong value has to come back as the provider's own error rather than being silently dropped. `doctor` echoes it when set. **Still unmeasured against DeepSeek**: no DeepSeek id documents `reasoning_effort`, so treat it as provider pass-through and confirm before relying on it.
+**Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. Ladder `SOLAR_REASONING_EFFORT` > role `reasoning` > `cfg.reasoning_effort`, resolved by `executor.reasoning_effort()` and sent as `reasoning_effort` on the chat call. **Off by default**: nothing is sent unless a level supplies a value, so no existing repo changes behaviour. The value is deliberately **not** validated here — providers disagree about the scale and about whether they accept the field at all, so a wrong value has to come back as the provider's own error rather than being silently dropped. `doctor` echoes it when set. **Measured against DeepSeek 2026-09-19** — see the verification note below; it is accepted, so this is no longer a "confirm before relying on it" item.
 **Goal:** Optional reasoning-effort / thinking param on the chat call for reasoner-tier nodes; document which provider models honor it. Currently the `http` runner sends no effort control (`model_name` only).
 **Why:** heavy verify/review nodes (code-reviewer, verify chains) may need deeper reasoning; measure vs cost on the epic-25 data.
 **Files:** `executor.py` chat payload + config/env knob.
+
+**Verification (2026-09-19, v5.6.3):** exercised against the real provider for the first time. `SOLAR_REASONING_EFFORT=low` with `SOLAR_MODEL=deepseek-v4-pro` returned **exit 0, APPROVED, no error** (1479 in / 62 out, 1 tool call), against a no-effort baseline of 1685 / 154. So DeepSeek **accepts** the field on that model — the previous "no DeepSeek id documents it" caution was about documentation, and the API is more permissive than the docs. **Not overclaimed:** one value, one model, one sample; the 62-vs-154 output gap is consistent with the field taking effect, not proof. Still unmeasured: which scale the provider honours, and whether a rejected value errors or is ignored.
 
 ### TD-5.4-3: Mid-chain human gate (pause-after-link / approval mode)
 
@@ -63,6 +65,7 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. `cli._model_check` reports `<id> (from env SOLAR_MODEL | role | config | default)`, names the roles whose own `model` overrides the config (they can hide a stale pin), echoes `reasoning_effort` when set, and — with a key present — asks the provider for its model list, reporting **WARN** when the resolved id is neither served nor a known unlisted alias. Provenance comes from `executor.resolve_model`, now the one and only model ladder. `doctor` also gained a real WARN state (documented in §10, previously unreachable in code); only FAIL sets a non-zero exit.
 **Goal:** `doctor` should echo the model that will actually run (env `SOLAR_MODEL` → `cfg.model` → default `deepseek-chat` → concrete id) so a mis-set alias or env is caught before a run. The mandarin config now pins `model: "deepseek-v4-flash"` (concrete id, not the `deepseek-chat` alias, which can be re-pointed).
 **Caution (2026-09-18):** the concrete id it pins, `deepseek-v4-flash`, **does not exist** — `GET https://api.deepseek.com/models` returns `deepseek-flash` and `deepseek-v4-pro` only. Mandarin's `.solar/config.json` is therefore invalid, and inert only because that repo runs `agent-dispatch`. Fix it before mandarin moves to `--runner http`. Note that v5.4.0 corrected the 7 registry roles to `deepseek-flash` and role `model` now beats `cfg.model`, so the registry fix already masks the bad config pin for those roles.
+**Resolved (2026-09-19, v5.6.3):** both engagements pin valid ids — mandarin `deepseek-flash`, Promyro `deepseek-chat` — and `doctor` reports `model: PASS` for each. The blocker on moving mandarin to `--runner http` is gone.
 **Files:** `cli.py` doctor checks.
 
 ### TD-5.4-7: ~~A command vocabulary per repo (mandarin has none)~~
@@ -93,7 +96,7 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ## v5.6 — Install consistency (opened 2026-09-19 by comparing two real engagements)
 
-> Shipped: **v5.6.0** TD-5.6-1, 2 · **v5.6.1** TD-5.6-5 · **v5.6.2** TD-5.6-6, 7.
+> Shipped: **v5.6.0** TD-5.6-1, 2 · **v5.6.1** TD-5.6-5 · **v5.6.2** TD-5.6-6, 7 · **v5.6.3** TD-5.6-9, 10.
 > Still open: TD-5.6-3, TD-5.6-4 (additions, neither can produce a wrong result) and
 > TD-5.6-8 (cosmetic).
 
@@ -154,7 +157,13 @@ a dead endpoint: `runner="http"` returns `deepseek-chat` + `Connection error.`;
 `runner="stub"` returns `stub`, `0/0` tokens, no error; `run --runner stub --json` exits 0.
 **Note:** `doctor`'s runner check is corrected too — a selected `http` with no key is now a
 WARN, not a PASS describing calls that will not happen.
-**Files:** `executor.py` (`run`, `stub_result`), `graph.py` `_execute`, `cli.py` `cmd_doctor`.
+**Goal:** `executor.run` fell back to the stub on a missing KEY, not on the selected runner, so
+`run --runner stub` with `SOLAR_API_KEY` set performed a real HTTP call. The README's runner
+table says the stub is "Deterministic plan text (offline structure tests)", which is only true
+while the key is unset — a mismatch that would surprise anyone reaching for `--runner stub`
+precisely to stay offline, and it spends tokens when the intent was not to.
+**Files:** `executor.py` (`run`, `stub_result`), `graph.py` `_execute`, `cli.py` `cmd_doctor`,
+`solar-governor/README.md` (the runner table).
 
 ### TD-5.6-8: Writers emit CRLF on Windows, so install bytes are platform-dependent
 
@@ -172,8 +181,41 @@ ran `init`, and a Windows→Linux refresh shows a one-line diff. That undercuts 
 v5.6.0 was built for — a refresh is a no-op when nothing changed.
 **Files:** `install.py` (`write_version`, and the block writer if it shares the pattern),
 `cli.py` `cmd_init`. Fix shape: pass `newline="\n"` to the text writers.
-**Goal:** `executor.run` falls back to the stub on a missing KEY, not on the selected runner, so `run --runner stub` with `SOLAR_API_KEY` set performs a real HTTP call. The README's runner table says the stub is "Deterministic plan text (offline structure tests)", which is only true while the key is unset - a mismatch that would surprise anyone reaching for `--runner stub` precisely to stay offline, and it spends tokens when the intent was not to.
-**Files:** `executor.py` `run` (honour the selected runner), `cli.py` help text, README runner table.
+
+### TD-5.6-9: ~~`--json` and `serve` crashed on a fresh clone~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.3**. `run_step` created the checkpoint
+directory; `pending_interrupt` opened the same database without creating it. A repo with
+`.solar/config.json` but no `.solar/state/` therefore died with a bare
+`sqlite3.OperationalError: unable to open database file` and **exit 1** — a code outside the
+documented `0/2/10/11/12` — while the interactive path on the same repo worked, because it
+happened to mkdir first. Two paths disagreeing about one repo is the defect. The state is not
+exotic: `state/` is gitignored while the config and registry are tracked, so it is what a
+FRESH CLONE looks like. Both paths now share `graph._ensure_checkpoint_dir`. Found by running
+the live HTTP verification, not by reading.
+**Related, same release:** an unreadable `config.json` also escaped as a traceback and exit 1;
+it is a usage/state error, so `cmd_run` now prints the reason and the path and exits **2**.
+`doctor`'s `checkpoint-writable` tested whether `state/` EXISTS, so it reported FAIL for a
+clone that runs fine — it now tests whether the directory can be CREATED, and names it.
+**Files:** `graph.py` (`_ensure_checkpoint_dir`), `cli.py` (`cmd_run`, `cmd_doctor`),
+`tests/test_install_paths.py`.
+
+### TD-5.6-10: ~~A UTF-8 BOM killed every command~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.3**. `json.loads` rejects a leading BOM,
+and a BOM is an ordinary outcome of editing a `.solar/` file on Windows — PowerShell 5.1's
+`Set-Content -Encoding utf8` writes one, as does Notepad's "UTF-8 with BOM". Every command died
+with a traceback and exit 1; `doctor` at least named it (`config: FAIL - Unexpected UTF-8
+BOM`). Swept rather than patched: `core.read_text`/`read_json` read as `utf-8-sig` (a no-op
+without a BOM) and are now used by every reader of a human-authored file — `config.json`,
+`registry.json`, `commands.json`, `.solar/VERSION` (a BOM made the marker compare as
+`\ufeff5.6.2` and report drift against itself), `eval-cases.json`, the explicit `--cases` path,
+and `resolve_result` (an agent-written `.result.md` leaked its BOM into the specialist output).
+**Deliberately excluded:** `ledger.md` — reading as `utf-8-sig` and writing back as `utf-8`
+would strip content the runtime did not write, which §23 forbids. Also excluded: `.gitignore`
+(a BOM there neither crashes nor changes behaviour) and repo files read by the workspace tools.
+**Files:** `core.py` (the helpers), `registry.py`, `install.py`, `commands.py`, `eval.py`,
+`executor.py` `resolve_result`, `cli.py`, `tests/test_install_paths.py`.
 
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 

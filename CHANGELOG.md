@@ -18,6 +18,81 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.6.3 — Released (2026-09-19) — the install path, verified against a live provider
+
+**Theme:** verifying the HTTP runner against the real provider found two defects **on the
+path to** it. Neither is about the runner's logic; both are about a repo that is perfectly
+valid being unable to run, and failing in a way that does not read as itself.
+
+### Fixed
+
+- **TD-5.6-9 — `--json` (and `serve`) crashed on a fresh clone.** `run_step` created the
+  checkpoint directory; `pending_interrupt` opened the same database **without creating it**.
+  A repo with `.solar/config.json` but no `.solar/state/` — which is exactly what a clone
+  looks like, since `state/` is gitignored while the config is tracked — died with a bare
+  `sqlite3.OperationalError: unable to open database file` and **exit 1**, while the
+  interactive path on the SAME repo worked because it happened to mkdir first. Two paths
+disagreeing about one repo is the defect. Both now share `graph._ensure_checkpoint_dir`.
+- **An unreadable config exited 1.** `cmd_run` let `Config.load`'s error escape as a raw
+  traceback and exit 1 — outside the documented `0/2/10/11/12` that every wrapper in this
+  repo drives on. It is a usage/state error, so it now prints the reason and the path and
+  exits **2**.
+- **TD-5.6-10 — a UTF-8 BOM killed every command.** `json.loads` rejects a leading BOM, and a
+  BOM is an ordinary outcome of editing a `.solar/` file on Windows: PowerShell 5.1's
+  `Set-Content -Encoding utf8` writes one, and so does Notepad's "UTF-8 with BOM". Swept
+  rather than patched: `core.read_text`/`core.read_json` (read as `utf-8-sig`, a no-op on a
+  file without a BOM) are now used by **every reader of a human-authored file** —
+  `config.json`, `registry.json`, `commands.json`, `.solar/VERSION`, `eval-cases.json`, the
+  explicit `--cases` path, and `resolve_result` (an agent-written `.result.md` used to leak
+  its BOM into the specialist output). `ledger.md` is deliberately NOT included: reading it
+  as `utf-8-sig` and writing back as `utf-8` would strip content it did not write, which
+  §23 forbids.
+- **`doctor` called a working repo broken.** `checkpoint-writable` tested whether `.solar/state/`
+  **exists**, so it reported FAIL for a fresh clone that runs fine. It now tests whether the
+  directory can be **created**, and names it.
+
+### Measured — the live HTTP verification this came out of
+
+The key was available only as a Windows **User** env var, invisible to `run` until the shell
+sets it; every earlier "live" check was therefore really a stub-side check. With it set,
+against `api.deepseek.com`:
+
+| run | model | tokens in/out | tools | verdict | `forced_final` |
+| --- | --- | --- | --- | --- | --- |
+| plain | `deepseek-chat` | 1462 / 69 | 1 | APPROVED | False |
+| reasoner baseline | `deepseek-v4-pro` | 1685 / 154 | 1 | APPROVED | False |
+| `SOLAR_REASONING_EFFORT=low` | `deepseek-v4-pro` | 1479 / 62 | 1 | APPROVED | False |
+
+- **TD-5.4-2's caveat is closed**, substantially: DeepSeek **accepts** `low` on
+  `deepseek-v4-pro` — no error, APPROVED. Still not overclaimed: one value, one model, one
+  sample. The 62-vs-154 output-token gap is *consistent with* the field taking effect, not
+  proof of it.
+- **TD-5.4-8 (tool loop) is confirmed live**: 3/3 terminated naturally, `forced_final` False.
+- **The invalid-pin blocker is gone.** TD-5.6-2's caution said mandarin's `deepseek-v4-flash`
+  had to be fixed "before mandarin moves to `--runner http`": mandarin now pins
+  `deepseek-flash` and Promyro `deepseek-chat`, both valid, both `model: PASS`.
+- **No path bypasses the selected runner** — audited every stub/key decision (only `run`'s
+  guard and `select_runner`'s auto), and `eval`/`bench` execute through `graph.run_task`, so
+  the guard covers them. Three dead-endpoint runs returned `Connection error.` → **REJECTED,
+  exit 12**: an executor failure still does not read as success.
+
+### Docs
+
+- `docs/install-mandarin-main.md` told an operator to hand-edit `config.json` to switch to
+  `http` — "the config runner wins over env, so edit the one field … flip back. (Do not
+  commit config.json.)". Both claims died in v5.4.2 (env and `--runner` win) and v5.6.0 (the
+  config is portable and committed), and it asked for exactly the kind of edit to a live
+  engagement the flag exists to avoid. Rewritten, with the doctor expectations updated from
+  `7 specialists` to `10 dispatchable (7 declared + 3 built-in)`.
+
+### Not fixed here
+
+- **TD-5.4-4** (mandarin `main`'s per-repo eval battery is still unauthored — now unblocked,
+  since a key is available), **TD-5.6-4** (`doctor` still has no end-to-end smoke task; both
+  defects above are instances of what it would have caught), **TD-5.6-3** (the IDE model
+  plane has no table), **TD-5.6-8** (CRLF writers), and **`eval`/`bench` take no `--runner`
+  flag**, so they need `SOLAR_RUNNER` in the environment — the same knob, differently reached.
+
 ## v5.6.2 — Released (2026-09-19) — the two silent wrong answers
 
 **Theme:** the two defects v5.6.1 found and *recorded* instead of fixing. Both produced

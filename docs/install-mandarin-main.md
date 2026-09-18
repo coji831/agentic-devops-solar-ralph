@@ -65,9 +65,19 @@ git switch -c install/solar-v5
 ```
 
 - `runner: agent-dispatch` = the default for the IDE `@Governor v5` flow.
-- **Flip to `http`** for headless/measure runs (eval, bench, `--chain --auto`
-  with real numbers) — the config runner wins over env, so edit the one field:
-  `"runner": "http"` → re-run → flip back. (Do not commit config.json.)
+- **For a headless/measure run** (eval, bench, `--chain --auto` with real numbers), do NOT
+  edit this file. Since **v5.4.2** the per-run override wins over the config:
+
+  ```bash
+  solar-governor run "<objective>" --repo . --runner http      # this run only
+  $env:SOLAR_RUNNER = "http"                                   # or for a shell session
+  ```
+
+  (This section previously said "the config runner wins over env, so edit the one field …
+  flip back" — true before v5.4.2 and false after it, and it asked for exactly the kind of
+  edit to a live engagement that the flag was added to avoid. **`config.json` IS committed**
+  since v5.6.0: it carries no machine-specific path, which is what made the old "do not
+  commit" note necessary.)
 
 ### 1b. `.solar/registry.json` (tracked) — port + clean
 
@@ -212,9 +222,10 @@ solar-governor doctor --repo . --json          # expect all PASS; registry: 7 sp
 solar-governor run "Read LearnRoutes.tsx and report how many routes are gated" --repo . --role investigator --thread smoke-inv --json
 
 # 3. eval battery offline-first then real
-solar-governor eval --repo . --n 1 --id cn-join        # stub: 1/1
-# flip config runner to http, then:
-solar-governor eval --repo . --n 1                     # http: expect 1/1 per case, real tokens
+solar-governor eval --repo . --n 1 --id cn-join                  # stub: 1/1
+# `eval` and `bench` take no --runner flag; set the env knob (`run --runner` sets the same one)
+$env:SOLAR_RUNNER = "http"; solar-governor eval --repo . --n 1   # http: 1/1 per case, real tokens
+Remove-Item Env:SOLAR_RUNNER
 
 # 4. driver chain (headless) — verify chain on a real task
 solar-governor run --chain verify --auto --repo . --thread install-verify "<objective>"   # runner=http
@@ -224,8 +235,13 @@ git status --short    # expect: new .solar/registry.json, .github/* v5 files, AG
 git diff --stat
 ```
 
-**Doctor expectations:** config PASS · checkpoint writable · graph compiles ·
-registry PASS (`7 specialists, chains: epic/docs-review/verify`) · runner PASS.
+**Doctor expectations:** config PASS · checkpoint writable (created on demand) · graph
+compiles · registry PASS (`10 dispatchable (7 declared + 3 built-in), chains:
+epic/docs-review/verify`) · runner PASS · install PASS.
+
+> **Free of charge:** `doctor` is read-only, and a `run` needs no key at all while the
+> runner is `stub`. Note the key is read from the PROCESS environment — a Windows
+> User-level `SOLAR_API_KEY` is invisible to `run` until the shell sets it.
 
 ---
 
