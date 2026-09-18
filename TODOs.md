@@ -23,7 +23,7 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Prototype:** `experiments/governor-graph/` — 6 evals (interrupt, checkpoint-resume, deterministic routing, streaming, hub KB MCP call, compactor). Decision gate after B2.
 **Supersedes:** TD-4-1/2/3/4 (effort steering → model routing), TD-4-5 (routing policy → graph edges).
 
-## v5.4.x — Backlog (opened after v5.3.1 from the real epic-25 pilot on mandarin main; v5.4.0 shipped TD-5.4-1, v5.4.1 shipped TD-5.4-8 — TD-5.4-2..7 and 9..10 remain open)
+## v5.4.x — Backlog (opened after v5.3.1 from the real epic-25 pilot on mandarin main; v5.4.0 shipped TD-5.4-1, v5.4.1 shipped TD-5.4-8, v5.4.2 shipped TD-5.4-9 — TD-5.4-2..7 and 10 remain open)
 
 ### TD-5.4-1: ~~Per-node model routing~~
 
@@ -77,9 +77,9 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Status:** Resolved 2026-09-18 — shipped in **v5.4.1**. The loop was `for _ in range(max_rounds): call; if tool_calls: continue`, with no termination pressure and no `temperature`, and it discarded `msg.content` whenever a tool call was present. Measured on a real read-only `investigator` link: no answer in 4 runs out of 5 over a one-file one-fact objective, up to 168k prompt tokens per failure, and the _identical_ command converged on the fifth. Resolution is three rules in `executor._tool_loop`: an explicit temperature (default 0.2), a budget notice once `NUDGE_ROUNDS_LEFT` rounds remain, and a final round called **with no tools offered** so it must return text. `forced_final` now travels to the run-card. This also corrects `docs/tuning.md` finding 3, which had blamed the objective; see `docs/versions/v5.md` §20.
 **Files:** `executor.py` (`_tool_loop`, `temperature`, `_budget_notice`, `FINAL_ROUND_INSTRUCTION`), `core.py`/`graph.py`/`runcard.py`/`cli.py` (`forced_final`), `tests/test_executor.py` (12 cases).
 
-### TD-5.4-9: Runner selection cannot be overridden per run
+### TD-5.4-9: ~~Runner selection cannot be overridden per run~~
 
-**Status:** Open
+**Status:** Resolved 2026-09-18 — shipped in **v5.4.2**. `select_runner` was `cfg_runner or os.environ.get("SOLAR_RUNNER", "")`, so a repo whose `config.json` set `runner` **always won and `SOLAR_RUNNER` was dead** — the opposite of `SOLAR_MODEL`, where env beats role and config. The ladder is now `SOLAR_RUNNER` > config > auto, and `run --runner {agent-dispatch,http,stub}` is a typed front door for it: the flag sets `SOLAR_RUNNER` for the process instead of writing `config.json`, so the flag and the knob cannot disagree and the committed config is never touched. An unrecognised value now **raises** instead of silently falling through to auto (`runner: "https"` used to pick a different runner with no signal); `doctor` reports it as `FAIL runner` and `/health` returns `runner: "invalid"` plus `runner_error` rather than 500-ing. Acceptance test: `--runner http` against Promyro (config pins `agent-dispatch`) — 8 calls, 26,848 tokens, APPROVED, and `config.json` read `agent-dispatch` before **and** after.
 **Goal:** Let one run choose its runner without editing the repo's config. `select_runner` is `cfg_runner or os.environ.get("SOLAR_RUNNER", "")`, so a repo whose `config.json` sets `runner` **always wins and `SOLAR_RUNNER` is dead** — the opposite of `SOLAR_MODEL`, where env beats role and config. Add `--runner {http,agent-dispatch,stub}` to `run` (and/or make env win) so testing the `http` path on a repo configured for `agent-dispatch` does not require mutating a live engagement's config.
 **Why:** found while running the v5.4.1 integration test — forcing `http` on Promyro meant editing `Promyro/.solar/config.json` and restoring it afterwards, on a repo whose `human_approval` and role grants are live. The docstring ("explicit config/env > auto") reads as if config and env are peers; the code makes config dominate.
 **Files:** `executor.select_runner` (precedence), `cli.py` (`run` flag).

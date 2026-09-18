@@ -5,11 +5,13 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.4.1** — the `http` runner has full role capacity without a shell:
+Released (**v5.4.2** — the `http` runner has full role capacity without a shell:
 line ranges, write policy, a closed command vocabulary, an approval gate, shaped
 checkers; plus per-node model routing. **v5.4.1** adds the stop rule the tool loop was
 missing — an explicit temperature, a budget notice near the end, and a final round called
-with no tools offered, so a node hands back what it established instead of failing).
+with no tools offered, so a node hands back what it established instead of failing.
+**v5.4.2** makes the runner choosable per run (`run --runner X`) and makes
+`SOLAR_RUNNER` actually win over the repo config).
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -34,6 +36,7 @@ solar-governor init   --repo <path> --profile light          # write .solar/conf
 solar-governor doctor --repo <path> [--json]                 # install self-check (PASS/FAIL)
 solar-governor run "<task>" --repo <path>                    # one task through the graph (ledger + run-card)
 solar-governor run "<task>" --repo <path> --role <role>      # pin one specialist (e.g. Hermes decision)
+solar-governor run "<task>" --repo <path> --runner http      # choose the runner for THIS run only
 solar-governor run "<task>" --repo <path> --chain <name> --auto   # whole chain, driver-orchestrated, headless
 solar-governor serve --repo <path>                           # headless HTTP API (POST /run, POST /chain)
 solar-governor bench "<task>" --repo <path> --n 5            # N-run aggregate (tokens/time/verdict)
@@ -114,9 +117,10 @@ decision is never re-asked.
 
 ## Runners — how a specialist executes (provider-agnostic)
 
-The graph never calls a provider directly. The SPECIALIST node asks a **runner**
-(`cfg.runner`, or env `SOLAR_RUNNER`; default auto = http if a key is set, else
-stub):
+The graph never calls a provider directly. The SPECIALIST node asks a **runner**. The
+ladder is `run --runner X` (this run only) > `SOLAR_RUNNER` > the repo's `cfg.runner` >
+auto (http if a key is set, else stub). An unrecognised value is an **error**, not a
+silent fallback — a typo must not select a different runner than the one asked for:
 
 | Runner           | What it does                                                               | Needs                 |
 | ---------------- | -------------------------------------------------------------------------- | --------------------- |
@@ -131,6 +135,15 @@ Set the runner per repo at install time:
 ```bash
 solar-governor init --repo <path> --runner agent-dispatch   # IDE-native pilot
 solar-governor init --repo <path> --runner http             # headless/CLI
+```
+
+Or override it for a **single run**, without touching the committed config — so a repo
+pinned to `agent-dispatch` can be exercised through `http` (or the reverse) and handed
+back unchanged:
+
+```bash
+solar-governor run "<task>" --repo <path> --runner http
+solar-governor run "<task>" --repo <path> --role investigator --runner stub
 ```
 
 ### `http` runner config (env only, never committed)
@@ -201,8 +214,8 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python -m pytest tests/           # 123 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 127 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
-                                  # tool-loop termination
+                                  # tool-loop termination, runner selection
 python tests/test_smoke.py        # smoke only
 ```

@@ -18,6 +18,31 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.4.2 — Released (2026-09-18) — the runner can be chosen per run
+
+**Theme:** the v5.4.1 integration test had to edit a live engagement's
+`.solar/config.json` — twice — because there was no way to choose a runner for one run.
+There is now.
+
+### Added
+
+- **`run --runner {agent-dispatch,http,stub}`** — picks the runner for that run only. It sets `SOLAR_RUNNER` for the process rather than writing `config.json`, so the committed config is never touched and the flag and the env knob cannot disagree about which runner won.
+- `executor.RUNNERS` — the three runner ids, so the CLI offers them as `choices=` instead of repeating the list.
+
+### Fixed
+
+- **`SOLAR_RUNNER` was unreachable.** `select_runner` was `cfg_runner or os.environ.get("SOLAR_RUNNER", "")`, so a repo whose `config.json` pinned a runner **always** won and the documented env override did nothing — the opposite of `SOLAR_MODEL`, where env beats both role and config. The ladder is now `SOLAR_RUNNER` > config > auto.
+- **A typo no longer downgrades silently.** `select_runner` raises on an unrecognised runner instead of falling through to auto: `runner: "https"` used to select a *different* runner than the config asked for, with no signal. `doctor` reports it as `FAIL runner`, and `/health` returns `runner: "invalid"` plus `runner_error` rather than failing the endpoint.
+
+### Measured
+
+- Acceptance test on the exact case that forced the config edits: `--runner http` against Promyro, whose config pins `agent-dispatch` — 8 tool calls, 26,848 tokens, `forced_final: false`, verdict APPROVED, and `config.json` reporting `"runner": "agent-dispatch"` **before and after**.
+- Tests **123 → 127**.
+
+### Corrects
+
+- `README.md` described the runner as "`cfg.runner`, or env `SOLAR_RUNNER`" with no precedence. It now states the ladder and documents the per-run flag.
+
 ## v5.4.1 — Released (2026-09-18) — the specialist tool loop terminates
 
 **Theme:** v5.4.0 gave the `http` runner capacity; this release makes it _finish_. The
