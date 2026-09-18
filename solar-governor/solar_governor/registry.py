@@ -7,6 +7,8 @@ swap = edit one entry, no wiring changes.
 import json
 from pathlib import Path
 
+from .core import read_json
+
 DEFAULT_SPECIALISTS: dict = {
     "implementer": {
         "role": "Implementer",
@@ -34,7 +36,7 @@ DEFAULT_SPECIALISTS: dict = {
 
 def load(registry_path: Path | None = None) -> dict:
     if registry_path and registry_path.exists():
-        data = json.loads(registry_path.read_text(encoding="utf-8"))
+        data = read_json(registry_path)
         merged = dict(DEFAULT_SPECIALISTS)
         merged.update(data)
         return merged
@@ -59,7 +61,7 @@ def declared(registry_path: Path | None = None) -> list[str]:
     if not (registry_path and registry_path.exists()):
         return []
     try:
-        data = json.loads(registry_path.read_text(encoding="utf-8"))
+        data = read_json(registry_path)
     except Exception:
         return []                       # unreadable file: say nothing, do not guess
     return role_keys(data) if isinstance(data, dict) else []

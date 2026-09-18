@@ -6,6 +6,24 @@ from pathlib import Path
 from typing import Annotated, TypedDict
 
 
+def read_text(path: Path | str) -> str:
+    """Read a file a HUMAN may have authored: BOM-tolerant (v5.6.3).
+
+    Everything under `.solar/` except the checkpoints is committed and hand-editable, and
+    a UTF-8 BOM is an ordinary outcome of editing one on Windows: PowerShell 5.1's
+    `Set-Content -Encoding utf8` writes one, and so does Notepad's "UTF-8 with BOM".
+    `json.loads` rejects a leading BOM, so a config that was correct by every visual
+    measure killed the run with a traceback. Reading as `utf-8-sig` accepts both forms -
+    it is a no-op on a file without a BOM.
+    """
+    return Path(path).read_text(encoding="utf-8-sig")
+
+
+def read_json(path: Path | str):
+    """Parse a JSON file a human may have authored (see `read_text`)."""
+    return json.loads(read_text(path))
+
+
 class TaskRow(TypedDict):
     id: str
     task: str
@@ -130,7 +148,7 @@ class Config:
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"no config at {path} — run `solar-governor init`")
-        d = json.loads(path.read_text(encoding="utf-8"))
+        d = read_json(path)
         keys = {f.name for f in dataclasses.fields(cls)} - cls._RUNTIME_FIELDS
         cfg = cls(**{k: v for k, v in d.items() if k in keys})
         cfg.loaded_from = path

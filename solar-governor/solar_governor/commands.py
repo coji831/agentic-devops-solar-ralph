@@ -26,6 +26,8 @@ import json
 import os
 import re
 import shutil
+
+from .core import read_json
 import subprocess
 import time
 from pathlib import Path
@@ -73,7 +75,7 @@ def load_vocabulary(root: Path) -> dict:
     if not path.is_file():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = read_json(path)
     except (OSError, ValueError):
         return {}
     if not isinstance(data, dict):

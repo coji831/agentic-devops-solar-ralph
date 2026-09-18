@@ -23,6 +23,7 @@ import json
 from pathlib import Path
 
 from . import __version__
+from .core import read_json, read_text
 
 BEGIN = "# >>> solar-governor — generated block; rewritten by `solar-governor init` >>>"
 END = "# <<< solar-governor <<<"
@@ -148,12 +149,16 @@ def merge_config(existing: dict | None, fresh: dict) -> dict:
 
 
 def read_version(root: Path) -> str:
-    """The runtime version this repo was installed against ("" when unrecorded)."""
+    """The runtime version this repo was installed against ("" when unrecorded).
+
+    BOM-tolerant: a marker carrying one would otherwise compare as
+    `\ufeff5.6.2` and report drift that does not exist.
+    """
     path = Path(root) / VERSION_FILE
     if not path.is_file():
         return ""
     try:
-        return path.read_text(encoding="utf-8").strip()
+        return read_text(path).strip()
     except OSError:
         return ""
 
@@ -189,7 +194,7 @@ def read_config(root: Path) -> dict | None:
     if not path.is_file():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = read_json(path)
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None

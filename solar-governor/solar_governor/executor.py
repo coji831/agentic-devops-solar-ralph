@@ -21,6 +21,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .commands import CommandRunner
+from .core import read_text
 from .workspace import Workspace
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -323,7 +324,9 @@ def resolve_result(value: str, repo: Path) -> str:
         p = Path(repo) / value
     if p.is_file():
         try:
-            return p.read_text(encoding="utf-8")
+            # utf-8-sig: this file is usually written by an IDE agent or a human, and a
+            # BOM would otherwise arrive as the first character of the specialist output.
+            return read_text(p)
         except OSError:
             pass
     return value

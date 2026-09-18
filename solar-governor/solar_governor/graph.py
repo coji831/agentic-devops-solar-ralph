@@ -225,6 +225,23 @@ def initial_state(task: str, chain: str = "", role: str = "") -> dict:
             "attempts": 0}
 
 
+def _ensure_checkpoint_dir(cfg: Config) -> None:
+    """Make the checkpoint's directory before ANY saver is opened (v5.6.3).
+
+    `run_step` had this; `pending_interrupt` did not - and it opens the same database.
+    So a repo with `.solar/config.json` but no `.solar/state/` crashed the `--json` path
+    (and `serve`, which calls `pending_interrupt` first) with a bare
+    `sqlite3.OperationalError: unable to open database file`, while the interactive path
+    worked because it happened to create the directory first. Two paths disagreeing about
+    the same repo is the defect; the missing mkdir is only how it showed.
+
+    That state is not exotic: `state/` is gitignored while `config.json` and
+    `registry.json` are tracked, so it is exactly what a FRESH CLONE looks like.
+    """
+    cfg.root.mkdir(parents=True, exist_ok=True)
+    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+
+
 def run_step(cfg: Config, task: str, thread: str | None = None,
              resume: str | None = None, chain: str = "", role: str = "") -> dict:
     """Execute exactly ONE graph step on a thread (SQLite checkpoint).
@@ -243,8 +260,7 @@ def run_step(cfg: Config, task: str, thread: str | None = None,
     """
     thread = thread or "t1"
     config = {"configurable": {"thread_id": thread}}
-    cfg.root.mkdir(parents=True, exist_ok=True)
-    cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_checkpoint_dir(cfg)
     with SqliteSaver.from_conn_string(str(cfg.checkpoint_path)) as cp:
         graph = build_graph(cfg).compile(checkpointer=cp)
         if resume is not None:
@@ -295,6 +311,7 @@ def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
     """
     thread = thread or "t1"
     config = {"configurable": {"thread_id": thread}}
+    _ensure_checkpoint_dir(cfg)
     with SqliteSaver.from_conn_string(str(cfg.checkpoint_path)) as cp:
         graph = build_graph(cfg).compile(checkpointer=cp)
         try:

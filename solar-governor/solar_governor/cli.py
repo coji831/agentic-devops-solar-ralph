@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import bench, chain, eval as eval_mod, executor, install, runcard, server, uplink
 from .core import Config
+from .core import read_json
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import record
 from .registry import chains as load_chains
@@ -90,7 +91,16 @@ def cmd_init(args):
 
 
 def cmd_run(args):
-    cfg = Config.load(_cfg_path(Path(args.repo).expanduser().resolve()))
+    root = Path(args.repo).expanduser().resolve()
+    try:
+        cfg = Config.load(_cfg_path(root))
+    except (OSError, ValueError) as e:
+        # A config that cannot be read or parsed is a USAGE/STATE error, so it gets the
+        # documented code and a message. It used to escape as a raw traceback and exit 1,
+        # which is outside the contract every wrapper in this repo drives on.
+        print(f"❌ {e}", file=sys.stderr)
+        print(f"   config: {_cfg_path(root)}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
     thread = args.thread or "t1"
     started = time.time()
     if getattr(args, "runner", ""):
@@ -266,7 +276,15 @@ def cmd_doctor(args):
         checks["config"] = ("FAIL", str(e))
         _print_doctor(checks)
         sys.exit(1)
-    checks["checkpoint-writable"] = ("PASS" if cfg.checkpoint_path.parent.exists() else "FAIL", "")
+    # CREATABILITY, not existence (v5.6.3). The checkpoint directory is created on demand by
+    # `run_step`/`pending_interrupt`, and `state/` is gitignored while `config.json` is
+    # tracked - so a fresh clone legitimately has no `state/`. Testing existence reported
+    # FAIL for a repo that runs perfectly well.
+    try:
+        cfg.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checks["checkpoint-writable"] = ("PASS", f"{cfg.state_dir} (created on demand)")
+    except OSError as e:
+        checks["checkpoint-writable"] = ("FAIL", f"cannot create {cfg.state_dir}: {e}")
     try:
         build_graph(cfg)
         checks["graph-compiles"] = ("PASS", "")
@@ -434,7 +452,7 @@ def main():
     p_eval.add_argument("--n", type=int, default=1)
     p_eval.add_argument("--id", default=None, help="run a single case by id")
     p_eval.set_defaults(fn=lambda a: eval_mod.run(a.repo,
-                                                  cases=(json.loads(Path(a.cases).read_text(encoding="utf-8"))
+                                                  cases=(read_json(a.cases)
                                                          if a.cases else None),
                                                   n=a.n, only=a.id))
 

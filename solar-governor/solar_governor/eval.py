@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import executor
 from .core import Config
+from .core import read_json
 from .graph import run_task
 
 # DeepSeek-chat list prices (USD per 1M tokens, approx; cache-miss prompt rate)
@@ -78,10 +79,10 @@ def load_cases(repo: Path, explicit: str | None = None) -> tuple[list[dict], str
         p = Path(explicit).expanduser()
         if not p.is_absolute():
             p = repo / p
-        return json.loads(p.read_text(encoding="utf-8")), str(p)
+        return read_json(p), str(p)
     per_repo = repo / CASES_FILE
     if per_repo.exists():
-        return json.loads(per_repo.read_text(encoding="utf-8")), CASES_FILE
+        return read_json(per_repo), CASES_FILE
     return DEFAULT_CASES, "built-in defaults"
 
 
