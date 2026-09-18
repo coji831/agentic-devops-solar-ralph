@@ -11,6 +11,7 @@ from .core import Config
 from .graph import build_graph, pending_interrupt, run_step, run_task
 from .ledger import record
 from .registry import chains as load_chains
+from .registry import declared as declared_roles
 from .registry import load as load_registry
 from .registry import role_keys
 
@@ -273,19 +274,34 @@ def cmd_doctor(args):
         checks["graph-compiles"] = ("FAIL", str(e))
     reg: dict = {}
     try:
-        reg = load_registry(root / ".solar" / "registry.json")
+        reg_path = root / ".solar" / "registry.json"
+        reg = load_registry(reg_path)
         n_roles = len(role_keys(reg))
-        cm = load_chains(root / ".solar" / "registry.json")
-        detail = f"{n_roles} specialists" + (f", chains: {sorted(cm)}" if cm else "")
+        n_declared = len(declared_roles(reg_path))
+        cm = load_chains(reg_path)
+        # The merged count is what can be DISPATCHED, which is not the same as what the
+        # repo wrote: `load` merges the built-in specialists under the repo's. Both
+        # numbers, because "10 specialists" for a repo that declares 7 reads as a bug.
+        detail = f"{n_roles} dispatchable"
+        if n_declared and n_declared != n_roles:
+            detail += f" ({n_declared} declared + {n_roles - n_declared} built-in)"
+        if cm:
+            detail += f", chains: {sorted(cm)}"
         checks["registry"] = ("PASS", detail)
     except Exception as e:
         checks["registry"] = ("FAIL", str(e))
     try:
         runner = executor.select_runner(cfg.runner)
         detail = {"agent-dispatch": "hand off to .agent.md agents in the IDE",
-                  "http": "OpenAI-compatible (SOLAR_API_KEY set)",
-                  "stub": "no API key -> deterministic stub"}[runner]
-        checks["runner"] = ("PASS", f"{runner} ({detail})")
+                  "http": "OpenAI-compatible chat calls with workspace tools",
+                  "stub": "deterministic and offline: no provider call at all"}[runner]
+        if runner == "http" and not executor.available():
+            # The selected runner is reported, but it cannot do what it is named for
+            # without a key. Saying PASS here would describe a run that will not happen.
+            checks["runner"] = ("WARN", f"{runner} ({detail}) — no SOLAR_API_KEY, so "
+                                        f"specialist calls fall back to the stub")
+        else:
+            checks["runner"] = ("PASS", f"{runner} ({detail})")
     except ValueError as e:
         checks["runner"] = ("FAIL", str(e))
     checks["model"] = _model_check(cfg, reg)

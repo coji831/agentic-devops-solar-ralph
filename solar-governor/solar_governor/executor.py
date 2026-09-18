@@ -432,10 +432,27 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
                    "max_rounds", False)
 
 
+def stub_result(role: str, objective: str, why: str) -> ExecutorResult:
+    """The deterministic, offline result — and WHICH reason produced it (TD-5.6-7).
+
+    `why` is not decoration. "No key is set" and "the caller asked for the stub" are
+    different facts about the run, and a reader (or a run-card) that cannot tell them
+    apart cannot tell a fallback from a deliberate choice. It is also the only signal
+    that an offline run was intended rather than degraded into.
+    """
+    return ExecutorResult(
+        output=(f"[{role}] STUB ({why}) — plan for: {objective}\n"
+                f"  - PREMISE_GATE: verify the request vs ground truth\n"
+                f"  - read the relevant files (workspace tool)\n"
+                f"  - implement the minimal change\n"
+                f"  - self-check + tests"),
+        usage={"in": 0, "out": 0}, tool_calls=0, error=None, model="stub")
+
+
 def run(role: str, system_prompt: str, objective: str, repo: Path,
         cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
         spec: dict | None = None, human_approval: bool = False,
-        cfg_reasoning: str = "", cfg_tier: str = "") -> ExecutorResult:
+        cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "") -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
@@ -444,18 +461,20 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     override (TD-5.4-1) and its `reasoning` the per-node effort (TD-5.4-2).
     `human_approval` reaches the command layer's approval gate.
 
+    `runner` is the ALREADY-RESOLVED runner from `select_runner` (TD-5.6-7). It is
+    passed in rather than re-resolved here because one ladder must have one outcome:
+    this function previously decided on the api key alone, so `run --runner stub` with
+    a key in the environment made a real, billable HTTP call — the exact opposite of
+    what reaching for the stub is for.
+
     Falls back to a stub (no network) when no API key is present, so the graph
     stays runnable/testable without credentials.
     """
+    if runner == "stub":
+        return stub_result(role, objective, "runner=stub, by request")
     key = api_key()
     if key is None:
-        return ExecutorResult(
-            output=(f"[{role}] STUB (no SOLAR_API_KEY set) — plan for: {objective}\n"
-                    f"  - PREMISE_GATE: verify the request vs ground truth\n"
-                    f"  - read the relevant files (workspace tool)\n"
-                    f"  - implement the minimal change\n"
-                    f"  - self-check + tests"),
-            usage={"in": 0, "out": 0}, tool_calls=0, error=None, model="stub")
+        return stub_result(role, objective, "no SOLAR_API_KEY set")
     try:
         from openai import OpenAI
         client = OpenAI(api_key=key, base_url=base_url())

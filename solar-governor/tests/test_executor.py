@@ -523,6 +523,47 @@ def test_a_rejected_run_does_not_exit_zero():
     assert cli._exit_for({}) == cli.EXIT_OK          # still running: not a failure
 
 
+def test_the_stub_runner_is_honoured_even_when_a_key_is_set():
+    """TD-5.6-7: an EXPLICIT `stub` must not reach the provider.
+
+    The executor fell back to the stub on a missing KEY rather than on the selected
+    runner, so `run --runner stub` with `SOLAR_API_KEY` set made a real, billable chat
+    call - the exact opposite of what reaching for the stub is for. `base_url` is
+    booby-trapped rather than merely unreachable, so a regression fails here, fast and
+    offline, instead of dialling out from a test run.
+    """
+    def _touched():
+        raise AssertionError("the stub runner reached for provider config")
+
+    os.environ["SOLAR_API_KEY"] = "sk-deliberately-fake"
+    original = executor.base_url
+    executor.base_url = _touched
+    try:
+        res = executor.run("implementer", "You are an implementer.", "add a feature",
+                           Path(tempfile.gettempdir()), runner="stub")
+    finally:
+        executor.base_url = original
+        os.environ.pop("SOLAR_API_KEY", None)
+    assert res.get("model") == "stub"
+    assert res.get("error") is None           # the client was never constructed
+    assert res.get("usage") == {"in": 0, "out": 0}
+    assert "by request" in res.get("output", "")
+
+
+def test_the_stub_says_which_reason_produced_it():
+    """A fallback and a choice are different facts about a run, so the stub names its
+    own reason (TD-5.6-7). Without this, an offline run is indistinguishable from one
+    that quietly degraded into the stub."""
+    fell_back = executor.run("implementer", "sys", "add a feature",
+                             Path(tempfile.gettempdir()))
+    by_request = executor.run("implementer", "sys", "add a feature",
+                              Path(tempfile.gettempdir()), runner="stub")
+    assert "no SOLAR_API_KEY set" in fell_back["output"]
+    assert "runner=stub, by request" in by_request["output"]
+    assert fell_back["output"] != by_request["output"]
+    assert fell_back["model"] == by_request["model"] == "stub"
+
+
 def test_resolve_model_reports_which_level_supplied_the_id():
     """TD-5.4-6 needs the provenance, not just the id: a deliberate env override and
     a stale config pin otherwise resolve to the same kind of string."""

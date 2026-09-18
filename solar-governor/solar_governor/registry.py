@@ -48,6 +48,23 @@ def role_keys(registry: dict) -> list[str]:
     return [k for k, v in registry.items() if isinstance(v, dict) and "system" in v]
 
 
+def declared(registry_path: Path | None = None) -> list[str]:
+    """Role keys the REPO's own file declares, before the built-ins are merged in.
+
+    `load` merges, so its role count is what can be DISPATCHED, not what the repo
+    wrote — a distinction that reads as a defect when it is only unsaid (`doctor`
+    reported "10 specialists" for a repo that declares 7). Reported, not merged:
+    the count has to come from the file, not from the union.
+    """
+    if not (registry_path and registry_path.exists()):
+        return []
+    try:
+        data = json.loads(registry_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []                       # unreadable file: say nothing, do not guess
+    return role_keys(data) if isinstance(data, dict) else []
+
+
 def chains(registry_path: Path | None = None) -> dict:
     """Named chains (data): name -> ordered list where a nested list = a parallel group.
 

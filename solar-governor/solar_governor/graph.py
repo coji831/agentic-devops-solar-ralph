@@ -82,7 +82,7 @@ def _chain_note(cfg: Config, chain_name: str) -> str:
     return f"chain `{chain_name}`: {chain_text(cm, chain_name)}"
 
 
-def _execute(cfg: Config, state: SolarState) -> dict:
+def _execute(cfg: Config, state: SolarState, runner: str = "") -> dict:
     """Run the routed specialist role through the HTTP/stub runner.
 
     System prompt comes from the loaded registry (repo-specific role wins), and
@@ -90,6 +90,10 @@ def _execute(cfg: Config, state: SolarState) -> dict:
     policy from the role. The executor falls back to a stub when no API key is
     present (cfg.model "" or SOLAR_API_KEY unset), so the graph stays testable
     without credentials.
+
+    `runner` is resolved ONCE by the caller (`select_runner`) and handed down, so
+    the runner that was chosen is the runner that runs (TD-5.6-7) rather than being
+    re-decided here from the api key.
     """
     role = state.get("role", "implementer")
     spec = _role_spec(cfg, role)
@@ -97,7 +101,8 @@ def _execute(cfg: Config, state: SolarState) -> dict:
     res = executor.run(role=role, system_prompt=_role_prompt(spec, role),
                        objective=objective, repo=cfg.root, cfg_model=cfg.model,
                        spec=spec, human_approval=cfg.human_approval,
-                       cfg_reasoning=cfg.reasoning_effort, cfg_tier=cfg.model_tier)
+                       cfg_reasoning=cfg.reasoning_effort, cfg_tier=cfg.model_tier,
+                       runner=runner)
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),
@@ -169,7 +174,7 @@ def build_nodes(cfg: Config):
         runner = executor.select_runner(cfg.runner)
         if runner == "agent-dispatch":
             return _dispatch_agent(cfg, state, attempts)
-        result = _execute(cfg, state)
+        result = _execute(cfg, state, runner)
         return {"attempts": attempts, "stage": "specialist",
                 "decisions_log": [f"specialist attempt {attempts}"], **result}
 
@@ -225,10 +230,12 @@ def run_step(cfg: Config, task: str, thread: str | None = None,
     """Execute exactly ONE graph step on a thread (SQLite checkpoint).
 
     - resume=None  -> fresh start for a new thread (optionally as a named chain,
-        or pinned to a specific role via `role`).
+        or pinned to a specific role via `role`). A fresh start first CLEARS that
+        thread's own history (TD-5.6-6), so re-using a thread id cannot inherit an
+        earlier run's accumulating channels.
     - resume=<str> -> resume the thread's pending interrupt with that value
         (agent-dispatch: result text or result-file path; review:
-        'approve'|'deny').
+        'approve'|'deny'). A resume is a CONTINUATION: nothing is cleared.
 
     Returns the merged state. A pending interrupt appears under '__interrupt__';
     run_step never prompts on stdin, so callers (human CLI, an agent driver,
@@ -242,7 +249,42 @@ def run_step(cfg: Config, task: str, thread: str | None = None,
         graph = build_graph(cfg).compile(checkpointer=cp)
         if resume is not None:
             return graph.invoke(Command(resume=resume), config)
-        return graph.invoke(initial_state(task, chain=chain, role=role), config)
+        cleared = _clear_thread(cp, graph, config, thread)
+        seed = initial_state(task, chain=chain, role=role)
+        if cleared:
+            seed["decisions_log"] = [cleared]
+        return graph.invoke(seed, config)
+
+
+def _clear_thread(cp, graph, config: dict, thread: str) -> str:
+    """Drop a thread's own history before a FRESH start (TD-5.6-6). Returns a note.
+
+    `work_queue`, `decisions_log`, `tokens_in`, `tokens_out` and `tool_calls` are all
+    `operator.add` channels, so invoking over an existing checkpoint APPENDS to the
+    previous run's values rather than replacing them. The default thread is a fixed
+    `t1`, so this was the normal path, not an edge case: a second `run "<task>"`
+    reported the first run's work row, its decisions and its token totals as if they
+    belonged to it.
+
+    Only a start with NO pending interrupt clears. A resume is a continuation and must
+    keep everything — and since a caller cannot resume a thread that is not paused
+    (the CLI refuses it), the two cases cannot be confused. A thread that has never run
+    is left alone, so a first run does no extra work.
+    """
+    try:
+        snapshot = graph.get_state(config)
+    except Exception:
+        return ""                       # no readable checkpoint: nothing to clear
+    if not getattr(snapshot, "values", None):
+        return ""                       # this thread has never run
+    if not hasattr(cp, "delete_thread"):
+        # Degraded, and said out loud: the run is still valid, but its totals may
+        # include an earlier run's. Silence here would be the same defect as a
+        # failed check reading as a pass.
+        return (f"⚠️ thread '{thread}' already had state and this checkpointer cannot "
+                f"clear it (no delete_thread) — totals may include an earlier run")
+    cp.delete_thread(thread)
+    return f"fresh start on thread '{thread}': cleared the previous run's state"
 
 
 def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
