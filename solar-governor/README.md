@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.6.1** — install consistency, and a ledger that is a record). The runner
+Released (**v5.6.2** — two silent wrong answers, fixed). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -15,6 +15,10 @@ per repo, `uplink` posts the run digest. `v5.6.0` made an install portable and r
 `.solar/VERSION` records what the repo was installed against, the `.gitignore` block is
 generated, and repos declare a model **tier**. **v5.6.1** makes `.solar/ledger.md` an
 append-only record — one section per run, and hand-written content in it is never touched.
+**v5.6.2** fixes the two defects v5.6.1 recorded rather than fixed: a re-used thread no
+longer inherits the previous run's state (a start with no pending interrupt clears that
+thread's own history; a resume continues), and `--runner stub` is offline **even when a key
+is set**.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -160,7 +164,8 @@ silent fallback — a typo must not select a different runner than the one asked
 |                  | `.agent.md` specialist in the IDE (DeepSeek via the DeepSeek-for-Copilot   | DeepSeek extension    |
 |                  | extension), then paste the result (or result-file path) to resume          |                       |
 | `http`           | OpenAI-compatible chat call with repo-bounded workspace tools              | `SOLAR_API_KEY`       |
-| `stub`           | Deterministic plan text (offline structure tests)                          | nothing               |
+| `stub`           | Deterministic plan text. **Offline by contract**: honoured by request, so it makes no | nothing               |
+|                  | provider call even when `SOLAR_API_KEY` is set                                        |                       |
 
 Set the runner per repo at install time:
 
@@ -244,6 +249,13 @@ A paused thread is detected via the SQLite checkpoint; `run --json` refuses to
 plain-invoke a paused thread (that would resume with the wrong value). Ledger +
 run-card are (re)written at every step, so progress is on disk even mid-pause.
 
+**Thread state is not cumulative.** A start with **no pending interrupt** is a fresh start,
+and clears that thread's own history first, so re-using an id (including the default `t1`)
+never inherits an earlier run's work queue, decisions or token totals. A **resume**
+continues and clears nothing. The fresh run says which happened — `fresh start on thread
+'t1': cleared the previous run's state` is its first decisions entry — so the run-card and
+the ledger account for why their totals start at zero.
+
 A driver agent (`@Governor v5`, see the repo's `.github/agents/`) loops on these
 exit codes: exit 10 → read the handoff, run the matching `.agent.md` specialist
 (via `runSubagent`), save its answer to `<handoff>.result.md`, resume with that
@@ -261,14 +273,16 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 - Ledger (`record`) appends one section per run and never rewrites content it did not
   write; run-card JSON per run at `.solar/runs/<thread>.json` (tokens, verdict, model,
   decisions).
-- Ledger render (human view from state).
+- Thread state is not cumulative: a fresh start clears that thread's own history, a
+  resume continues it.
 
 ## Test
 
 ```bash
-python -m pytest tests/           # 165 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 175 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
-                                  # doctor + eval case resolution, install surface
+                                  # doctor + eval case resolution, install surface,
+                                  # thread reset/resume, stub-runner offline contract
 python tests/test_smoke.py        # smoke only
 ```

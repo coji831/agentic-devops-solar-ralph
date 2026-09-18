@@ -18,6 +18,63 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.6.2 — Released (2026-09-19) — the two silent wrong answers
+
+**Theme:** the two defects v5.6.1 found and *recorded* instead of fixing. Both produced
+output that looked right, which is exactly why neither was visible by reading.
+
+### Fixed
+
+- **TD-5.6-6 — a re-used thread inherited the previous run's state.** `work_queue`,
+  `decisions_log`, `tokens_in`, `tokens_out` and `tool_calls` are `operator.add` channels,
+  so an invoke over an existing checkpoint **appends** to the previous run's values instead
+  of replacing them. The default thread is a fixed `t1`, which made the polluted state the
+  _normal_ path: a second `run "<task>"` reported the first run's work row, its decisions and
+  its token totals as if they were its own. A start with **no pending interrupt** now clears
+  that thread's own history first, and a **resume** continues and clears nothing. The two
+  cannot be confused — the CLI already refuses to resume a thread that is not paused, and
+  refuses to start one that is. The reset is announced in the fresh run's own decisions log,
+  so the run-card and the ledger explain why their totals start at zero.
+- **TD-5.6-7 — `--runner stub` did not stub while a key was set.** `executor.run` chose the
+  stub on a missing **key**, not on the selected **runner**, so `run --runner stub` with
+  `SOLAR_API_KEY` in the environment made a real, billable HTTP call — the exact opposite of
+  what reaching for the offline runner is for. `executor.run` now takes the already-resolved
+  runner and honours an explicit `stub` before touching provider config.
+- The stub now **names which reason produced it** — `runner=stub, by request` or
+  `no SOLAR_API_KEY set`. A fallback and a deliberate choice are different facts about a run,
+  and nothing else distinguished them.
+
+### Changed
+
+- `doctor`'s `registry` check said "10 specialists" for a repo that declares 7. The count
+  was the **merged** set (`load` merges the built-in specialists under the repo's), so the
+  number was right and the word was missing. It now reads
+  `10 dispatchable (7 declared + 3 built-in)`, and shows no arithmetic when the two agree.
+- `doctor`'s `runner` check described `stub` as "no API key -> deterministic stub" and
+  returned **PASS for a selected `http` with no key** — a report of a run that will not
+  happen as described. The wording is corrected, and the second case is now a **WARN**.
+- `registry.declared()` reads the repo's OWN file before the built-ins are merged, so both
+  numbers come from evidence rather than from arithmetic on the union.
+
+### Measured
+
+- **The thread reset, before and after, in one process on one scratch repo:** the same two
+  tasks on the same thread give `work_queue` **2 rows / 8 decision steps** without the guard
+  and **1 row / 5 steps** with it. Through the CLI twice on the default thread, the ledger's
+  section for `t1` carries **one** `T1` row, with the reset note as its first decision.
+- **The stub, with a live key and an endpoint nothing listens on:** `runner="http"` returns
+  `deepseek-chat` with `Connection error.`; `runner="stub"` returns `stub`, `0/0` tokens and
+  no error. `run --runner stub --json` then exits **0** with that same key present — without
+  the guard it would have failed, and the review node would have REJECTED it.
+- Tests **165 → 175**: `tests/test_thread_state.py` (4 — including the resume guard that
+  keeps the reset scoped) and `tests/test_doctor.py` (4).
+
+### Not fixed here
+
+- TD-5.6-3 (the IDE model plane still has no table), TD-5.6-4 (`doctor` does not check MCP
+  servers or the smoke task), TD-5.4-3 (mid-chain human gate), and the v4 harness items.
+  All features or additions; none can produce a silently wrong result.
+
 ## v5.6.1 — Released (2026-09-19) — the ledger is a record, not a scratch file
 
 **Theme:** a defect found while committing an engagement's install, and fixed rather than
@@ -26,7 +83,7 @@ documented away.
 ### Fixed
 
 - **`ledger.render` REPLACED the whole file on every run.** It built three sections from the current state and did a wholesale `write_text`, so anything else living at that path was destroyed. Not hypothetical: it destroyed a **115-line hand-written task brief** in a real engagement, when an unrelated integration run wrote its own 18-line view over the top. Caught during a commit review and restored from `HEAD` before staging.
-- `ledger.record` (was `render`) now **appends**: one section per run, keyed by thread, each wrapped in its own begin/end markers. Re-recording the same thread updates **its own** section — a run that steps three times leaves one section, not three — and nothing else is touched. Prose before, between or *after* runtime sections survives exactly.
+- `ledger.record` (was `render`) now **appends**: one section per run, keyed by thread, each wrapped in its own begin/end markers. Re-recording the same thread updates **its own** section — a run that steps three times leaves one section, not three — and nothing else is touched. Prose before, between or _after_ runtime sections survives exactly.
 - Nothing is ever deleted: the file grows by one section per run.
 
 ### Changed
@@ -42,7 +99,7 @@ documented away.
 
 ### Found while doing this, not fixed here
 
-- **Reusing a thread id accumulates state.** `work_queue` and `decisions_log` are `operator.add` channels, so a second `run` on the same thread inherits the first run's lists — the live proof shows a doubled work queue and a doubled decisions log in one section. The default thread is a fixed `t1`, so this is the *normal* path, not an edge case. TD-5.6-6.
+- **Reusing a thread id accumulates state.** `work_queue` and `decisions_log` are `operator.add` channels, so a second `run` on the same thread inherits the first run's lists — the live proof shows a doubled work queue and a doubled decisions log in one section. The default thread is a fixed `t1`, so this is the _normal_ path, not an edge case. TD-5.6-6.
 - **`--runner stub` does not stub when a key is present.** `executor.run` falls back to the stub on a missing KEY, not on the selected runner, so the README's "Deterministic plan text (offline structure tests)" holds only while `SOLAR_API_KEY` is unset. TD-5.6-7.
 
 ## v5.6.0 — Released (2026-09-19) — install consistency

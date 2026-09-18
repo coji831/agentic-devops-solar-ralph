@@ -93,6 +93,9 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ## v5.6 — Install consistency (opened 2026-09-19 by comparing two real engagements)
 
+> Shipped: **v5.6.0** TD-5.6-1, 2 · **v5.6.1** TD-5.6-5 · **v5.6.2** TD-5.6-6, 7.
+> Still open: TD-5.6-3, TD-5.6-4 (both additions, neither can produce a wrong result).
+
 ### TD-5.6-1: ~~Portable config + refreshable install~~
 
 **Status:** Resolved 2026-09-19 — shipped in **v5.6.0**. `Config.repo` is optional and `root` derives from the config file's own location; `to_dict` omits `repo` when empty and never persists runtime-only fields, so a saved config names nothing machine-specific. `init` now MERGES (existing wins, new keys added, output names what was kept/added) instead of overwriting `config.json` while skipping `registry.json` - the asymmetry nobody could re-run. `.solar/VERSION` records the installed runtime and `doctor` WARNs on drift. The `.gitignore` block is marker-delimited and rewritten in place, replacing a guard (`if ".solar/state" not in text`) that could neither revise a block nor tell a duplicate from a conflict. **Note:** this is the enabling fix, not the commit: the engagement repos' `.solar/` data is still uncommitted, and both carry pre-existing unrelated modifications, so staging it is the owner's call.
@@ -117,19 +120,40 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ### TD-5.6-5: ~~The ledger overwrote itself, destroying whatever else was there~~
 
-**Status:** Resolved 2026-09-19 — shipped in **v5.6.1**. `ledger.render` built three sections from the current state and did a wholesale `write_text`, so the ledger was a view of the *last* run and anything else at that path was destroyed. It destroyed a 115-line hand-written task brief in a real engagement when an unrelated integration run wrote over it. `ledger.record` now appends: one section per run keyed by thread, each wrapped in its own begin/end markers, so re-recording the same thread updates its OWN section and prose before/between/after sections is untouched. Nothing is ever deleted. `chain.py`/`cli.py`/`server.py` pass the thread; `runcard` carries `decisions` so the structured record stands alone. **Note:** this is why the install block's line about ledger.md is now accurate — it had described an accumulation the code did not perform.
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.1**. `ledger.render` built three sections from the current state and did a wholesale `write_text`, so the ledger was a view of the _last_ run and anything else at that path was destroyed. It destroyed a 115-line hand-written task brief in a real engagement when an unrelated integration run wrote over it. `ledger.record` now appends: one section per run keyed by thread, each wrapped in its own begin/end markers, so re-recording the same thread updates its OWN section and prose before/between/after sections is untouched. Nothing is ever deleted. `chain.py`/`cli.py`/`server.py` pass the thread; `runcard` carries `decisions` so the structured record stands alone. **Note:** this is why the install block's line about ledger.md is now accurate — it had described an accumulation the code did not perform.
 **Files:** `ledger.py`, `cli.py` `_write_artifacts`, `chain.py`, `server.py`, `runcard.py`, `tests/test_ledger.py`.
 
-### TD-5.6-6: Reusing a thread id accumulates `work_queue` and `decisions_log`
+### TD-5.6-6: ~~Reusing a thread id accumulates `work_queue` and `decisions_log`~~
 
-**Status:** Open
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.2**. The accumulating channels
+(`work_queue`, `decisions_log`, `tokens_in`, `tokens_out`, `tool_calls` are all
+`operator.add`) no longer leak across runs: a start with **no pending interrupt** clears that
+thread's own history before invoking, and a **resume** continues untouched. The rejected
+alternative — an id per invocation — would have broken `run --json` followed by `--approve`,
+which must resume the SAME thread; the scoping is safe because the CLI already refuses a
+resume against a thread that is not paused and a start against one that is. The reset is
+announced as the first entry of the fresh run's own decisions log, so it is visible in the
+run-card and the ledger rather than silent. Measured on a scratch repo: `work_queue` **2 rows
+/ 8 decision steps** before, **1 row / 5 steps** after; through the CLI twice on the default
+thread, the ledger section for `t1` carries one `T1` row.
+**Files:** `graph.py` (`run_step` + `_clear_thread`), `tests/test_thread_state.py`.
 **Goal:** Both channels are `Annotated[list, operator.add]`, so a second `run` on the same thread inherits the first run's lists. The default thread is a fixed `t1`, which makes this the NORMAL path rather than an edge case: a second `solar-governor run "<task>"` with no `--thread` produces a work queue with two rows and a decisions log with the first run's entries still in it. Observed while proving the v5.6.1 ledger change (one section showing two `T1` rows and `material_gate -> READY` twice).
 **Why:** the state a run reports is wrong, and it is wrong for anyone who ever runs more than one task without naming a thread. A fresh start needs either a per-invocation thread id or an explicit reset of the accumulating channels on a non-resume start - the constraint is that `run --json` followed by `--approve` must still resume the SAME thread, so the default cannot simply become random.
 **Files:** `graph.py` `initial_state`/`run_task`, `cli.py` thread default, `core.py` channel annotations.
 
-### TD-5.6-7: `--runner stub` still calls the provider when a key is present
+### TD-5.6-7: ~~`--runner stub` still calls the provider when a key is present~~
 
-**Status:** Open
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.2**. `executor.run` takes the
+already-resolved runner (`select_runner` is decided once, by the caller) and honours an
+explicit `stub` before any provider config is read, so the offline runner is offline by
+contract rather than by accident of a missing key. The stub also names its reason
+(`runner=stub, by request` vs `no SOLAR_API_KEY set`), because a fallback and a choice are
+different facts about a run and nothing else distinguished them. Measured with a live key and
+a dead endpoint: `runner="http"` returns `deepseek-chat` + `Connection error.`;
+`runner="stub"` returns `stub`, `0/0` tokens, no error; `run --runner stub --json` exits 0.
+**Note:** `doctor`'s runner check is corrected too — a selected `http` with no key is now a
+WARN, not a PASS describing calls that will not happen.
+**Files:** `executor.py` (`run`, `stub_result`), `graph.py` `_execute`, `cli.py` `cmd_doctor`.
 **Goal:** `executor.run` falls back to the stub on a missing KEY, not on the selected runner, so `run --runner stub` with `SOLAR_API_KEY` set performs a real HTTP call. The README's runner table says the stub is "Deterministic plan text (offline structure tests)", which is only true while the key is unset - a mismatch that would surprise anyone reaching for `--runner stub` precisely to stay offline, and it spends tokens when the intent was not to.
 **Files:** `executor.py` `run` (honour the selected runner), `cli.py` help text, README runner table.
 
