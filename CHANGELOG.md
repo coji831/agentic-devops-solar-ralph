@@ -18,6 +18,68 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.6.4 — Released (2026-09-19) — a local endpoint is reachable
+
+**Theme:** the http runner could not reach a **keyless** endpoint, which is what every local
+server is. Found by pointing it at one before committing to a local hosted model.
+
+### Fixed
+
+- **A local, keyless endpoint was unreachable — and the run said APPROVED.** `executor.run`
+  fell back to the stub when `api_key()` was `None`, whether or not the runner had been chosen
+  explicitly. A local OpenAI-compatible server (Ollama, llama.cpp, LM Studio) needs no
+  credential, so `run --runner http` against a healthy local server sent **no request at all**
+  and reported `tokens 0/0`, APPROVED: a run that never happened, reading as a success, on the
+  one runner whose purpose was to make a local model measurable. The SDK only requires a
+  non-empty string, so an explicit `http` run now sends `sk-no-key-required` — the value
+  llama.cpp's own docs pass and Ollama's describe as "required but ignored", so it is
+  recognisable in a server log rather than looking like a leaked secret. Auto still resolves to
+  the stub with no key, so nothing offline changes behaviour.
+- **`doctor` called a healthy local install broken.** The runner check WARNed "no
+  SOLAR_API_KEY, so specialist calls fall back to the stub" — true when the stub was chosen on
+  a missing key, and exactly wrong once an explicit `http` sends the placeholder.
+- **`doctor` was silent when the endpoint did not answer.** `known_models()` required a key, so
+  a keyless endpoint was never probed and the model check returned PASS without evidence. It now
+  resolves its key the same way a run does: a local endpoint is listed, and an unreachable one
+  is a **WARN** — the check that answers "is my local server up?".
+- **An endpoint that omits `usage` was indistinguishable from a stub.** `tokens {in: 0, out: 0}`
+  is what a stub reports and also what a real model reports when the server omits the usage
+  block. That the block is optional is documented by the servers themselves (Ollama lists
+  `stream_options.include_usage`, llama.cpp's `usage` is conditional), so the run-card now
+  records **`tokens.reported`**: 0 is a measurement, not an absence.
+
+### Added
+
+- **Provenance — the run-card records `provider`** (the endpoint's host:port, or `stub`). A
+  local-vs-cloud comparison could not be reconstructed from the record before: `qwen3:8b` on a
+  laptop and a hosted `qwen3:8b` are the same string. The ledger footer and the `--json`
+  contract carry it too.
+
+### Measured — the same probe, before and after
+
+| probe | endpoint calls | model | tokens | verdict |
+| --- | --- | --- | --- | --- |
+| no key, `--runner http` **before** | **0** | `stub` | 0/0 | APPROVED |
+| no key, `--runner http` **after** | **2** | `deepseek-chat` | 250/30 (`reported: true`) | APPROVED |
+| no key, auto (both) | 0 | `stub` | 0/0 (`reported: false`) | APPROVED — by design |
+
+`doctor` against that server: `model: PASS - qwen3:8b (from config model) [provider serves 1
+id(s)]` when it is up, `WARN - ... cannot list its models (Connection error.)` when it is down.
+
+### Found while doing this, not fixed here
+
+- **`run --runner X` leaks `SOLAR_RUNNER` into the process environment.** The flag sets the env
+  knob for the process and never restores it — harmless in a one-shot CLI, wrong in anything
+  long-lived (the server, a wrapper calling `main()` twice, a test suite). Not hypothetical: it
+  made the new local-endpoint tests pass alone and fail in the full suite, because env beats
+  config **by design**. TD-5.6-13.
+
+### Tested
+
+- Tests **186 → 193**. `tests/test_local_endpoint.py` runs a real in-process HTTP server,
+  because the defect was not in a function — it was whether a request goes out at all, and what
+  the record then claims about it.
+
 ## v5.6.3 — Released (2026-09-19) — the install path, verified against a live provider
 
 **Theme:** verifying the HTTP runner against the real provider found two defects **on the
@@ -32,7 +94,7 @@ valid being unable to run, and failing in a way that does not read as itself.
   looks like, since `state/` is gitignored while the config is tracked — died with a bare
   `sqlite3.OperationalError: unable to open database file` and **exit 1**, while the
   interactive path on the SAME repo worked because it happened to mkdir first. Two paths
-disagreeing about one repo is the defect. Both now share `graph._ensure_checkpoint_dir`.
+  disagreeing about one repo is the defect. Both now share `graph._ensure_checkpoint_dir`.
 - **An unreadable config exited 1.** `cmd_run` let `Config.load`'s error escape as a raw
   traceback and exit 1 — outside the documented `0/2/10/11/12` that every wrapper in this
   repo drives on. It is a usage/state error, so it now prints the reason and the path and
@@ -57,15 +119,15 @@ The key was available only as a Windows **User** env var, invisible to `run` unt
 sets it; every earlier "live" check was therefore really a stub-side check. With it set,
 against `api.deepseek.com`:
 
-| run | model | tokens in/out | tools | verdict | `forced_final` |
-| --- | --- | --- | --- | --- | --- |
-| plain | `deepseek-chat` | 1462 / 69 | 1 | APPROVED | False |
-| reasoner baseline | `deepseek-v4-pro` | 1685 / 154 | 1 | APPROVED | False |
-| `SOLAR_REASONING_EFFORT=low` | `deepseek-v4-pro` | 1479 / 62 | 1 | APPROVED | False |
+| run                          | model             | tokens in/out | tools | verdict  | `forced_final` |
+| ---------------------------- | ----------------- | ------------- | ----- | -------- | -------------- |
+| plain                        | `deepseek-chat`   | 1462 / 69     | 1     | APPROVED | False          |
+| reasoner baseline            | `deepseek-v4-pro` | 1685 / 154    | 1     | APPROVED | False          |
+| `SOLAR_REASONING_EFFORT=low` | `deepseek-v4-pro` | 1479 / 62     | 1     | APPROVED | False          |
 
 - **TD-5.4-2's caveat is closed**, substantially: DeepSeek **accepts** `low` on
   `deepseek-v4-pro` — no error, APPROVED. Still not overclaimed: one value, one model, one
-  sample. The 62-vs-154 output-token gap is *consistent with* the field taking effect, not
+  sample. The 62-vs-154 output-token gap is _consistent with_ the field taking effect, not
   proof of it.
 - **TD-5.4-8 (tool loop) is confirmed live**: 3/3 terminated naturally, `forced_final` False.
 - **The invalid-pin blocker is gone.** TD-5.6-2's caution said mandarin's `deepseek-v4-flash`
@@ -95,7 +157,7 @@ against `api.deepseek.com`:
 
 ## v5.6.2 — Released (2026-09-19) — the two silent wrong answers
 
-**Theme:** the two defects v5.6.1 found and *recorded* instead of fixing. Both produced
+**Theme:** the two defects v5.6.1 found and _recorded_ instead of fixing. Both produced
 output that looked right, which is exactly why neither was visible by reading.
 
 ### Fixed

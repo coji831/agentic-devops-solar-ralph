@@ -96,9 +96,9 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ## v5.6 — Install consistency (opened 2026-09-19 by comparing two real engagements)
 
-> Shipped: **v5.6.0** TD-5.6-1, 2 · **v5.6.1** TD-5.6-5 · **v5.6.2** TD-5.6-6, 7 · **v5.6.3** TD-5.6-9, 10.
-> Still open: TD-5.6-3, TD-5.6-4 (additions, neither can produce a wrong result) and
-> TD-5.6-8 (cosmetic).
+> Shipped: **v5.6.0** TD-5.6-1, 2 · **v5.6.1** TD-5.6-5 · **v5.6.2** TD-5.6-6, 7 · **v5.6.3** TD-5.6-9, 10 · **v5.6.4** TD-5.6-11, 12.
+> Still open: TD-5.6-3, TD-5.6-4 (additions, neither can produce a wrong result), TD-5.6-8
+> (cosmetic) and TD-5.6-13 (a leak that only bites a long-lived process).
 
 ### TD-5.6-1: ~~Portable config + refreshable install~~
 
@@ -216,6 +216,81 @@ would strip content the runtime did not write, which §23 forbids. Also excluded
 (a BOM there neither crashes nor changes behaviour) and repo files read by the workspace tools.
 **Files:** `core.py` (the helpers), `registry.py`, `install.py`, `commands.py`, `eval.py`,
 `executor.py` `resolve_result`, `cli.py`, `tests/test_install_paths.py`.
+
+### TD-5.6-11: ~~A local, keyless endpoint was unreachable~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.4**. `executor.run` fell back to the stub when
+`api_key()` was `None`, whether or not the runner had been chosen explicitly, so `run --runner http`
+against a healthy local endpoint sent **no request at all** and reported `tokens 0/0`, APPROVED — a
+run that never happened reading as a success. An explicit `http` run now sends `sk-no-key-required`
+(the value llama.cpp's docs pass; Ollama's say "required but ignored"), so the placeholder is
+recognised in a server log rather than looking like a leaked secret. Auto still resolves to the stub
+without a key. **Measured on the same mock-local probe: 0 endpoint calls / `model=stub` / 0/0 → 2
+calls / `deepseek-chat` / 250/30 / APPROVED.** `doctor`'s runner check was corrected with it: a
+keyless `http` is no longer WARNed as broken, and its model probe now lists a keyless endpoint and
+WARNs when one does not answer (`cannot list its models`).
+**Files:** `executor.py` (`resolved_key`, `known_models`), `cli.py` (`cmd_doctor`, `_model_check`),
+`tests/test_local_endpoint.py`.
+
+### TD-5.6-12: ~~`tokens: 0/0` meant two different things~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.4**. An endpoint may omit the usage block, so a
+real call to a real model could be recorded with the same two numbers a stub produces, and the token
+column — the thing a local-vs-cloud comparison measures — could be silently empty. `ExecutorResult`
+carries `usage_reported`, the run-card records `tokens.reported`, and the state/`--json` contract
+carry it too. Related and in the same release: the card now records **`provider`** (endpoint
+host:port, or `stub`), because a model id cannot carry provenance — `qwen3:8b` on a laptop and a
+hosted `qwen3:8b` are the same string.
+**Files:** `executor.py`, `core.py` (`SolarState`), `graph.py` `_execute`, `runcard.py`,
+`ledger.py` (footer), `cli.py` (`_state_summary`, `--json`).
+
+### TD-5.6-13: `run --runner X` leaks `SOLAR_RUNNER` into the process environment
+
+**Status:** Open — **severity: low**, found 2026-09-19 while testing v5.6.4.
+**Goal:** `cli.cmd_run` implements `--runner` by setting `os.environ["SOLAR_RUNNER"]` and never
+restoring it. In a one-shot CLI process that is exactly right (and the flag/knob cannot disagree).
+In a long-lived process — `serve`, a wrapper calling `main()` twice, or a test suite — the first
+`--runner stub` silently becomes the runner for everything that follows, and env beats config **by
+design**.
+**Measured, so as not to overstate it:** it made `tests/test_local_endpoint.py` pass alone (6/6) and
+fail in the full suite with `model == 'stub'`, because an earlier module had run one. Fixed on the
+test side with a hermetic env fixture; the product-side leak is what remains.
+**Files:** `cli.py` `cmd_run` — and the contract question first: `--runner` could be threaded
+through `select_runner` as a parameter instead of via the environment.
+
+## v5.7 — Local hosted models + a provider registry (opened 2026-09-19)
+
+### TD-5.7-1: A `providers` + `models` config, so a model is an alias not an env var
+
+**Status:** Open — designed, not built. Blocked on nothing; the v5.6.4 run made it useful.
+**Goal:** today a repo has one provider and one model, chosen by a ladder over `SOLAR_BASE_URL` /
+`SOLAR_MODEL` / `SOLAR_API_KEY` (env-only, never persisted) and `cfg.model` / `cfg.model_tier`.
+There is no way to say "`local-qwen` is `qwen3:8b` on localhost, `reasoner` is `deepseek-v4-pro`
+in the cloud, and this role uses the first while that chain uses the second".
+**Measured 2026-09-19:** the config **plumbing already tolerates the block** — `install.read_config`
+reads it and `init`'s merge preserves it byte-identically — while `Config.load` silently drops it,
+because there is no such dataclass field. So the work is a runtime change, not a schema migration:
+no hand-written config is at risk.
+**Constraint (non-negotiable):** `.solar/config.json` is **committed** in both engagements, so a
+provider entry carries `api_key_env: "SOLAR_API_KEY"` — a **name**, never a value. That is LiteLLM's
+documented `api_key: os.environ/VAR` indirection, and skipping it invites a key into a tracked file.
+A provider with an empty `api_key_env` is the local case, and depends on v5.6.4's placeholder.
+**Fact-checked against the current vendor docs (OpenRouter, vLLM, llama.cpp, Ollama, LM Studio):**
+`{base_url, api_key_env, family}` is **not** enough. A provider also needs `headers: {}` (OpenRouter
+attribution headers, provider betas) and a model needs `extra_body: {}` (OpenRouter's `provider`
+routing object, its `models` fallback list, `route: "fallback"` — all body-level). And a model id
+must stay **opaque**: `anthropic/claude-sonnet-4.5`, `:nitro`/`:floor` variants, `~` latest aliases,
+and llama.cpp's `/v1/models` id which is a **file path** unless `--alias` is set. Never parse it.
+**Shape:** shipped defaults merged with repo overrides (the `registry.load` pattern, so aliases are
+not re-declared per repo — the duplication v5.6.0 removed); `resolve_model` gains one alias rung, in
+that one place; `base_url()`/`api_key()` stop being env-only globals; a declared `family` per
+provider also fixes the local tier gap (`provider_family()` infers from the host, so any local
+endpoint currently RAISES as soon as a repo declares a `model_tier`).
+**Composes with:** a self-hosted gateway (LiteLLM) or a hosted one (OpenRouter) — aliases can point
+at a gateway URL, which is where fallbacks, `context_window_fallbacks` and per-model spend already
+live. Decide whether SOLAR should own that routing or delegate it before building this.
+**Files:** `core.py` (field + merge), `executor.py` (resolution + provider-derived base_url/key),
+`cli.py` (doctor reports provider/base_url; `--json` carries it), `runcard.py`, docs, tests.
 
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 

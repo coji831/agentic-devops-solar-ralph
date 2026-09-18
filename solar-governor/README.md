@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.6.3** — the install path, verified against a live provider). The runner
+Released (**v5.6.4** — a local endpoint is reachable). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -22,7 +22,11 @@ is set**. **v5.6.3** verifies the `http` runner against the live provider and fi
 defects found on the way to it: a fresh clone can now `--json` (the checkpoint directory is
 created by both graph paths, not one), and every human-editable `.solar/` file is read
 BOM-tolerantly — so a `config.json` written by PowerShell or Notepad still works, and an
-unreadable one exits **2** with a reason instead of a traceback.
+unreadable one exits **2** with a reason instead of a traceback. **v5.6.4** makes a **local,
+keyless** endpoint reachable (`run --runner http` sent no request at all before it, and
+reported APPROVED), records `provider` and `tokens.reported` in the run-card so a
+local-vs-cloud comparison is evidence rather than inference, and makes `doctor` warn when the
+endpoint does not answer.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -162,14 +166,19 @@ ladder is `run --runner X` (this run only) > `SOLAR_RUNNER` > the repo's `cfg.ru
 auto (http if a key is set, else stub). An unrecognised value is an **error**, not a
 silent fallback — a typo must not select a different runner than the one asked for:
 
-| Runner           | What it does                                                               | Needs                 |
-| ---------------- | -------------------------------------------------------------------------- | --------------------- |
-| `agent-dispatch` | Writes a task handoff (`.solar/handoffs/`), interrupts; you run the repo's | VS Code Copilot + the |
-|                  | `.agent.md` specialist in the IDE (DeepSeek via the DeepSeek-for-Copilot   | DeepSeek extension    |
-|                  | extension), then paste the result (or result-file path) to resume          |                       |
-| `http`           | OpenAI-compatible chat call with repo-bounded workspace tools              | `SOLAR_API_KEY`       |
+| Runner           | What it does                                                                          | Needs                 |
+| ---------------- | ------------------------------------------------------------------------------------- | --------------------- |
+| `agent-dispatch` | Writes a task handoff (`.solar/handoffs/`), interrupts; you run the repo's            | VS Code Copilot + the |
+|                  | `.agent.md` specialist in the IDE (DeepSeek via the DeepSeek-for-Copilot              | DeepSeek extension    |
+|                  | extension), then paste the result (or result-file path) to resume                     |                       |
+| `http`           | OpenAI-compatible chat call with repo-bounded workspace tools                         | `SOLAR_API_KEY`       |
 | `stub`           | Deterministic plan text. **Offline by contract**: honoured by request, so it makes no | nothing               |
 |                  | provider call even when `SOLAR_API_KEY` is set                                        |                       |
+
+A keyless endpoint needs no `SOLAR_API_KEY` at all: an explicit `http` run sends a placeholder
+the server ignores (`sk-no-key-required` — the value llama.cpp's docs pass, and what Ollama's
+docs call "required but ignored"). Auto still resolves to `stub` when no key is set, so an
+offline machine behaves exactly as before. See **Local endpoint** below.
 
 Set the runner per repo at install time:
 
@@ -202,6 +211,36 @@ $env:SOLAR_TOOL_OUTPUT_CHARS = "8000"    # cap on one tool result, 0 = unlimited
 
 Tools (repo-bounded, refuse to escape the repo root): `list_tree` / `read_file` /
 `glob` / `write_file`, plus `run_command` for a role with an `exec_allow` grant.
+
+### Local endpoint (Ollama / llama.cpp / LM Studio / vLLM)
+
+All of them serve the same OpenAI surface, so nothing else changes — no key, no adapter:
+
+```bash
+$env:SOLAR_BASE_URL = "http://localhost:11434/v1"   # Ollama; vLLM defaults to :8000/v1, LM Studio :1234/v1
+$env:SOLAR_MODEL    = "qwen3:8b"                    # the id from GET /v1/models - required, and opaque
+$env:SOLAR_RUNNER   = "http"                        # or `run --runner http`
+$env:SOLAR_TOOL_OUTPUT_CHARS = "2000"               # sized for a small local context
+```
+
+Three things worth knowing before you measure:
+
+- **No key is needed, and the placeholder is deliberate.** An explicit `http` run sends
+  `sk-no-key-required`; local servers ignore it, a cloud endpoint answers 401. Auto still chooses
+  the stub when no key is set, which is why an unqualified "it ran" is not the same as "it reached
+  the model" — check `model` and `provider` in the run-card.
+- **The model id must be the one the server serves.** `GET /v1/models` is authoritative, and
+  `doctor` now checks the resolved id against it: on llama.cpp the id is the **model file path**
+  unless the server was started with `--alias`. Ollama needs `PARAMETER num_ctx` in a Modelfile to
+  change the context size — the OpenAI API has no field for it.
+- **Read `tokens.reported`.** Some servers omit the usage block, and then `tokens: 0/0` is an
+  absence rather than a measurement (the same numbers a stub reports). The run-card says which,
+  and records `provider` (host:port) next to `model` so a local run is distinguishable from a
+  cloud run of the same model id.
+
+`doctor` against a local endpoint: `runner: PASS - http (... no SOLAR_API_KEY: a placeholder is
+sent ...)` and `model: PASS - qwen3:8b (from config model) [provider serves 1 id(s)]` when the
+server is up, or `model: WARN - ... cannot list its models (Connection error.)` when it is not.
 
 ### Hub uplink (opt-in, push-only)
 
@@ -282,15 +321,17 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 - Install paths that work on a clone: the checkpoint directory is created on demand by both
   `run_step` and `pending_interrupt`, `doctor`'s checkpoint check tests creatability, and the
   `.solar/` files a human edits are read BOM-tolerantly.
+- A local keyless endpoint is reachable, and the record distinguishes it: `provider` (host:port)
+  and `tokens.reported` in every run-card.
 
 ## Test
 
 ```bash
-python -m pytest tests/           # 186 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 193 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
                                   # doctor + eval case resolution, install surface,
                                   # install paths (fresh clone, BOM), thread reset/resume,
-                                  # stub-runner offline contract
+                                  # stub-runner offline contract, local endpoint (real HTTP)
 python tests/test_smoke.py        # smoke only
 ```
