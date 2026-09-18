@@ -344,6 +344,78 @@ something it isn't. The fix is to pass the resolved target (or its model + provi
 `write_handoff` from `graph._dispatch_agent`, which already has `cfg` and the role spec.
 **Files:** `executor.write_handoff` signature, `graph._dispatch_agent` call site, the handoff test.
 
+### TD-5.7-4: Module size and cohesion — split the runtime before it gets away (requested 2026-09-19)
+
+**Status:** Open
+**Raised as:** "put a TODO … to reduce/refactor its code, some of the code files reaching 1000 lines".
+**Measured 2026-09-19 — nothing is at 1000 lines yet, and the largest is the fastest-growing:**
+
+| module                 | lines | | module                    | lines |
+| :--------------------- | ----: | - | :------------------------ | ----: |
+| `executor.py`          |   823 | | `server.py`               |   229 |
+| `cli.py`               |   595 | | `install.py`              |   200 |
+| `graph.py`             |   387 | | `eval.py`                 |   191 |
+| `commands.py`          |   350 | | `core.py`                 |   173 |
+| `workspace.py`         |   302 | | `ledger.py`               |   143 |
+
+Tests: `test_executor.py` 697, `test_commands.py` 495, `test_workspace.py` 472,
+`test_role_routing.py` 341, `test_providers.py` 288.
+
+**Why it is worth doing now rather than at 1000.** The threshold that matters is not a line
+count, it is **scope**: `executor.py` holds five separable jobs — provider/alias/tier resolution,
+credential resolution, the tier table, the tool loop, and the handoff writer — and only one of them
+is "execute a model call". It grew ~330 lines in v5.7.0 and ~90 in v5.7.1, because the provider
+work is the surface the product is actively moving. `cli.py` holds argparse + four `doctor` checks +
+the run commands in one file.
+**Adopt a trigger rule, so this never becomes a taste argument:** a module over **600 lines**, or one
+that answers to more than one *nameable* concern, gets split — and a split is judged by "can this
+file be described in one sentence without *and*".
+**Proposed seams, lowest risk first:**
+
+1. `executor.py` → **`providers.py`** (the shipped table, `providers_table`, `resolve_target`,
+   `target_for`, `provider_family`, `resolve_tier`) + **`auth.py`** (`api_key`, `resolved_key`,
+   `endpoint_label`), leaving `executor.py` the tool loop, `run`, `stub_result`, `write_handoff`.
+2. `cli.py` → **`doctor.py`** (the checks and their printer) leaving argparse + dispatch.
+3. Tests follow their module: `test_executor.py` (697) is larger than the file it covers.
+
+**Constraints:** behaviour-neutral, no new import cycle (`executor` imports `core`, so new modules
+sit at the same layer), and `executor` re-exports the moved names so no call site changes — which
+also keeps the existing tests honest as a regression net.
+**Files:** `executor.py`, `cli.py`, their tests, the README module map.
+
+### TD-5.7-5: `read_file(rel, start, end)` is not bounded — a line range is not a size bound
+
+**Status:** Open (found 2026-09-19 while testing RTK)
+**Measured:** on a 282,604-byte **single-line** file (`.tsbuildinfo`), `read_file(rel)` returned
+40,061 chars (capped — correct), while `read_file(rel, 1, 60)` returned **282,669 chars ≈ 70k
+tokens** into a window whose local-model budget is 16k.
+**Why:** the ranged branch of `workspace.read_file` has no `MAX_READ_CHARS` check, and its docstring
+names the assumption that makes it unsafe — *"WITH a range only those lines are read, so a large
+file can be inspected in bounded slices"*. A bounded number of LINES is not a bounded number of
+CHARS: minified JS/JSON, lockfiles, `.tsbuildinfo` and single-line data blobs all break it, and the
+result then stays in history for the rest of the run.
+**Shape of the fix:** cap the ranged result as well, truncate an over-long individual line with a
+marker that names the file and the line, and say in the result that it was capped (the existing
+`…[truncated]` marker is the precedent).
+**Files:** `workspace.py` (`read_file`), `tests/test_workspace.py`.
+
+### TD-5.7-6: `bench` persists nothing, and "passed" is not "correct"
+
+**Status:** Open (found 2026-09-19 while testing RTK)
+**Measured:** two `bench --n 2` runs printed `2/2 passed` and wrote **no run-cards and no report** —
+`.solar/runs/` stayed empty — and the per-run rows carry no `output`, so the answers are
+unrecoverable. "Passed" is `stage=complete` + `verdict=APPROVED`, which with `human_approval: false`
+is the graph auto-approving, not a check of the answer. In this session both arms scored 2/2 while
+the model answered one of the three questions **wrong**.
+**Why it matters:** this repo's claim is that a measurement is evidence. A tool that reports a number
+with no artifact behind it reproduces the exact defect class the v5.6.x/v5.7.x releases were about —
+a report that reads as something it is not — and it is the tool the local-vs-cloud comparison is
+meant to run on.
+**Shape of the fix:** write one run-card per repetition via `runcard.write` (the CLI already does),
+record `output` (or its length + hash) in the row, and carry a `correct` field that stays empty
+unless the caller passes an expectation — so `passed` can never be read as "answered correctly".
+**Files:** `bench.py`, `tests/test_bench.py` (new), README bench section.
+
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 
 ### TD-4-1: Instructional steering in agent bodies for direct invocations
