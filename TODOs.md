@@ -23,7 +23,7 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Prototype:** `experiments/governor-graph/` — 6 evals (interrupt, checkpoint-resume, deterministic routing, streaming, hub KB MCP call, compactor). Decision gate after B2.
 **Supersedes:** TD-4-1/2/3/4 (effort steering → model routing), TD-4-5 (routing policy → graph edges).
 
-## v5.4.x — Backlog (opened after v5.3.1 from the real epic-25 pilot on mandarin main; v5.4.0 shipped TD-5.4-1 — TD-5.4-2..7 remain open)
+## v5.4.x — Backlog (opened after v5.3.1 from the real epic-25 pilot on mandarin main; v5.4.0 shipped TD-5.4-1, v5.4.1 shipped TD-5.4-8 — TD-5.4-2..7 and 9..10 remain open)
 
 ### TD-5.4-1: ~~Per-node model routing~~
 
@@ -68,9 +68,28 @@ Add new items under the relevant version section. Resolved items stay in the fil
 ### TD-5.4-7: A command vocabulary per repo (mandarin has none)
 
 **Status:** Open
-**Goal:** Promyro now has `.solar/commands.json` (13 commands) and per-role `exec_allow`. **Mandarin has neither** — its role prompts name *activities* ("frontend-audit (Parts 1-4)", "design-audit", "codegraph"), not commands, so its vocabulary cannot be copied from Promyro and has to be derived from its own `package.json` scripts.
+**Goal:** Promyro now has `.solar/commands.json` (17 commands) and per-role `exec_allow`. **Mandarin has neither** — its role prompts name _activities_ ("frontend-audit (Parts 1-4)", "design-audit", "codegraph"), not commands, so its vocabulary cannot be copied from Promyro and has to be derived from its own `package.json` scripts.
 **Why:** until it exists, mandarin's exec-declaring roles (frontend-engineer, backend-engineer, docs-writer) carry the `exec` group but resolve to zero commands. `granted()` correctly returns none and the tool is simply absent — safe, but those roles cannot run their own checkers.
 **Files:** mandarin `.solar/commands.json` (new) + `exec_allow` per role.
+
+### TD-5.4-8: ~~Specialist tool loop has no termination rule~~
+
+**Status:** Resolved 2026-09-18 — shipped in **v5.4.1**. The loop was `for _ in range(max_rounds): call; if tool_calls: continue`, with no termination pressure and no `temperature`, and it discarded `msg.content` whenever a tool call was present. Measured on a real read-only `investigator` link: no answer in 4 runs out of 5 over a one-file one-fact objective, up to 168k prompt tokens per failure, and the _identical_ command converged on the fifth. Resolution is three rules in `executor._tool_loop`: an explicit temperature (default 0.2), a budget notice once `NUDGE_ROUNDS_LEFT` rounds remain, and a final round called **with no tools offered** so it must return text. `forced_final` now travels to the run-card. This also corrects `docs/tuning.md` finding 3, which had blamed the objective; see `docs/versions/v5.md` §20.
+**Files:** `executor.py` (`_tool_loop`, `temperature`, `_budget_notice`, `FINAL_ROUND_INSTRUCTION`), `core.py`/`graph.py`/`runcard.py`/`cli.py` (`forced_final`), `tests/test_executor.py` (12 cases).
+
+### TD-5.4-9: Runner selection cannot be overridden per run
+
+**Status:** Open
+**Goal:** Let one run choose its runner without editing the repo's config. `select_runner` is `cfg_runner or os.environ.get("SOLAR_RUNNER", "")`, so a repo whose `config.json` sets `runner` **always wins and `SOLAR_RUNNER` is dead** — the opposite of `SOLAR_MODEL`, where env beats role and config. Add `--runner {http,agent-dispatch,stub}` to `run` (and/or make env win) so testing the `http` path on a repo configured for `agent-dispatch` does not require mutating a live engagement's config.
+**Why:** found while running the v5.4.1 integration test — forcing `http` on Promyro meant editing `Promyro/.solar/config.json` and restoring it afterwards, on a repo whose `human_approval` and role grants are live. The docstring ("explicit config/env > auto") reads as if config and env are peers; the code makes config dominate.
+**Files:** `executor.select_runner` (precedence), `cli.py` (`run` flag).
+
+### TD-5.4-10: A `REJECTED` run exits `0`
+
+**Status:** Open
+**Goal:** Decide the exit contract for a completed-but-rejected run. `--json` documents `0 complete · 10 agent-dispatch · 11 review · 2 error`, and a run whose verdict is `REJECTED` (executor error) currently exits `0` — so a wrapper driving on exit codes reads a hard failure as success. Observed on all four `max_rounds` failures in the v5.4.1 integration test, and on the v5.4.0 release surface. Either add a distinct code (e.g. `12 rejected`) or state plainly in `--help` that `0` means "the graph completed" and the verdict must be read from the JSON.
+**Why:** the harness's whole premise is that a failure must not read as a success; the exit code is the one surface where it still does.
+**Files:** `cli.py` (`_cmd_run_json` exit mapping), `README.md` / `docs/versions/v5.md` §9.
 
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 

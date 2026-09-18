@@ -25,11 +25,22 @@ estimates.
    tests in full. Small-file cases (`cn-join`, `learn-route-count`) are
    unaffected by the knob.
 3. **Rounds 6 vs 12 barely matter on this battery** (C ≈ A) — no case exceeds 6
-   model rounds. The rounds cap only bites on _heavy_ roles (the epic-25 verify
+   model rounds. The rounds cap only bit on _heavy_ roles (the epic-25 verify
    chain hit `max_rounds` at 6 and even 12 under an exhaustive objective).
-   **Keep default 12** as safety for read-heavy work; the decisive lever on
-   heavy tasks is the _objective_ ("be efficient, batch reads, stop once
-   verified"), not the cap.
+   **Keep default 12** as safety for read-heavy work.
+
+   > **Corrected 2026-09-18 (v5.4.1).** This finding originally concluded that "the
+   > decisive lever on heavy tasks is the _objective_ ('be efficient, batch reads, stop
+   > once verified'), not the cap." **That was wrong.** A read-only `investigator` link on
+   > a real clone — with an objective naming **one file and one fact** and the words
+   > "Nothing else" — still returned no answer at all in **4 runs out of 5**, up to 168k
+   > prompt tokens per failure, and the _identical_ command converged in 5 rounds on the
+   > fifth. The cause was the loop, not the objective: no termination pressure of any
+   > kind, no sampling temperature, and `msg.content` discarded on every round the model
+   > also asked for a tool. The loop now carries a stop rule — explicit temperature, a
+   > budget notice near the end, and a final round called with no tools offered.
+   > **The lever was the loop.** Full numbers in `docs/versions/v5.md` §20.
+
 4. All three settings held 100% pass → the harness is correct on light
    read-only retrieval; the interesting tuning region is heavy
    verify/review tasks (where the earlier chain runs ran away).

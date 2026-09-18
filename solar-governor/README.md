@@ -5,9 +5,12 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.4.0** — the `http` runner has full role capacity without a shell:
+Released (**v5.4.1** — the `http` runner has full role capacity without a shell:
 line ranges, write policy, a closed command vocabulary, an approval gate, shaped
-checkers; plus per-node model routing). Pilot-validated on the mandarin repo (branch
+checkers; plus per-node model routing. **v5.4.1** adds the stop rule the tool loop was
+missing — an explicit temperature, a budget notice near the end, and a final round called
+with no tools offered, so a node hands back what it established instead of failing).
+Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
 battery 18/18. Chaining is **driver-orchestrated** — agents never self-chain
@@ -47,10 +50,10 @@ Chains are **driver-orchestrated**: a bare `--chain` (no `--auto`) is rejected
 A specialist gets two tool layers, each **gated by the role's registry entry**. A tool the
 role may not use is **not offered at all** — it is not a rule in the prompt:
 
-| Layer       | Tools                                          | Gated by                                                     |
-| :---------- | :--------------------------------------------- | :----------------------------------------------------------- |
-| `workspace` | `list_tree`, `read_file`, `glob`, `write_file` | `tools` (group), `write`, `write_scope`, `write_deny`         |
-| `exec`      | `run_command`                                  | `tools` (group), `exec_allow`                                 |
+| Layer       | Tools                                          | Gated by                                              |
+| :---------- | :--------------------------------------------- | :---------------------------------------------------- |
+| `workspace` | `list_tree`, `read_file`, `glob`, `write_file` | `tools` (group), `write`, `write_scope`, `write_deny` |
+| `exec`      | `run_command`                                  | `tools` (group), `exec_allow`                         |
 
 `read_file(rel, start, end)` takes a 1-based inclusive line range, and a ranged read
 **bypasses the 40000-char whole-file cap** — so a large file is read in bounded slices
@@ -71,26 +74,34 @@ may only run the names it is granted:
 
 ```jsonc
 {
-  "typecheck":  { "argv": ["npm", "--silent", "run", "typecheck"],
-                  "cwd": "apps/web", "kind": "check", "timeout": 180 },
-  "git_status": { "argv": ["git", "status", "--short"], "kind": "read", "timeout": 30 }
+  "typecheck": {
+    "argv": ["npm", "--silent", "run", "typecheck"],
+    "cwd": "apps/web",
+    "kind": "check",
+    "timeout": 180,
+  },
+  "git_status": {
+    "argv": ["git", "status", "--short"],
+    "kind": "read",
+    "timeout": 30,
+  },
 }
 ```
 
-| Field      | Meaning                                                                                                                     |
-| :--------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| Field      | Meaning                                                                                                                       |
+| :--------- | :---------------------------------------------------------------------------------------------------------------------------- |
 | `argv`     | fixed, never model-supplied. There is no free-text command field **or** argument field.                                       |
-| `cwd`      | repo-relative (default: the repo root), confined to the repo.                                                                |
+| `cwd`      | repo-relative (default: the repo root), confined to the repo.                                                                 |
 | `kind`     | `read` (the output IS the information) · `check` (shaped; a pass is one line) · `act` (needs approval when `human_approval`). |
-| `timeout`  | seconds, enforced.                                                                                                          |
-| `shape`    | `{ "summary_only": true }` or `{ "keep": "<regex>", "max_items": N }`, for checkers whose raw output is mostly noise.        |
-| `describe` | the only prose a human is shown at an approval gate — from config, never from the model.                                     |
+| `timeout`  | seconds, enforced.                                                                                                            |
+| `shape`    | `{ "summary_only": true }` or `{ "keep": "<regex>", "max_items": N }`, for checkers whose raw output is mostly noise.         |
+| `describe` | the only prose a human is shown at an approval gate — from config, never from the model.                                      |
 
 An entry's `argv[0]` is resolved through `shutil.which`, because `shell=False` cannot
 execute a Windows `.CMD` shim (`npm` would raise `WinError 2`; `git` is a real `.EXE`).
 
 **Absence is the mechanism.** A command the repo does not declare does not exist; a command
-it declares but does not grant to a role does not exist *for that role* — and the error says
+it declares but does not grant to a role does not exist _for that role_ — and the error says
 which case applies, so a fixable config problem is distinguishable from a missing command.
 
 ### Approval gate
@@ -190,7 +201,8 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python -m pytest tests/           # 111 tests: graph, routing, ledger, executor, server,
-                                  # workspace guards, command vocabulary + approval gate
+python -m pytest tests/           # 123 tests: graph, routing, ledger, executor, server,
+                                  # workspace guards, command vocabulary + approval gate,
+                                  # tool-loop termination
 python tests/test_smoke.py        # smoke only
 ```

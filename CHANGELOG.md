@@ -18,10 +18,46 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.4.1 — Released (2026-09-18) — the specialist tool loop terminates
+
+**Theme:** v5.4.0 gave the `http` runner capacity; this release makes it _finish_. The
+verification of v5.4.0 on a real repo found the loop returning **no answer at all** in 4
+runs out of 5 — on a read-only role, over a one-file one-fact objective.
+
+### Added
+
+- **A termination rule for the tool loop** (`executor._tool_loop`) — three parts, each traced to a measurement: an explicit **`temperature`** (default `0.2`; `SOLAR_TEMPERATURE=default` omits the field for gateways that reject it); a **budget notice** once `NUDGE_ROUNDS_LEFT` (1) tool rounds remain; and a **final round called with no tools offered at all**, so the response has to be text. A node that cannot finish now hands back what it established, naming its gaps, instead of failing the run.
+- **`forced_final`** on the executor result → graph state → `--json` step summary → run-card, so _answered_ is distinguishable from _cut off, and answered anyway_.
+- 12 tests driving the loop against a scripted fake client that records the exact payload per round — including that the final round carries no `tools` key.
+
+### Changed
+
+- `executor.run` now builds the client and messages and delegates to `_tool_loop`. The loop is driven without a network call, which is what made the termination rules testable at all.
+- `core.SolarState` gains `forced_final`; `graph._execute` carries it; `runcard.write` and `cli._state_summary` surface it.
+
+### Fixed
+
+- **The loop had no stop rule.** `error: "max_rounds"` — "reached max tool rounds without a final answer" — was reachable on ordinary read-only work and cost ~170k prompt tokens per failed run. Exhausting the round budget no longer fails the run; the remaining failure mode is `error: "empty_output"` (a final round that returns no text), reported distinctly.
+
+### Measured
+
+- `investigator`, read-only `http` link, one clone, one file, one fact: **failing run 21 calls / 168k tokens / no answer**; the **identical command** next run **5 calls / 19k tokens / answered and APPROVED**. Same repo, role, prompt, objective, model, cap.
+- Not the model — `deepseek-chat` and `deepseek-flash` both failed. Not the cap — 12 → 24 doubled tool calls 23 → 46 and still did not answer.
+- Tests **111 → 123**.
+
+### Corrects
+
+- `docs/tuning.md` finding 3 concluded the decisive lever on heavy tasks is the _objective_ ("be efficient, batch reads, stop once verified"), not the cap. The failing objective here was one file with the words "Nothing else" — **the lever was never the objective.** §20 of `docs/versions/v5.md` carries the measurements.
+
+### Not in this release
+
+- `SOLAR_RUNNER` still cannot override a repo's `config.json` (`select_runner` prefers the config), so forcing `http` on a repo configured for `agent-dispatch` still needs a config edit — TD-5.4-9.
+- A run whose verdict is `REJECTED` still exits `0` under `--json`, where the contract says `0` means complete — TD-5.4-10.
+
 ## v5.4.0 — Released (2026-09-18) — HTTP runner capacity without a shell
 
 **Theme:** give `--runner http` full role capacity **without giving it a shell**. On this
-runner there is no supervisor — the light profile's tiny tool set *was* the substitute for
+runner there is no supervisor — the light profile's tiny tool set _was_ the substitute for
 supervision — so what is added here is containment, not capability for its own sake. Every
 rule below traces to a measurement.
 
@@ -29,7 +65,7 @@ rule below traces to a measurement.
 
 - **`read_file(rel, start, end)` line ranges** (Part A) — 1-based inclusive, clamped to the file, erroring past the end, and **bypassing the 40000-char whole-file cap** so a large file is read in bounded slices instead of truncated mid-file. The range params are advertised in `tool_schemas()`: a param absent from the schema is a param the model never sends.
 - **Write policy** (Part B) — an **unconditional** deny-list (`.solar/`, `.git/`, `.github/`, `.vscode/`, plus `package.json`/`pyproject.toml`/`requirements.txt`/`Dockerfile`/`.mcp.json`, matched case-insensitively on any path segment at any depth), plus per-role `write`/`write_scope`/`write_deny`. **Closes a live hole: `.solar/registry.json` is the agent's own system prompt and was writable with no shell needed.**
-- **Role-gated tool schemas** (Part B1) — `tools` finally does something: a read-only role is never *offered* `write_file`, and `write_file` refuses anyway (a model can emit a call for a tool it never got). A role without `exec` is never offered `run_command`.
+- **Role-gated tool schemas** (Part B1) — `tools` finally does something: a read-only role is never _offered_ `write_file`, and `write_file` refuses anyway (a model can emit a call for a tool it never got). A role without `exec` is never offered `run_command`.
 - **Vetted command vocabulary** (Part C) — `.solar/commands.json`: fixed argv, **no free-text command or argument field**, per-role `exec_allow`. `cwd` is repo-relative and confined; `timeout` enforced; output ANSI-stripped and clipped keeping head **and** tail. `exec` defaults to NOTHING (opt-in), deliberately unlike `write`, which had to default to allowed for compatibility.
 - **Tool-enforced approval gate** (Part D) — `kind: act` with `human_approval` means the command **does not run**: it writes `.solar/approvals/<id>.md` and returns `AWAITING APPROVAL <id>`, so the model cannot proceed. Everything a human reads is config-derived; the id derives from the command, not the round.
 - **Shaped checker output** (Part E) — `kind: check` + exit 0 collapses to one line; a failure keeps its failures, always the final summary line, and states how many lines it suppressed. `shape.summary_only` / `shape.keep` / `shape.max_items` override. `kind: read` is never summarised.
