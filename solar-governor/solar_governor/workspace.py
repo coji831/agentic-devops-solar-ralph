@@ -38,6 +38,19 @@ def _norm_prefixes(value) -> list[str]:
     return [str(v).replace("\\", "/").strip("/") for v in value if str(v).strip("/")]
 
 
+def resolve_in_root(root: Path, rel: str) -> Path:
+    """Resolve a repo-relative path and enforce confinement to the repo root.
+
+    Shared by the workspace layer and the command layer: a command's `cwd` has to be
+    inside the repo for the same reason a write does.
+    """
+    root = Path(root).expanduser().resolve()
+    p = (root / rel).resolve()
+    if p != root and root not in p.parents:
+        raise ValueError(f"path escapes repo root: {rel!r}")
+    return p
+
+
 class Workspace:
     """Repo-bounded file access for one governor run.
 
@@ -62,10 +75,7 @@ class Workspace:
     # --- guards -----------------------------------------------------------
     def _resolve(self, rel: str) -> Path:
         """Resolve a repo-relative path and enforce confinement to root."""
-        p = (self.root / rel).resolve()
-        if p != self.root and self.root not in p.parents:
-            raise ValueError(f"path escapes repo root: {rel!r}")
-        return p
+        return resolve_in_root(self.root, rel)
 
     def _write_denial(self, rel: str) -> str | None:
         """Why `rel` may not be written, or None when it may.
@@ -226,6 +236,12 @@ class Workspace:
         return f"wrote {rel} ({len(content)} chars)"
 
     # --- OpenAI-compatible function schema --------------------------------
+    _TOOL_NAMES = ("list_tree", "read_file", "glob", "write_file")
+
+    def handles(self, name: str) -> bool:
+        """Whether this layer owns a tool name (used by the executor's composite)."""
+        return name in self._TOOL_NAMES
+
     def tool_schemas(self) -> list[dict]:
         """The function schemas for the tools THIS role may be offered.
 

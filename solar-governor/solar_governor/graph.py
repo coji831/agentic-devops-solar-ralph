@@ -96,7 +96,7 @@ def _execute(cfg: Config, state: SolarState) -> dict:
     objective = state.get("objective", "")
     res = executor.run(role=role, system_prompt=_role_prompt(spec, role),
                        objective=objective, repo=cfg.root, cfg_model=cfg.model,
-                       spec=spec)
+                       spec=spec, human_approval=cfg.human_approval)
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),

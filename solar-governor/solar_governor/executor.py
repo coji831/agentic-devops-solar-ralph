@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .commands import CommandRunner
 from .workspace import Workspace
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -156,18 +157,41 @@ def resolve_result(value: str, repo: Path) -> str:
     return value
 
 
+class _ToolLayer:
+    """One dispatch surface over the repo tool layers (workspace + commands).
+
+    Each layer advertises only what the ROLE may use, so a layer that grants nothing
+    returns no schemas and never sees a call. `run_command` therefore does not exist
+    for a role without `exec_allow`, exactly as `write_file` does not exist for a
+    read-only role - a tool that is not offered cannot be argued into use.
+    """
+
+    def __init__(self, *layers):
+        self.layers = layers
+
+    def tool_schemas(self) -> list[dict]:
+        return [schema for layer in self.layers for schema in layer.tool_schemas()]
+
+    def call_tool(self, name: str, args: dict) -> str:
+        for layer in self.layers:
+            if layer.handles(name):
+                return layer.call_tool(name, args)
+        return f"ERROR: unknown tool {name}"
+
+
 class ExecutorResult(dict):
     """Thin dict: output / usage(in,out) / tool_calls / error / model."""
 
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
         cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
-        spec: dict | None = None) -> ExecutorResult:
+        spec: dict | None = None, human_approval: bool = False) -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
-    `spec` is the role's registry entry (v5 §6). It is handed to the workspace
-    tool layer so policy derives from the ROLE, not the process, and its `model`
-    is the per-node model override (TD-5.4-1).
+    `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
+    policy derives from the ROLE, not the process: which tools are offered, where the
+    role may write, and which commands it may run. Its `model` is the per-node model
+    override (TD-5.4-1). `human_approval` reaches the command layer's approval gate.
 
     Falls back to a stub (no network) when no API key is present, so the graph
     stays runnable/testable without credentials.
@@ -189,7 +213,8 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                               usage={"in": 0, "out": 0}, tool_calls=0, error=str(e),
                               model=model_name(cfg_model))
     model = model_name(cfg_model, (spec or {}).get("model", ""))
-    ws = Workspace(repo, spec)
+    ws = _ToolLayer(Workspace(repo, spec),
+                    CommandRunner(repo, spec, human_approval=human_approval))
     messages: list[dict] = [
         {"role": "system",
          "content": (system_prompt or f"You are the {role} specialist.")
