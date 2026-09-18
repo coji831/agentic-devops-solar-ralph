@@ -67,8 +67,8 @@ Add new items under the relevant version section. Resolved items stay in the fil
 
 ### TD-5.4-7: ~~A command vocabulary per repo (mandarin has none)~~
 
-**Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. Mandarin's `.solar/commands.json` declares **20** commands derived from its own `package.json` (16 `check`: typecheck, lint, test, test_full, format_check, design_lint, design_audit, the five `check:*` sweeps, three `validate:*` content validators; 4 `read`: git head/status/diff/log). `exec_allow`: frontend-engineer 12, backend-engineer 12, docs-writer 8 — **0 dangling grants**, verified by resolving every name against the loaded vocabulary. Destructive scripts are deliberately excluded: `format`, `format:all`, `cleanup:radical-content`, `logs:prune`, and `generate:system-map --emit`; only its `--check` form is reachable. Also fixed the config's non-existent `deepseek-v4-flash` pin (caught by the new doctor check).
-**Goal:** Promyro now has `.solar/commands.json` (17 commands) and per-role `exec_allow`. **Mandarin has neither** — its role prompts name _activities_ ("frontend-audit (Parts 1-4)", "design-audit", "codegraph"), not commands, so its vocabulary cannot be copied from Promyro and has to be derived from its own `package.json` scripts.
+**Status:** Resolved 2026-09-18 — shipped in **v5.5.0**. Mandarin's `.solar/commands.json` declares **20** commands derived from its own `package.json` (16 `check`: typecheck, lint, test, test*full, format_check, design_lint, design_audit, the five `check:*` sweeps, three `validate:*` content validators; 4 `read`: git head/status/diff/log). `exec_allow`: frontend-engineer 12, backend-engineer 12, docs-writer 8 — **0 dangling grants**, verified by resolving every name against the loaded vocabulary. Destructive scripts are deliberately excluded: `format`, `format:all`, `cleanup:radical-content`, `logs:prune`, and `generate:system-map --emit`; only its `--check` form is reachable. Also fixed the config's non-existent `deepseek-v4-flash` pin (caught by the new doctor check).
+**Goal:** Promyro now has `.solar/commands.json` (17 commands) and per-role `exec_allow`. **Mandarin has neither** — its role prompts name \_activities* ("frontend-audit (Parts 1-4)", "design-audit", "codegraph"), not commands, so its vocabulary cannot be copied from Promyro and has to be derived from its own `package.json` scripts.
 **Why:** until it exists, mandarin's exec-declaring roles (frontend-engineer, backend-engineer, docs-writer) carry the `exec` group but resolve to zero commands. `granted()` correctly returns none and the tool is simply absent — safe, but those roles cannot run their own checkers.
 **Files:** mandarin `.solar/commands.json` (new) + `exec_allow` per role.
 
@@ -90,6 +90,30 @@ Add new items under the relevant version section. Resolved items stay in the fil
 **Goal:** Decide the exit contract for a completed-but-rejected run. `--json` documents `0 complete · 10 agent-dispatch · 11 review · 2 error`, and a run whose verdict is `REJECTED` (executor error) currently exits `0` — so a wrapper driving on exit codes reads a hard failure as success. Observed on all four `max_rounds` failures in the v5.4.1 integration test, and on the v5.4.0 release surface. Either add a distinct code (e.g. `12 rejected`) or state plainly in `--help` that `0` means "the graph completed" and the verdict must be read from the JSON.
 **Why:** the harness's whole premise is that a failure must not read as a success; the exit code is the one surface where it still does.
 **Files:** `cli.py` (`_cmd_run_json` exit mapping), `README.md` / `docs/versions/v5.md` §9.
+
+## v5.6 — Install consistency (opened 2026-09-19 by comparing two real engagements)
+
+### TD-5.6-1: ~~Portable config + refreshable install~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.0**. `Config.repo` is optional and `root` derives from the config file's own location; `to_dict` omits `repo` when empty and never persists runtime-only fields, so a saved config names nothing machine-specific. `init` now MERGES (existing wins, new keys added, output names what was kept/added) instead of overwriting `config.json` while skipping `registry.json` - the asymmetry nobody could re-run. `.solar/VERSION` records the installed runtime and `doctor` WARNs on drift. The `.gitignore` block is marker-delimited and rewritten in place, replacing a guard (`if ".solar/state" not in text`) that could neither revise a block nor tell a duplicate from a conflict. **Note:** this is the enabling fix, not the commit: the engagement repos' `.solar/` data is still uncommitted, and both carry pre-existing unrelated modifications, so staging it is the owner's call.
+**Why it mattered:** the two engagements had *opposite* rules for `.solar/config.json`, and the one that ignored it is the one where a non-existent model id sat unreviewed.
+
+### TD-5.6-2: ~~Model ids duplicated across repos~~
+
+**Status:** Resolved 2026-09-19 — shipped in **v5.6.0**. A model id could be written in five places (`executor.DEFAULT_MODEL`, `cfg.model`, a role's `model`, `SOLAR_MODEL`, `.agent.md` frontmatter), so a rename meant an edit per repo per file. `MODEL_TIERS` maps a tier to the concrete id per provider family and a repo declares `model_tier`; the ladder interleaves ids and tiers with an explicit id winning at the same level. An unresolvable tier sets `error` and REJECTS the run rather than falling back to a default. **Still true:** nothing validates that the tier's id is current - `doctor` reports it, and the provider's `/models` is the check.
+
+### TD-5.6-3: The IDE model plane has no table either
+
+**Status:** Open
+**Goal:** `.agent.md` frontmatter pins the IDE plane with display names (`model: DeepSeek V4 Flash (deepseek)`) while the runtime needs API ids (`deepseek-flash`). v5.6.0 added a `doctor` guard that catches a display name transcribed into a runtime config, and a comment naming the two planes - but the IDE names are still hardcoded per repo per agent file, so there is nothing to rename centrally when the picker renames a model.
+**Why:** this is the plane the phantom `deepseek-v4-flash` came from. Guarding the transcription is not the same as having one place to change.
+**Files:** `solar-install-inventory.md` (agent frontmatter templates) + a documented mapping, or a generator.
+
+### TD-5.6-4: `doctor` does not check MCP servers or the smoke task
+
+**Status:** Open
+**Goal:** §10 has described install verification as "MCP servers connect · model endpoints reachable · smoke task runs end-to-end on THIS repo" since v5. What `doctor` actually does is config, checkpoint, graph compile, registry, runner, model resolution + provider list, uplink validity and install version (§10 now says which). The MCP check and the end-to-end smoke task are still missing, so a repo can pass `doctor` and still fail its first dispatch.
+**Files:** `cli.py` `cmd_doctor` + probably `server.py`/MCP config discovery.
 
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 

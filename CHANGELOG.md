@@ -18,6 +18,41 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.6.0 — Released (2026-09-19) — install consistency
+
+**Theme:** two installs of the same harness had drifted into **opposite** policies for the
+same file, and neither recorded which version it was installed against. The cause was not
+carelessness: `init` was destructive to re-run, so nobody re-ran it.
+
+### Added
+
+- **Model tiers** (TD-5.6-2). A model id could be written in five places, so a provider rename meant an edit per repo per file - and one non-existent id (`deepseek-v4-flash`) reached a config unreviewed. A repo can now declare `model_tier: "fast"` and the runtime resolves it from one table (`MODEL_TIERS`) keyed by the base-url family. Ladder: `SOLAR_MODEL` > role `model` > role `model_tier` > `cfg.model` > `cfg.model_tier` > default; an explicit id beats a tier **at the same level**, and a nearer level beats a further one. An unresolvable tier (unknown name, or unknown provider) sets `error` and fails the run, so the review node REJECTS instead of approving output from a model nobody asked for.
+- **`.solar/VERSION`** — written by `init`, read by `doctor`, which WARNs when a repo's marker differs from the running runtime. Drift was previously invisible.
+- **Marker-delimited `.gitignore` block** — rewritten by `init` on every run, so the ignore policy is one shipped decision rather than prose hand-argued per repo. Idempotent: a current block is left byte-identical.
+- `doctor` gains an **`install`** check, and `_model_check` now catches an **IDE display name** in a runtime config (`"DeepSeek V4 Flash (deepseek)"`) and points at the API id it needs.
+
+### Changed
+
+- **`config.json` is portable.** `repo` was its only machine-specific field and it was a self-reference: the config already sits at `<root>/.solar/config.json`. It is now derived from the file's own location, omitted from the file when empty, and runtime-only fields are never persisted. A saved config contains nothing naming this machine, which is what makes committing it correct in every repo. An explicit `repo` still wins, for the unusual case of a config governing a different directory.
+- **`init` merges instead of clobbering.** It overwrote `config.json` (losing a model pin) while writing `registry.json` only if absent - asymmetric, and the reason re-running it was avoided. Existing settings now win, new keys are added, and the output names what was `kept` and what was `added`. `--profile`/`--runner` now mean "override"; omitted, the stored value is kept.
+
+### Fixed
+
+- `init`'s `.gitignore` guard was `if ".solar/state" not in text`, which silently skipped the whole block if anything else had written that string - and could never revise a block it had written. Replaced by the marker block.
+- Hand-written `.solar/...` rules that **conflict** with the block are now reported with real line numbers. Duplicates are deliberately not reported: Promyro carries four harmless ones and flagging them would bury the two rules in mandarin that actually mattered.
+- The block writer emitted its own trailing newline, so rebuilding added a blank line and could never report `unchanged`. Caught by the idempotence test.
+
+### Measured
+
+- Live on a scratch repo: first `init` writes a config with **no `repo` key**; a hand-edited model pin then survives a refresh (`kept: model`), the block reports `unchanged`, and two conflicting hand-written rules are reported at `.gitignore:29` and `:30` without being deleted.
+- Tests **141 → 155**, including a new `tests/test_install.py`.
+
+### Not in this release
+
+- **The IDE model plane has no tier table.** `.agent.md` frontmatter still hardcodes display names per repo; the new guard catches a transcription error, but there is nothing to rename centrally. TD-5.6-3.
+- `doctor` still does not check MCP servers or the end-to-end smoke task, so §10's install list remains partly aspirational. TD-5.6-4.
+- Engagement repos' `.solar/` data is still uncommitted, and both carry pre-existing unrelated modifications: sweeping those into a commit is the repo owner's call, not this runtime's.
+
 ## v5.5.0 — Released (2026-09-18) — the operator's surface: doctor, eval, uplink
 
 **Theme:** the runtime could run; it could not tell you what it was about to do, whether
@@ -28,7 +63,7 @@ release closes the six remaining v5.4.x items.
 
 - **`doctor` names the model that will actually run** (TD-5.4-6) — `<id> (from env SOLAR_MODEL | role | config | default)`, plus the roles whose own `model` overrides the config, plus `reasoning_effort` when set. With a key present it also asks the provider for its model list and reports **WARN** when the resolved id is neither served nor a known unlisted alias. Provenance comes from `executor.resolve_model`, now the single model ladder — a second copy would have drifted.
 - **`eval` resolves cases per repo** (TD-5.4-4): `--cases <file>` > `<repo>/.solar/eval-cases.json` > the built-in battery. Running the built-ins against a repo they do not describe now prints a warning **before** the numbers, and the source travels in the aggregate as `cases_source`. A wrong signal is worse than no signal, because it gets acted on.
-- **`uplink` is implemented** (TD-5.4-5): `uplink: none | hub:<url>`. `uplink.push` posts the curated run digest — routing, verdict, metrics, decisions, output *length* — after the ledger and run-card are written. Push-only (there is no download path anywhere in the module), and it never raises: unreachable, refused or HTTP-erroring hubs degrade to a printed status line. `doctor` validates the value.
+- **`uplink` is implemented** (TD-5.4-5): `uplink: none | hub:<url>`. `uplink.push` posts the curated run digest — routing, verdict, metrics, decisions, output _length_ — after the ledger and run-card are written. Push-only (there is no download path anywhere in the module), and it never raises: unreachable, refused or HTTP-erroring hubs degrade to a printed status line. `doctor` validates the value.
 - **`reasoning_effort` pass-through** (TD-5.4-2) — `SOLAR_REASONING_EFFORT` > role `reasoning` > `cfg.reasoning_effort`, sent only when a level supplies one.
 
 ### Fixed

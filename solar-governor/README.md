@@ -5,14 +5,15 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.5.0** — the operator's surface). The runner work: full role capacity
-without a shell (line ranges, write policy, a closed command vocabulary, an approval
-gate, shaped checkers, per-node model routing); a tool loop that terminates
-(`v5.4.1`); a runner choosable per run (`v5.4.2`). **v5.5.0** adds what an operator has
-to be able to see: `doctor` names the model that will actually run and warns on an id the
-provider does not serve, `eval` resolves cases per repo and says when its battery does
-not apply, `uplink` posts the curated run digest to an opt-in hub, `reasoning_effort` is
-pass-through, and a `REJECTED` run exits 12 instead of 0.
+Released (**v5.6.0** — install consistency). The runner work: full role capacity without a
+shell (line ranges, write policy, a closed command vocabulary, an approval gate, shaped
+checkers, per-node model routing); a tool loop that terminates (`v5.4.1`); a runner
+choosable per run (`v5.4.2`). `v5.5.0` added the operator's surface: `doctor` names the
+model that will actually run, `eval` resolves cases per repo, `uplink` posts the run
+digest. **v5.6.0** makes an install portable and re-runnable: `config.json` stores no
+absolute path, `init` merges instead of clobbering, `.solar/VERSION` records what the repo
+was installed against, the `.gitignore` block is generated, and repos declare a model
+**tier** so a provider rename is one edit.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -33,7 +34,7 @@ but nothing moved or broken.
 ## Commands
 
 ```bash
-solar-governor init   --repo <path> --profile light          # write .solar/config.json + registry
+solar-governor init   --repo <path> --profile light          # create OR refresh .solar (never clobbers your settings)
 solar-governor doctor --repo <path> [--json]                 # install self-check (PASS/FAIL)
 solar-governor run "<task>" --repo <path>                    # one task through the graph (ledger + run-card)
 solar-governor run "<task>" --repo <path> --role <role>      # pin one specialist (e.g. Hermes decision)
@@ -45,6 +46,35 @@ solar-governor eval   --repo <path> --n 3                    # known-answer batt
 ```
 
 Run without installing: `python -m solar_governor.cli ...` from this directory.
+
+### Re-installing (safe, and meant to be re-run)
+
+`init` **merges**: a setting the repo chose is kept, a key a new version introduces is
+added, and the output says which was which. It also rewrites the marker-delimited
+`.gitignore` block in place and writes `.solar/VERSION`.
+
+```bash
+solar-governor init --repo <path>       # refresh: keeps model/runner/human_approval
+solar-governor doctor --repo <path>     # 'install' WARNs when the marker has drifted
+```
+
+A hand-written `.solar/...` rule that **conflicts** with the generated block is reported
+with its line number and left alone — a duplicate of a block rule is not reported, so the
+warning means something. `config.json` stores no absolute path, so it is safe to commit,
+and a stale model pin can therefore show up in a diff.
+
+### Model tiers (so a provider rename is one edit)
+
+Instead of a concrete id, a repo or a role may declare a **tier**:
+
+```json
+{ "model_tier": "fast" }
+```
+
+`MODEL_TIERS` in the runtime maps a tier to the provider's current id. Ladder:
+`SOLAR_MODEL` > role `model` > role `model_tier` > `cfg.model` > `cfg.model_tier` >
+default — an explicit id beats a tier **at the same level**. An unknown tier, or a tier
+asked of an unknown provider, fails the run rather than silently picking a model.
 Chains are **driver-orchestrated**: a bare `--chain` (no `--auto`) is rejected
 — run headless with `--auto`, or in the IDE drive each link as its own
 `--role` from the Governor agent.
@@ -168,7 +198,7 @@ Tools (repo-bounded, refuse to escape the repo root): `list_tree` / `read_file` 
 `uplink: none | hub:<url>` in `.solar/config.json`. The default is `none`: the repo is
 the source of truth and the harness is fully standalone on any repo, including
 third-party ones. When set, the run digest — routing, verdict, metrics, decisions,
-output *length* — is POSTed to `<url>/run` after the ledger and run-card are written.
+output _length_ — is POSTed to `<url>/run` after the ledger and run-card are written.
 
 - **Push-only.** `uplink.py` contains no download path, so a hub cannot inject content
   into a repo's context.
@@ -233,9 +263,9 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python -m pytest tests/           # 141 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 155 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
-                                  # doctor + eval case resolution
+                                  # doctor + eval case resolution, install surface
 python tests/test_smoke.py        # smoke only
 ```
