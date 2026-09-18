@@ -82,7 +82,25 @@ def _chain_note(cfg: Config, chain_name: str) -> str:
     return f"chain `{chain_name}`: {chain_text(cm, chain_name)}"
 
 
-def _execute(cfg: Config, state: SolarState, runner: str = "") -> dict:
+def _node_target(cfg: Config, role: str) -> dict | None:
+    """The target this node will call, or None when it cannot be resolved (v5.7.1).
+
+    The runner decision needs the target BEFORE the node runs, so resolution belongs here
+    and not inside the executor: `select_runner` asks whether a call is possible, and for a
+    declared KEYLESS endpoint (a local model) the answer is not "is a key set".
+
+    Unresolvable answers None rather than {}. That distinction matters: {} would read as
+    "no provider declared" and quietly reach the default endpoint, while None hands the
+    resolution back to `run`, which is where a config error becomes a REJECTED run.
+    """
+    try:
+        return executor.target_for(cfg, _role_spec(cfg, role))
+    except ValueError:
+        return None
+
+
+def _execute(cfg: Config, state: SolarState, runner: str = "",
+             target: dict | None = None) -> dict:
     """Run the routed specialist role through the HTTP/stub runner.
 
     System prompt comes from the loaded registry (repo-specific role wins), and
@@ -93,7 +111,9 @@ def _execute(cfg: Config, state: SolarState, runner: str = "") -> dict:
 
     `runner` is resolved ONCE by the caller (`select_runner`) and handed down, so
     the runner that was chosen is the runner that runs (TD-5.6-7) rather than being
-    re-decided here from the api key.
+    re-decided here from the api key. `target` (v5.7.1) travels with it for the same
+    reason - it was already resolved to answer the runner question, and resolving it
+    again would be a second chance to disagree about which endpoint this node uses.
     """
     role = state.get("role", "implementer")
     spec = _role_spec(cfg, role)
@@ -104,7 +124,7 @@ def _execute(cfg: Config, state: SolarState, runner: str = "") -> dict:
                        cfg_reasoning=cfg.reasoning_effort, cfg_tier=cfg.model_tier,
                        runner=runner, cfg_provider=cfg.provider,
                        providers=executor.providers_table(cfg.providers),
-                       models=cfg.models)
+                       models=cfg.models, target=target)
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),
@@ -175,10 +195,14 @@ def build_nodes(cfg: Config):
 
     def specialist(state: SolarState) -> dict:
         attempts = state.get("attempts", 0) + 1
-        runner = executor.select_runner(cfg.runner)
+        # Resolve the ROLE's target first: it decides both the endpoint and whether a call
+        # is possible at all, so the runner question is asked about the node that is about
+        # to run rather than about the process environment (v5.7.1).
+        target = _node_target(cfg, state.get("role", "implementer"))
+        runner = executor.select_runner(cfg.runner, target)
         if runner == "agent-dispatch":
             return _dispatch_agent(cfg, state, attempts)
-        result = _execute(cfg, state, runner)
+        result = _execute(cfg, state, runner, target)
         return {"attempts": attempts, "stage": "specialist",
                 "decisions_log": [f"specialist attempt {attempts}"], **result}
 

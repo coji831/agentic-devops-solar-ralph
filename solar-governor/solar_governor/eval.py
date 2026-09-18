@@ -105,7 +105,7 @@ def run(repo: str, cases: list[dict] | None = None, n: int = 1,
         only: str | None = None, cases_path: str | None = None) -> dict:
     root = Path(repo).expanduser().resolve()
     cfg = Config.load(root / ".solar" / "config.json")
-    runner = executor.select_runner(cfg.runner)
+    runner = executor.select_runner(cfg.runner, executor.target_for(cfg))
     if runner == "agent-dispatch":
         raise SystemExit("eval requires runner=http|stub (agent-dispatch needs the IDE)")
 

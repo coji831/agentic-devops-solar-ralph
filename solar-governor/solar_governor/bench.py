@@ -21,10 +21,11 @@ from .graph import run_task
 def run(repo: str, task: str, n: int = 3, role: str = "", chain: str = "") -> dict:
     cfg = Config.load(__import__("pathlib").Path(repo).expanduser().resolve()
                       / ".solar" / "config.json")
-    runner = executor.select_runner(cfg.runner)
+    runner = executor.select_runner(cfg.runner, executor.target_for(cfg))
     if runner != "http":
         raise SystemExit(f"bench requires runner=http (resolved: {runner}) — "
-                         f"set SOLAR_API_KEY and config runner to 'http'")
+                         f"set SOLAR_API_KEY, declare a provider, or set the config's "
+                         f"runner to 'http'")
 
     stamp = int(time.time())
     rows = []

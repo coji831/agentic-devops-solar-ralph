@@ -111,7 +111,9 @@ def cmd_run(args):
         # disagree about which runner won.
         os.environ["SOLAR_RUNNER"] = args.runner
     try:
-        runner = executor.select_runner(cfg.runner)
+        # The target is resolved here for the BANNER: no role has been classified yet, so
+        # this is the whole-repo answer. Each node resolves its OWN target (v5.7.1).
+        runner = executor.select_runner(cfg.runner, executor.target_for(cfg))
     except ValueError as e:
         print(f"❌ {e}", file=sys.stderr)
         sys.exit(2)
@@ -311,19 +313,24 @@ def cmd_doctor(args):
         checks["registry"] = ("FAIL", str(e))
     runner = ""
     try:
-        runner = executor.select_runner(cfg.runner)
+        # Asked about the repo's OWN target, not about the environment (v5.7.1): a declared
+        # keyless endpoint is callable with no key at all, which is the whole point of
+        # declaring a local provider.
+        target = executor.target_for(cfg)
+        runner = executor.select_runner(cfg.runner, target)
         detail = {"agent-dispatch": "hand off to .agent.md agents in the IDE",
                   "http": "OpenAI-compatible chat calls with workspace tools",
                   "stub": "deterministic and offline: no provider call at all"}[runner]
-        if not executor.available():
-            # v5.6.4: no key is no longer a defect for `http` — a placeholder is sent, which
-            # a local endpoint ignores and a cloud one rejects with a 401. What IS worth
-            # saying is which of the two situations this is: a `stub` here was chosen by
-            # AUTO, and a stub that answers reads exactly like a successful run.
-            note = ("no SOLAR_API_KEY: a placeholder is sent, which a local endpoint "
-                    "ignores and a cloud one rejects with 401" if runner == "http" else
-                    "no SOLAR_API_KEY and no runner chosen: auto selects the stub, so no "
-                    "provider call will be made")
+        if not executor.can_call(target):
+            # Whatever is missing, NAME it. v5.6.4: no key is no longer a defect for `http` -
+            # a placeholder is sent, which a keyless endpoint ignores and a cloud one rejects
+            # with a 401. What IS worth saying is which of the two situations this is.
+            missing = target["api_key_env"] or "SOLAR_API_KEY"
+            note = (f"no {missing}: a request would still be sent (a placeholder), which a "
+                    f"keyless local endpoint ignores and a cloud one answers with 401"
+                    if runner == "http" else
+                    f"no {missing} and no runner chosen: auto selects the stub, so no "
+                    f"provider call will be made")
             checks["runner"] = ("PASS", f"{runner} ({detail}) — {note}")
         else:
             checks["runner"] = ("PASS", f"{runner} ({detail})")
@@ -331,6 +338,7 @@ def cmd_doctor(args):
         checks["runner"] = ("FAIL", str(e))
     checks["provider"] = _provider_check(cfg)
     checks["model"] = _model_check(cfg, reg, runner)
+    checks["routing"] = _routing_check(cfg, reg)
     checks["uplink"] = uplink.status(cfg)
     checks["install"] = install.version_status(root)
     if args.json:
@@ -363,6 +371,58 @@ def _provider_check(cfg) -> tuple:
     detail += f"; selected: {cfg.provider or 'env/default endpoint'}"
     if cfg.provider and cfg.provider not in executor.providers_table(declared):
         return "FAIL", f"unknown provider {cfg.provider!r} - {detail}"
+    return "PASS", detail
+
+
+def _routing_check(cfg, reg: dict) -> tuple:
+    """Which role reaches where, before anything runs (v5.7.1).
+
+    `model` answers "what id does this REPO resolve to", which is a different question from
+    "where does each ROLE go": a registry can put its reasoner in the cloud and its fast
+    steps on a local model, and the thing worth seeing is the per-role endpoint plus whether
+    that endpoint's credential is present. Only roles that name a model, a tier or a provider
+    are listed - one that declares none is on the config's target, already reported above.
+
+    A role whose own `provider` an alias overrules is named, not left to be discovered: the
+    model decides the endpoint, so that `provider` is not in effect.
+    """
+    if not reg:
+        # Saying "no role routes itself" under a FAILED registry read would be a report about
+        # a file that was never read.
+        return "PASS", "no registry entries to route (see the `registry` check above)"
+    rows: list[str] = []
+    conflicts: list[str] = []
+    for role, spec in sorted(reg.items()):
+        if not isinstance(spec, dict) or "system" not in spec:
+            continue                      # playbook/chain entries are not dispatchable roles
+        if not (spec.get("model") or spec.get("model_tier") or spec.get("provider")):
+            continue
+        try:
+            t = executor.target_for(cfg, spec)
+        except ValueError as e:
+            return "FAIL", f"{role}: {e}"
+        env = t["api_key_env"]
+        if t.get("keyless"):
+            state = "no key needed"
+        elif env:
+            state = f"{env} {'set' if os.environ.get(env) else 'NOT set'}"
+        else:
+            state = f"SOLAR_API_KEY {'set' if executor.api_key() else 'NOT set'}"
+        where = t["provider"] or executor.endpoint_label("http", "", t["endpoint"])
+        rows.append(f"{role} -> {t['model']} @ {where} [{state}]")
+        alias = (cfg.models or {}).get(str(spec.get("model") or ""))
+        alias_provider = alias.get("provider") if isinstance(alias, dict) else None
+        if spec.get("provider") and alias_provider and alias_provider != spec["provider"]:
+            conflicts.append(
+                f"{role}: its own provider {spec['provider']!r} is NOT in effect - the model "
+                f"alias {spec.get('model')!r} names {alias_provider!r}, and the model decides "
+                f"the endpoint")
+    if not rows:
+        return "PASS", ("no role names a model or a provider - every role uses the "
+                        "config's target")
+    detail = f"{len(rows)} role(s) route themselves\n" + "\n".join(rows)
+    if conflicts:
+        return "WARN", detail + "\n" + "\n".join(conflicts)
     return "PASS", detail
 
 
@@ -436,10 +496,19 @@ def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
 
 
 def _print_doctor(checks: dict[str, tuple]) -> None:
+    """Print checks one per line, indenting a detail that continues on later lines.
+
+    A check whose detail is a TABLE (routing: one line per role) reads as a table only if the
+    continuation lines are indented under the check they belong to. No existing detail
+    contains a newline, so their output is unchanged.
+    """
     marks = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌"}
     for name, (status, detail) in checks.items():
         mark = marks.get(status, "?")
-        print(f"{mark} {name}: {status}{(' - ' + str(detail)) if detail else ''}")
+        lines = str(detail or "").split("\n")
+        print(f"{mark} {name}: {status}{(' - ' + lines[0]) if lines[0] else ''}")
+        for extra in lines[1:]:
+            print(f"    {extra}")
 
 
 def main():

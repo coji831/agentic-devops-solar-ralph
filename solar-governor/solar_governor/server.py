@@ -139,10 +139,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.rstrip("/").endswith("/health"):
             # A bad SOLAR_RUNNER / config runner must not take the health endpoint
             # down with it: report it instead of raising (TD-5.4-9).
-            try:
-                runner, runner_error = executor.select_runner(_server_cfg_runner()), ""
-            except ValueError as e:
-                runner, runner_error = "invalid", str(e)
+            runner, runner_error = _server_runner()
             self._send(200, {"ok": True, "version": __version__, "runner": runner,
                              "runner_error": runner_error,
                              "api_key": executor.api_key() is not None})
@@ -190,12 +187,20 @@ def _server_cwd() -> str:
     return str(Path(_server_state["repo"]).expanduser().resolve())
 
 
-def _server_cfg_runner() -> str:
+def _server_runner() -> tuple[str, str]:
+    """(runner, error) for /health, answered the way a node answers it (v5.7.1).
+
+    The repo's own target decides, so a config that declares a keyless local endpoint is
+    reported as `http` rather than as the stub that a missing cloud key used to imply.
+    """
     try:
         cfg = _cfg_for(_server_cwd())
-        return cfg.runner
+        return executor.select_runner(cfg.runner, executor.target_for(cfg)), ""
+    except ValueError as e:
+        return "invalid", str(e)
     except Exception:
-        return ""
+        # No readable config is still an answer: the legacy key-only question.
+        return executor.select_runner(""), ""
 
 
 def serve(repo: str = ".", host: str = "127.0.0.1", port: int = 8787) -> None:

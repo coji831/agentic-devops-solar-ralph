@@ -41,7 +41,7 @@ def run_chain(cfg: Config, chain_name: str, objective: str,
     raw = cm.get(chain_name)
     if not raw:
         raise KeyError(f"no chain '{chain_name}' in registry (have: {sorted(cm)})")
-    runner = executor.select_runner(cfg.runner)
+    runner = executor.select_runner(cfg.runner, executor.target_for(cfg))
     if runner == "agent-dispatch":
         raise SystemExit("auto chain requires runner=http|stub (agent-dispatch "
                          "needs the IDE; got agent-dispatch)")

@@ -132,17 +132,32 @@ NO_KEY_PLACEHOLDER = "sk-no-key-required"
 RESERVED_BODY_KEYS = ("model", "messages", "tools")
 
 
-def resolved_key(runner: str = "", api_key_env: str = "") -> str | None:
-    """The credential to send: a named env var, or the legacy chain, or a placeholder.
+def resolved_key(runner: str = "", api_key_env: str = "",
+                 keyless: bool = False) -> str | None:
+    """The credential to send: a named env var, a placeholder, or nothing.
 
     Requiring a key the endpoint does not want is what made a local endpoint unreachable:
     `run --runner http` against a perfectly healthy Ollama/llama.cpp server fell back to the
     STUB, reported APPROVED and recorded `tokens 0/0` - a run that never happened.
 
-    With a DECLARED provider, only its `api_key_env` is consulted: a provider's credential
-    must not be silently satisfied by an unrelated variable that happens to be set. With no
-    provider declared, `SOLAR_API_KEY`/`DEEPSEEK_API_KEY` behave exactly as before.
+    With a DECLARED provider that names a variable, only that variable is consulted: a
+    provider's credential must not be silently satisfied by an unrelated key that happens to
+    be set. With NO provider declared, `SOLAR_API_KEY`/`DEEPSEEK_API_KEY` behave exactly as
+    before - which is the state `keyless` exists to tell apart from a declared keyless
+    provider (v5.7.1):
+
+        keyless=True                    the provider declared `api_key_env: ""`: it needs no
+                                        credential, so send the placeholder and NEVER an
+                                        unrelated key.
+        keyless=False, api_key_env=""   nothing was declared: the legacy chain, unchanged.
+
+    The middle case was the defect. A keyless provider collapsed into the same `""` as "no
+    provider at all", so the legacy chain was consulted and `SOLAR_API_KEY` was sent as a
+    bearer token to `http://localhost` - a cloud credential leaving the machine to a local
+    or LAN endpoint, contradicting the promise above.
     """
+    if keyless:
+        return NO_KEY_PLACEHOLDER if runner == "http" else None
     if api_key_env:
         key = (os.environ.get(api_key_env) or "").strip()
         if key:
@@ -361,15 +376,24 @@ def resolve_target(cfg_model: str = "", role_model: str = "", cfg_tier: str = ""
             model_source = f"{source}={value}"
         break
 
-    provider = (provider_hint or str(alias.get("provider") or "")).strip()
-    if alias.get("provider") and not role_provider:
-        provider = str(alias["provider"]).strip()
+    # An alias owns the PAIR it declares. A model id is only meaningful at the provider that
+    # serves it, so a provider named at config or ROLE level applies to ids that carry none:
+    # measured before this, a role with `model: local-qwen` (alias -> local) AND
+    # `provider: deepseek` sent `qwen3:8b` to api.deepseek.com - a mismatch no endpoint can
+    # report, only fail. A role whose own `provider` a model alias overrules is named by
+    # `doctor` (check `routing`) rather than left to be discovered.
+    provider = (str(alias.get("provider") or "") or provider_hint).strip()
     if provider and provider not in known:
         raise ValueError(
             f"unknown provider {provider!r} (have: {', '.join(sorted(known))}) - declare it "
             f"under `providers` in .solar/config.json")
     spec = known.get(provider) or {}
     base = str(spec.get("base_url") or "").rstrip("/")
+    # KEYLESS is three-valued, and the middle state is the one that bit: `api_key_env`
+    # PRESENT and empty means the provider declared "no credential needed" (how every local
+    # server is declared), while an ABSENT key means nothing was declared and the legacy env
+    # chain applies. Collapsing the two sent a cloud key to localhost.
+    keyless = "api_key_env" in spec and not str(spec.get("api_key_env") or "").strip()
     return {
         "model": model,
         "model_source": model_source,
@@ -377,9 +401,34 @@ def resolve_target(cfg_model: str = "", role_model: str = "", cfg_tier: str = ""
         "base_url": base,
         "endpoint": base or base_url(),
         "api_key_env": str(spec.get("api_key_env") or ""),
+        "keyless": keyless,
         "headers": dict(spec.get("headers") or {}),
         "extra_body": dict(alias.get("extra_body") or {}),
     }
+
+
+def target_for(cfg, role_spec: dict | None = None) -> dict:
+    """The target a repo resolves to, with or without a role in hand (v5.7.1).
+
+    ONE place for the call sites that must know a target BEFORE a node runs - the runner
+    decision, `doctor`'s routing table, the bench/eval preflight - so each of them answers it
+    the way the node will instead of approximating it from the environment.
+
+    `role_spec=None` is the whole-repo answer (the config's own model and provider): the
+    honest estimate when no role has been chosen yet. With a spec, this is exactly what
+    `run` will do for that role.
+
+    `cfg` is duck-typed (`.model`, `.model_tier`, `.provider`, `.providers`, `.models`) so
+    the CLI, the server and the bench can all call it without a Config import.
+    """
+    spec = role_spec or {}
+    return resolve_target(cfg_model=cfg.model, cfg_tier=cfg.model_tier,
+                          role_model=spec.get("model", ""),
+                          role_tier=spec.get("model_tier", ""),
+                          cfg_provider=cfg.provider,
+                          role_provider=spec.get("provider", ""),
+                          providers=providers_table(getattr(cfg, "providers", None)),
+                          models=getattr(cfg, "models", None))
 
 
 # Ids a provider serves through an alias it does not list in /models. DeepSeek accepts
@@ -401,7 +450,8 @@ def known_models(timeout: float = 15.0, runner: str = "",
     what lets `doctor` say "the endpoint did not answer" instead of PASS - the one check
     that answers "is my local server actually up?".
     """
-    key = resolved_key(runner, (target or {}).get("api_key_env", ""))
+    key = resolved_key(runner, (target or {}).get("api_key_env", ""),
+                       bool((target or {}).get("keyless", False)))
     if key is None:
         return None, "no API key"
     endpoint = (target or {}).get("endpoint") or base_url()
@@ -416,8 +466,33 @@ def known_models(timeout: float = 15.0, runner: str = "",
 
 
 def available() -> bool:
-    """True when a real model call is possible (an API key is present)."""
+    """True when a CREDENTIAL is in the environment (the pre-v5.7.1 question)."""
     return api_key() is not None
+
+
+def can_call(target: dict | None = None) -> bool:
+    """True when a real model call is possible for THIS target (v5.7.1).
+
+    `available()` answers "is a key in the environment", which is the wrong question once a
+    repo can DECLARE its endpoint: a keyless local provider has no credential by design, so
+    asking about a key made a fully configured local run fall back to the stub - the local
+    model could not be reached from a committed config at all, only by exporting
+    `SOLAR_RUNNER=http`. Measured before this fix: a config declaring
+    `providers: {"local": {"base_url": "http://localhost:11434/v1", "api_key_env": ""}}`
+    plus a model alias naming it, with no cloud key set, gave `select_runner("") == "stub"`.
+
+    A DECLARED provider is answered from its own declaration, so this matches what `run`
+    will do: enough to call (it needs no key, or its named variable is present) or not.
+    `target=None` keeps the legacy key-only answer.
+    """
+    if target is None:
+        return available()
+    if target.get("keyless"):
+        return True
+    env = str(target.get("api_key_env") or "")
+    if env:
+        return bool((os.environ.get(env) or "").strip())
+    return available()
 
 
 # The three runners (v5 §3): agent-dispatch hands off to the repo's .agent.md
@@ -426,11 +501,18 @@ def available() -> bool:
 RUNNERS = ("agent-dispatch", "http", "stub")
 
 
-def select_runner(cfg_runner: str = "") -> str:
+def select_runner(cfg_runner: str = "", target: dict | None = None) -> str:
     """Resolve which runner executes specialist work (v5 §3, provider-agnostic).
 
     Ladder: `SOLAR_RUNNER` (env, or `run --runner`, which sets it for the run) >
-    the repo's `config.json` `runner` > auto (http when a key is set, else stub).
+    the repo's `config.json` `runner` > auto.
+
+    Auto asks `can_call(target)` (v5.7.1): `http` when a call is possible, else `stub`. It
+    used to ask only whether a key was in the environment, which cannot be the right
+    question once a repo declares a KEYLESS endpoint - with no cloud key set, a repo fully
+    configured for a local model resolved to the stub. `target` is passed IN rather than
+    re-resolved here, for the same reason the runner itself is (TD-5.6-7): one ladder, one
+    outcome, one place. Omitted, auto falls back to the key-only answer exactly as before.
 
     The env level beating the config is the point (TD-5.4-9). A repo that pins
     `agent-dispatch` can be exercised through `http` for one run **without
@@ -452,7 +534,7 @@ def select_runner(cfg_runner: str = "") -> str:
             return value
         raise ValueError(f"unknown runner {value!r} from {source} "
                          f"(expected one of: {', '.join(RUNNERS)})")
-    return "http" if available() else "stub"
+    return "http" if can_call(target) else "stub"
 
 
 def write_handoff(role: str, system_prompt: str, objective: str, repo: Path,
@@ -663,7 +745,7 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         spec: dict | None = None, human_approval: bool = False,
         cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "",
         cfg_provider: str = "", providers: dict | None = None,
-        models: dict | None = None) -> ExecutorResult:
+        models: dict | None = None, target: dict | None = None) -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
@@ -681,26 +763,33 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     request-body fields. An empty target means the env/default endpoint - the behaviour
     from before a provider could be declared.
 
+    `target` (v5.7.1) is that same resolution, already done by the caller (`target_for`).
+    The node's runner decision needs the target BEFORE this call, so resolving it twice
+    would mean two chances to disagree; passed in, it is resolved once per node. Omitted,
+    it is resolved here - and a config error still REJECTS the run rather than quietly
+    reaching an endpoint nobody asked for.
+
     Falls back to a stub (no network) when the endpoint cannot be reached at all, so the
     graph stays runnable/testable without credentials.
     """
     if runner == "stub":
         return stub_result(role, objective, "runner=stub, by request")
-    try:
-        target = resolve_target(
-            cfg_model=cfg_model, role_model=(spec or {}).get("model", ""),
-            cfg_tier=cfg_tier, role_tier=(spec or {}).get("model_tier", ""),
-            cfg_provider=cfg_provider, role_provider=(spec or {}).get("provider", ""),
-            providers=providers, models=models)
-    except ValueError as e:
-        # An unresolvable tier and an unknown provider NAME are both configuration errors,
-        # and the honest place for them is the error path: the review node REJECTS the run
-        # instead of approving output produced somewhere nobody asked for.
-        return ExecutorResult(output=f"ERROR: {e}", usage={"in": 0, "out": 0},
-                              tool_calls=0, error=str(e), model="unresolved",
-                              provider="unresolved", usage_reported=False)
+    if target is None:
+        try:
+            target = resolve_target(
+                cfg_model=cfg_model, role_model=(spec or {}).get("model", ""),
+                cfg_tier=cfg_tier, role_tier=(spec or {}).get("model_tier", ""),
+                cfg_provider=cfg_provider, role_provider=(spec or {}).get("provider", ""),
+                providers=providers, models=models)
+        except ValueError as e:
+            # An unresolvable tier and an unknown provider NAME are both configuration errors,
+            # and the honest place for them is the error path: the review node REJECTS the run
+            # instead of approving output produced somewhere nobody asked for.
+            return ExecutorResult(output=f"ERROR: {e}", usage={"in": 0, "out": 0},
+                                  tool_calls=0, error=str(e), model="unresolved",
+                                  provider="unresolved", usage_reported=False)
     label = endpoint_label(runner, target["provider"], target["endpoint"])
-    key = resolved_key(runner, target["api_key_env"])
+    key = resolved_key(runner, target["api_key_env"], bool(target.get("keyless")))
     if key is None:
         why = (f"no {target['api_key_env']} set" if target["api_key_env"]
                else "no SOLAR_API_KEY set")
