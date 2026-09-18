@@ -94,7 +94,8 @@ Add new items under the relevant version section. Resolved items stay in the fil
 ## v5.6 — Install consistency (opened 2026-09-19 by comparing two real engagements)
 
 > Shipped: **v5.6.0** TD-5.6-1, 2 · **v5.6.1** TD-5.6-5 · **v5.6.2** TD-5.6-6, 7.
-> Still open: TD-5.6-3, TD-5.6-4 (both additions, neither can produce a wrong result).
+> Still open: TD-5.6-3, TD-5.6-4 (additions, neither can produce a wrong result) and
+> TD-5.6-8 (cosmetic).
 
 ### TD-5.6-1: ~~Portable config + refreshable install~~
 
@@ -154,6 +155,23 @@ a dead endpoint: `runner="http"` returns `deepseek-chat` + `Connection error.`;
 **Note:** `doctor`'s runner check is corrected too — a selected `http` with no key is now a
 WARN, not a PASS describing calls that will not happen.
 **Files:** `executor.py` (`run`, `stub_result`), `graph.py` `_execute`, `cli.py` `cmd_doctor`.
+
+### TD-5.6-8: Writers emit CRLF on Windows, so install bytes are platform-dependent
+
+**Status:** Open — cosmetic at present, measured 2026-09-19 during the v5.6.2 engagement
+refresh. **Severity: low.**
+**Goal:** `install.write_version` (and the other `Path.write_text` writers — `cmd_init`'s
+config, the ledger section) translate `\n` to the platform separator, so `.solar/VERSION`
+lands as `5.6.2**\r\n**` and `config.json` as 10 CRLF lines. Git says so on every refresh:
+`warning: in the working copy of '.solar/VERSION', CRLF will be replaced by LF`.
+**Measured, so as not to overstate it:** both engagements are `core.autocrlf=true`, so git
+normalises on add and **no churn occurs** — `git status` is clean after the refresh commit,
+and the warning is the whole symptom today. It becomes real on an `autocrlf=false` repo or a
+Linux clone: `init` then writes LF, so the committed bytes depend on the machine that last
+ran `init`, and a Windows→Linux refresh shows a one-line diff. That undercuts the property
+v5.6.0 was built for — a refresh is a no-op when nothing changed.
+**Files:** `install.py` (`write_version`, and the block writer if it shares the pattern),
+`cli.py` `cmd_init`. Fix shape: pass `newline="\n"` to the text writers.
 **Goal:** `executor.run` falls back to the stub on a missing KEY, not on the selected runner, so `run --runner stub` with `SOLAR_API_KEY` set performs a real HTTP call. The README's runner table says the stub is "Deterministic plan text (offline structure tests)", which is only true while the key is unset - a mismatch that would surprise anyone reaching for `--runner stub` precisely to stay offline, and it spends tokens when the intent was not to.
 **Files:** `executor.py` `run` (honour the selected runner), `cli.py` help text, README runner table.
 
