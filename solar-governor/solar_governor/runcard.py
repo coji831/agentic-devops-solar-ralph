@@ -11,6 +11,22 @@ import time
 import uuid
 from pathlib import Path
 
+# The card is documented as the complete structured record (ledger.py), and it was not:
+# neither it nor the ledger section carried the run's OUTPUT, so what a finished run
+# concluded was unrecoverable from every artefact on disk — a card that reads as the
+# record while missing the answer (TD-5.7-6, found benching a local model).
+#
+# Capped rather than unbounded, like a read is, with a marker that says so: a truncated
+# answer must not read as a short one (v5.7.2's rule, and the reason the cap is named).
+MAX_OUTPUT_CHARS = 20_000
+
+
+def _clip_output(text: str) -> str:
+    if len(text) <= MAX_OUTPUT_CHARS:
+        return text
+    return (f"{text[:MAX_OUTPUT_CHARS]}…[output elided: {len(text)} chars, "
+            f"first {MAX_OUTPUT_CHARS} shown]")
+
 
 def write(cfg, state: dict, thread: str, started_at: float) -> Path:
     run_dir = cfg.root / ".solar" / "runs"
@@ -39,6 +55,10 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "provider": state.get("provider", ""),
         "error": state.get("error", ""),
         "forced_final": bool(state.get("forced_final", False)),
+        # What the run concluded. Without it `verdict: APPROVED` was the only thing
+        # recoverable from a finished run, and a verdict the graph grants itself cannot
+        # stand in for the answer (TD-5.7-6).
+        "output": _clip_output(state.get("output") or ""),
         # the decisions log lives in the ledger section too, but the structured record
         # has to stand on its own: the ledger is a growing human view, this is the card
         "decisions": list(state.get("decisions_log") or []),

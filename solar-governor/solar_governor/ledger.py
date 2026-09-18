@@ -14,8 +14,11 @@ So the rule is now mechanical rather than a matter of care:
   wrapped in its own begin/end markers, so prose before, between or *after* sections is
   preserved exactly.
 * **Nothing is ever deleted.** The file grows by one section per run. `.solar/runs/`
-  holds the same runs as structured cards, and the run-card carries the decisions, so
-  the structured record is complete on its own.
+  holds the same runs as structured cards, and the run-card carries the decisions AND the
+  answer, so the structured record is complete on its own. (v5.7.3 — before that the card
+  carried the decisions and no answer, so the sentence was true of the process and false
+  of the result; TD-5.7-6. This section is the human view and stays short: a reader who
+  wants what the run concluded follows the thread id into the card.)
 
 This makes "the ledger is the record" true, which §12 and the install block both already
 claimed. A derived view that overwrites itself is a poor record; a log that cannot be
