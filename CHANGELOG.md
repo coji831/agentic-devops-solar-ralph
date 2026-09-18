@@ -18,6 +18,79 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.7.1 — Released (2026-09-19) — route per role, and reach a keyless endpoint
+
+**Theme:** the registry (v5.7.0) could name a provider; this release makes a **role**'s routing
+actually arrive — one config, one run, two providers. Asking for it ("we need to assign models by
+role, and use the DeepSeek API and a local model at the same time") turned up three defects, all
+in the path rather than in the registry. Measured, fixed, and pinned by test.
+
+### Fixed
+
+- **A declared keyless provider was sent an unrelated cloud key.** `api_key_env: ""` (how every
+  local server is declared) collapsed into the same `""` as "no provider declared", so
+  `resolved_key` fell through to the legacy chain and `SOLAR_API_KEY` was sent as a bearer token to
+  `http://localhost` — a cloud credential leaving the machine, and the exact opposite of what
+  v5.7.0's own rule promised ("never satisfied by an unrelated key that happens to be set").
+  `api_key_env` is now **three-valued**: a NAME (that variable, only it) | empty (no credential —
+  the placeholder) | absent (the legacy chain, unchanged).
+- **Auto chose the stub for a repo that declared a local endpoint.** Auto asked only "is a cloud
+  key set", which a keyless provider never satisfies — so a repo fully configured for a local model
+  could not reach it from a committed config at all, only by exporting `SOLAR_RUNNER=http`.
+  `select_runner(cfg_runner, target)` now asks `can_call(target)`: enough to call (keyless, or its
+  own named variable is present) or not. The runner question is asked about the **node that is
+  about to run**, resolved once per node by the graph and handed down, on the same principle as
+  TD-5.6-7.
+- **A role's `provider` beat the provider its model alias declares.** `model: local-qwen` +
+  `provider: deepseek` sent `qwen3:8b` to `api.deepseek.com` — a mismatch no endpoint can report,
+  only fail. **An alias owns the pair it declares**; a provider named at config or role level
+  applies to ids that carry none. A role whose own `provider` an alias overrules is now named by
+  `doctor` instead of being left to be discovered.
+
+### Added
+
+- **`doctor` check `routing`** — one line per role that names a model, tier or provider, so a mixed
+  cloud+local registry is verifiable before a run:
+  `architect -> deepseek-flash @ deepseek [DEEPSEEK_API_KEY set]` /
+  `investigator -> qwen3:8b @ local [no key needed]`. WARNs when a role's `provider` is not in
+  effect. A check detail may now span lines, indented under its check.
+- **`executor.target_for(cfg, role_spec=None)`** — the one place a target is built for callers that
+  need it before a node runs (`doctor`, `bench`, `eval`, `chain`, the server's `/health`, the
+  graph). `cfg` is duck-typed, so no Config import is imposed on those call sites.
+- **`executor.can_call(target)`** — the per-target question. `available()` keeps its old meaning
+  ("a credential is in the environment") and its old behaviour.
+
+### Changed
+
+- `executor.resolve_target` returns `keyless`, and `run` accepts an already-resolved `target`
+  (omitted, it resolves as before and still REJECTS the run on a config error).
+- `bench`, `eval`, `chain`, `run` and the server's `/health` answer the runner question
+  target-aware. A bench message that used to say "set SOLAR_API_KEY" now also names declaring a
+  provider as the way to get `http`.
+
+### Measured
+
+- **Two providers, one run, no environment variables:** a chain with one role on the cloud and one
+  on a local model, run with no `SOLAR_RUNNER`, no `SOLAR_MODEL`, no `SOLAR_BASE_URL` and no
+  `SOLAR_API_KEY` in the shell — `2/2 links passed`; `architect APPROVED model=deepseek-flash
+  in 1447 out 53`, `investigator APPROVED model=solar-local:latest in 703 out 284`, run-cards
+  recording `provider: "deepseek"` and `provider: "local"` separately.
+- **A reachable-but-wrong local id is loud:** the same run with an id the local server does not
+  serve was REJECTED with **Ollama's own** `404 model 'qwen3:8b' not found`, not a stub and not a
+  silent APPROVED.
+- **The leak, before and after:** with `SOLAR_API_KEY` set, `resolved_key("http", "")` returned the
+  live key (pre-fix) and returns `sk-no-key-required` (post-fix), asserted on the wire — the local
+  server's `Authorization` header is the placeholder and never the cloud key.
+- Tests **205 → 215** (`tests/test_role_routing.py`, 10), including a chain whose assertions are
+  what two REAL HTTP servers received: the right id to the right endpoint with the right credential.
+
+### Not done here
+
+- **Cross-provider fallback.** An alias may point at a gateway URL and the gateway owns fallbacks
+  and per-model spend; the runtime still does not re-route a failing provider mid-run.
+- **A `--role-model` flag.** A role's model is declared in the registry (reviewed with the role),
+  and a second environment-backed flag would repeat the TD-5.6-13 leak.
+
 ## v5.7.0 — Released (2026-09-19) — name a provider, name a model
 
 **Theme:** one repo can now point at a cloud provider, a router or a local server by declaring
@@ -55,7 +128,7 @@ Every shipped `base_url` was probed unauthenticated before shipping: 401/403 on 
 wants a key; **404 means the path is wrong**. Two candidates that "everybody knows" were dropped
 by that check instead of shipped on reputation, and two that a `/models` probe rejected are
 shipped with the reason recorded (Google's OpenAI-compatible surface and Perplexity answer on
-`/chat/completions` but expose no model list, so `doctor` reports that as *unverified* rather than
+`/chat/completions` but expose no model list, so `doctor` reports that as _unverified_ rather than
 as an unreachable endpoint).
 
 ### Fixed — a router field would have failed every call
@@ -94,8 +167,8 @@ regression test asserts on what a REAL server receives, so the wire is checked, 
 - **The alias beat the tier of the same name**: `model: fast` resolved to the alias's id, not to
   `MODEL_TIERS`.
 - **`doctor`, on the same config:** `model: PASS - deepseek-flash (from config model=fast ->
-  deepseek-flash; provider deepseek @ https://api.deepseek.com [SOLAR_API_KEY set]) [provider
-  serves 2 id(s)]`.
+deepseek-flash; provider deepseek @ https://api.deepseek.com [SOLAR_API_KEY set]) [provider
+serves 2 id(s)]`.
 - **Routing to a real router:** with no OpenRouter key the run was REJECTED with **OpenRouter's
   own** `401 Missing Authentication header` — their error, not a local exception, which is what
   proves the request, headers and body reached their gateway. A successful OpenRouter call needs a
@@ -153,11 +226,11 @@ server is. Found by pointing it at one before committing to a local hosted model
 
 ### Measured — the same probe, before and after
 
-| probe | endpoint calls | model | tokens | verdict |
-| --- | --- | --- | --- | --- |
-| no key, `--runner http` **before** | **0** | `stub` | 0/0 | APPROVED |
-| no key, `--runner http` **after** | **2** | `deepseek-chat` | 250/30 (`reported: true`) | APPROVED |
-| no key, auto (both) | 0 | `stub` | 0/0 (`reported: false`) | APPROVED — by design |
+| probe                              | endpoint calls | model           | tokens                    | verdict              |
+| ---------------------------------- | -------------- | --------------- | ------------------------- | -------------------- |
+| no key, `--runner http` **before** | **0**          | `stub`          | 0/0                       | APPROVED             |
+| no key, `--runner http` **after**  | **2**          | `deepseek-chat` | 250/30 (`reported: true`) | APPROVED             |
+| no key, auto (both)                | 0              | `stub`          | 0/0 (`reported: false`)   | APPROVED — by design |
 
 `doctor` against that server: `model: PASS - qwen3:8b (from config model) [provider serves 1
 id(s)]` when it is up, `WARN - ... cannot list its models (Connection error.)` when it is down.

@@ -5,7 +5,7 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (**v5.7.0** — name a provider, name a model). The runner
+Released (**v5.7.1** — route per role, reach a keyless endpoint). The runner
 work: full role capacity without a shell (line ranges, write policy, a closed command
 vocabulary, an approval gate, shaped checkers, per-node model routing); a tool loop that
 terminates (`v5.4.1`); a runner choosable per run (`v5.4.2`). `v5.5.0` added the
@@ -26,7 +26,13 @@ unreadable one exits **2** with a reason instead of a traceback. **v5.6.4** make
 keyless** endpoint reachable (`run --runner http` sent no request at all before it, and
 reported APPROVED), records `provider` and `tokens.reported` in the run-card so a
 local-vs-cloud comparison is evidence rather than inference, and makes `doctor` warn when the
-endpoint does not answer.
+endpoint does not answer. **v5.7.0** lets a repo NAME its provider and its models instead of
+exporting them (17 shipped endpoints, aliases, per-provider headers and body fields).
+**v5.7.1** makes that routing actually reach an endpoint per ROLE: an alias owns the provider
+its model id lives on, a declared KEYLESS provider is sent the placeholder rather than an
+unrelated cloud key, auto picks `http` for an endpoint that needs no key (a local model runs
+from a committed config, with no environment variable set), and `doctor` prints where each
+role goes.
 Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
@@ -225,10 +231,12 @@ $env:SOLAR_TOOL_OUTPUT_CHARS = "2000"               # sized for a small local co
 
 Three things worth knowing before you measure:
 
-- **No key is needed, and the placeholder is deliberate.** An explicit `http` run sends
-  `sk-no-key-required`; local servers ignore it, a cloud endpoint answers 401. Auto still chooses
-  the stub when no key is set, which is why an unqualified "it ran" is not the same as "it reached
-  the model" — check `model` and `provider` in the run-card.
+- **No key is needed, and the placeholder is deliberate.** A declared keyless provider sends
+  `sk-no-key-required` and is **never** handed an unrelated key; local servers ignore it, a cloud
+  endpoint answers 401. Auto chooses `http` when the endpoint can actually be called — keyless
+  counts — so a repo that declares a local provider reaches it with **no cloud key set anywhere**.
+  The stub is chosen only when there is nothing to call: no provider, no key. Either way, check
+  `model` and `provider` in the run-card, because a stub that answers reads like a run that worked.
 - **The model id must be the one the server serves.** `GET /v1/models` is authoritative, and
   `doctor` now checks the resolved id against it: on llama.cpp the id is the **model file path**
   unless the server was started with `--alias`. Ollama needs `PARAMETER num_ctx` in a Modelfile to
@@ -251,11 +259,11 @@ run changes: same graph, same runners, same run-card — plus `provider` in the 
 {
   "provider": "deepseek",
   "providers": {
-    "local": {"base_url": "http://localhost:11434/v1", "api_key_env": ""}
+    "local": { "base_url": "http://localhost:11434/v1", "api_key_env": "" }
   },
   "models": {
-    "fast":       {"provider": "deepseek", "id": "deepseek-flash"},
-    "local-qwen": {"provider": "local",    "id": "qwen3:8b"}
+    "fast": { "provider": "deepseek", "id": "deepseek-flash" },
+    "local-qwen": { "provider": "local", "id": "qwen3:8b" }
   },
   "model": "local-qwen"
 }
@@ -282,7 +290,29 @@ run changes: same graph, same runners, same run-card — plus `provider` in the 
   `route` are **body** fields (`extra_body`). The runner strips its own keys (`model`, `messages`,
   `tools`) from `extra_body` first, so a routing object can add fields but never replace the prompt.
 - **`provider` per role** lets one chain put its reasoner in the cloud and its fast steps on a
-  local model.
+  local model. A role's registry entry takes `model` (an alias or an id), `model_tier`,
+  `provider`, `reasoning`, so the whole routing decision lives with the role it describes:
+
+```json
+{
+  "architect":    { "system": "...", "model": "fast" },
+  "investigator": { "system": "...", "model": "local-qwen" }
+}
+```
+
+  The same config then runs both, in one chain, against two different providers. Measured:
+  `[architect] APPROVED model=deepseek-flash` and `[investigator] APPROVED
+  model=solar-local:latest`, run-cards recording `provider: deepseek` and `provider: local`.
+  A role's `model` names the model; a `provider` beside it applies to ids that carry none,
+  because **the alias decides the endpoint its id lives on** — `model: local-qwen` sends
+  `qwen3:8b` to the local provider, and a role-level `provider: deepseek` next to it is reported
+  by `doctor` (`routing: WARN - ... its own provider 'deepseek' is NOT in effect`) rather than
+  silently sending a local model id to a cloud endpoint.
+- **`api_key_env` is three-valued, and the middle one is a security rule.** A NAME reads that
+  variable and only it. An **empty** string means the provider needs no credential: the request
+  carries `sk-no-key-required` and is never handed an unrelated key that happens to be set — a
+  cloud credential must not travel to `http://localhost`. Absent means nothing was declared, and
+  the legacy `SOLAR_API_KEY`/`DEEPSEEK_API_KEY` chain applies exactly as before.
 - **An unknown provider name is a REJECTED run**, not a fallback to the default endpoint — and it
   fails even when an alias would have chosen a valid provider, because a name you believe is in
   effect must not be quietly ignored.
@@ -293,6 +323,14 @@ run changes: same graph, same runners, same run-card — plus `provider` in the 
 fast; selected: deepseek` and `model: PASS - deepseek-flash (from config model=fast ->
 deepseek-flash; provider deepseek @ https://api.deepseek.com [SOLAR_API_KEY set]) [provider serves
 2 id(s)]`. Note what it does NOT print: a credential value, ever.
+
+It also prints where each **role** goes, which is not the same question as where the repo goes:
+
+```
+✅ routing: PASS - 2 role(s) route themselves
+    architect -> deepseek-flash @ deepseek [DEEPSEEK_API_KEY set]
+    investigator -> qwen3:8b @ local [no key needed]
+```
 
 **No config means no change.** A repo with no `providers`/`models` uses `SOLAR_BASE_URL`,
 `SOLAR_API_KEY` and `SOLAR_MODEL` exactly as before, and `to_dict` omits the empty fields so a

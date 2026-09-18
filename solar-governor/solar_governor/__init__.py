@@ -4,4 +4,4 @@ Control layer (LangGraph) over MCP tools; repo-bounded (v5 §11). Profile = grap
 configuration (light: dispatch -> review -> done; full: gates + compactor +
 adversarial). See ../docs/versions/v5.md.
 """
-__version__ = "5.7.0"
+__version__ = "5.7.1"

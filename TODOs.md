@@ -314,6 +314,36 @@ live. Decide whether SOLAR should own that routing or delegate it before buildin
 **Files:** `core.py` (field + merge), `executor.py` (resolution + provider-derived base_url/key),
 `cli.py` (doctor reports provider/base_url; `--json` carries it), `runcard.py`, docs, tests.
 
+### TD-5.7-2: Cross-provider fallback — does SOLAR own routing, or does a gateway?
+
+**Status:** Deferred (decided 2026-09-19, v5.7.1 — deliberately not built)
+**Goal:** Decide whether the runtime re-routes a failing provider mid-run (model A at provider X →
+model B at provider Y), or keeps delegating that to a gateway.
+**Why deferred:** the gateway already owns this and owns it better — an alias may point at a
+LiteLLM URL or use OpenRouter's own `provider` routing object in `extra_body`, and per-model spend
+and `context_window_fallbacks` live there too. Building a second, weaker router inside a graph
+node would duplicate policy that a gateway can enforce with real usage data. Worth revisiting only
+for driving a role with **no gateway running** (a laptop with a local model and one cloud key).
+**Decision needed first:** which failures are routable (connection refused? 5xx? a 429 with a
+retry-after? a 404 for a model id that no longer exists?) and whether a fallback must be recorded
+in the run-card as a separate fact, since "which provider answered" would no longer be a single
+value per node.
+**Files:** `executor.py` (`_tool_loop` retry path), `runcard.py` (route provenance), docs, tests.
+
+### TD-5.7-3: The handoff header names the alias, not the resolved id
+
+**Status:** Open (found 2026-09-19 while verifying v5.7.1)
+**Goal:** `write_handoff` prints `_model routing: {model}_` from `model_name(cfg_model, role_model)`,
+which resolves through `resolve_target` **without** the provider tables — so a role declaring an
+alias (`model: local-qwen`) makes the handoff say `local-qwen` where the runtime would call
+`qwen3:8b` at a declared provider.
+**Why it matters (and why it is small):** the handoff describes the **IDE plane**, which pins its
+own models in `.agent.md` frontmatter (TD-5.6-3), so nothing downstream is actually wrong — but the
+header is a model claim about a run, and this workspace's rule is that a report must not read as
+something it isn't. The fix is to pass the resolved target (or its model + provider) into
+`write_handoff` from `graph._dispatch_agent`, which already has `cfg` and the role spec.
+**Files:** `executor.write_handoff` signature, `graph._dispatch_agent` call site, the handoff test.
+
 ## v4 — Context Efficiency, Effort Simulation, Compaction
 
 ### TD-4-1: Instructional steering in agent bodies for direct invocations
