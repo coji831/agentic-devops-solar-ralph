@@ -127,61 +127,82 @@ def base_url() -> str:
 # recognised value in a server log, not a secret someone forgot to set.
 NO_KEY_PLACEHOLDER = "sk-no-key-required"
 
+# Request-body keys the RUNNER owns. A provider's `extra_body` may add fields, but must not be
+# able to replace the message list or the tool schema - silently swapping either would be a trap.
+RESERVED_BODY_KEYS = ("model", "messages", "tools")
 
-def resolved_key(runner: str = "") -> str | None:
-    """The credential to send: the env key, else a placeholder for an EXPLICIT http run.
+
+def resolved_key(runner: str = "", api_key_env: str = "") -> str | None:
+    """The credential to send: a named env var, or the legacy chain, or a placeholder.
 
     Requiring a key the endpoint does not want is what made a local endpoint unreachable:
-    `run --runner http` against a perfectly healthy Ollama/llama.cpp server fell back to
-    the STUB, reported APPROVED, and recorded `tokens 0/0` - a run that never happened,
-    reading as a success, on the runner whose whole purpose was to make a local model
-    measurable.
+    `run --runner http` against a perfectly healthy Ollama/llama.cpp server fell back to the
+    STUB, reported APPROVED and recorded `tokens 0/0` - a run that never happened.
 
-    Only an explicit `http` gets the placeholder. Auto still resolves to the stub with no
-    key (see `select_runner`), so nothing that works today changes behaviour, and the
-    placeholder is never sent to a provider you did not ask to call.
+    With a DECLARED provider, only its `api_key_env` is consulted: a provider's credential
+    must not be silently satisfied by an unrelated variable that happens to be set. With no
+    provider declared, `SOLAR_API_KEY`/`DEEPSEEK_API_KEY` behave exactly as before.
     """
-    key = api_key()
-    if key:
-        return key
+    if api_key_env:
+        key = (os.environ.get(api_key_env) or "").strip()
+        if key:
+            return key
+    else:
+        key = api_key()
+        if key:
+            return key
     return NO_KEY_PLACEHOLDER if runner == "http" else None
 
 
-def endpoint_label(runner: str = "") -> str:
-    """Where a run actually went, for the record: "stub", or the endpoint's host:port.
+def endpoint_label(runner: str = "", provider_name: str = "",
+                   endpoint: str = "") -> str:
+    """Where a run actually went, for the record.
 
-    Provenance, because the model id cannot carry it: `qwen3:8b` on a laptop and a hosted
-    `qwen3:8b` are the same string, and the run-card recorded neither. A local-vs-cloud
-    comparison that cannot say which endpoint produced a number is not evidence, so the
-    endpoint is recorded next to the model rather than left to be inferred.
+    A DECLARED provider name is the most useful label (`local`, `openrouter`, `deepseek`),
+    then the endpoint's host:port, then `stub`. Provenance, because the model id cannot carry
+    it: `qwen3:8b` on a laptop and a hosted `qwen3:8b` are the same string.
     """
     if runner == "stub":
         return "stub"
-    parsed = urlparse(base_url())
-    return parsed.netloc or base_url()
+    if provider_name:
+        return provider_name
+    parsed = urlparse(endpoint or base_url())
+    return parsed.netloc or (endpoint or base_url())
 
 
-def provider_family() -> str:
-    """Which model family the configured endpoint speaks ("" when unknown)."""
-    host = (urlparse(base_url()).hostname or "").lower()
+def provider_family(provider_name: str = "", providers: dict | None = None) -> str:
+    """Which model family the resolved endpoint speaks ("" when unknown).
+
+    A DECLARED provider's `family` wins, because its host cannot be trusted to say: a local
+    server, a LAN box and a self-hosted gateway all have hosts that match nothing in
+    `MODEL_TIERS`, which is why declaring a `model_tier` against a local endpoint used to
+    RAISE. Undeclared, it still infers from the host - the pre-v5.7 behaviour, unchanged.
+    """
+    declared = (providers or {}).get(provider_name) or {}
+    if (declared.get("family") or "").strip():
+        return declared["family"].strip()
+    endpoint = (declared.get("base_url") or "").strip() or base_url()
+    host = (urlparse(endpoint).hostname or "").lower()
     for family in MODEL_TIERS:
         if family in host:
             return family
     return ""
 
 
-def resolve_tier(tier: str) -> str:
+def resolve_tier(tier: str, family: str | None = None) -> str:
     """The concrete id for a tier. Raises when it cannot be answered honestly.
 
-    An unknown tier, or a tier asked of an unknown provider, is a configuration error:
-    falling through to a default would run a different model than the one asked for,
-    the same class of defect as a failed check reading as a pass.
+    `family=None` means "work it out from the configured endpoint"; an explicitly EMPTY family
+    means "this provider has none", and must raise rather than quietly re-inferring from
+    whatever endpoint happens to be in the environment - which is how a declared local provider
+    resolved `fast` to a DeepSeek id.
     """
-    family = provider_family()
+    family = provider_family() if family is None else family
     if not family:
         raise ValueError(
-            f"cannot resolve model tier {tier!r}: no known provider family for "
-            f"{base_url()!r} (set an explicit model id, or add the family to MODEL_TIERS)")
+            f"cannot resolve model tier {tier!r}: the provider declares no `family` and no "
+            f"known family matches its host - declare `family` on the provider, declare a "
+            f"`models` alias for the id, or use an explicit model id")
     table = MODEL_TIERS[family]
     if tier not in table:
         raise ValueError(f"unknown model tier {tier!r} for {family} "
@@ -200,21 +221,12 @@ def resolve_model(cfg_model: str = "", role_model: str = "", cfg_tier: str = "",
 
     Returns (id, source) because `doctor` has to SHOW the provenance: knowing the id is
     not enough to tell a deliberate env override from a stale config pin. One ladder,
-    one place - a second copy would drift.
+    one place - a second copy would drift - so this is now a view of `resolve_target`,
+    which is the same ladder plus `models` aliases and the provider the id belongs to.
     """
-    ladder = (("env SOLAR_MODEL", "id", os.environ.get("SOLAR_MODEL") or ""),
-              ("role model", "id", role_model or ""),
-              ("role model_tier", "tier", role_tier or ""),
-              ("config model", "id", cfg_model or ""),
-              ("config model_tier", "tier", cfg_tier or ""))
-    for source, kind, value in ladder:
-        value = value.strip()
-        if not value:
-            continue
-        if kind == "id":
-            return value, source
-        return resolve_tier(value), f"{source}={value}"
-    return DEFAULT_MODEL, "default"
+    target = resolve_target(cfg_model=cfg_model, role_model=role_model,
+                            cfg_tier=cfg_tier, role_tier=role_tier)
+    return target["model"], target["model_source"]
 
 
 def model_name(cfg_model: str = "", role_model: str = "") -> str:
@@ -238,13 +250,146 @@ def reasoning_effort(cfg_effort: str = "", role_effort: str = "") -> str:
             or "").strip()
 
 
-# Ids a provider serves through an alias it does not list in /models. DeepSeek
-# accepts `deepseek-chat` while `GET /models` returns only `deepseek-flash` and
-# `deepseek-v4-pro`, so absence from that list is not proof of a bad id.
+# Shipped provider table (v5.7.0). A repo names a provider and gets its endpoint and the
+# NAME of the env var holding the key - never a key, because `.solar/config.json` is
+# committed. Declaring `family` here is what lets a `model_tier` resolve for an endpoint
+# whose host says nothing (a local server, a LAN box, a gateway).
+#
+# EVERY base_url below was verified on 2026-09-19 by probing it unauthenticated: 401/403 on
+# `/models` - or 400 on `/chat/completions` where a provider exposes no model list - means the
+# endpoint exists and wants a key; 404 means the path is wrong. Two candidates that
+# "everybody knows" were dropped by that check rather than shipped on reputation.
+PROVIDERS: dict[str, dict] = {
+    "openai":     {"base_url": "https://api.openai.com/v1",
+                   "api_key_env": "OPENAI_API_KEY"},
+    "deepseek":   {"base_url": "https://api.deepseek.com",
+                   "api_key_env": "DEEPSEEK_API_KEY", "family": "deepseek"},
+    "openrouter": {"base_url": "https://openrouter.ai/api/v1",
+                   "api_key_env": "OPENROUTER_API_KEY"},
+    "groq":       {"base_url": "https://api.groq.com/openai/v1",
+                   "api_key_env": "GROQ_API_KEY"},
+    "mistral":    {"base_url": "https://api.mistral.ai/v1",
+                   "api_key_env": "MISTRAL_API_KEY"},
+    "xai":        {"base_url": "https://api.x.ai/v1", "api_key_env": "XAI_API_KEY"},
+    "together":   {"base_url": "https://api.together.xyz/v1",
+                   "api_key_env": "TOGETHER_API_KEY"},
+    "fireworks":  {"base_url": "https://api.fireworks.ai/inference/v1",
+                   "api_key_env": "FIREWORKS_API_KEY"},
+    "cerebras":   {"base_url": "https://api.cerebras.ai/v1",
+                   "api_key_env": "CEREBRAS_API_KEY"},
+    "anthropic":  {"base_url": "https://api.anthropic.com/v1",
+                   "api_key_env": "ANTHROPIC_API_KEY"},
+    "perplexity": {"base_url": "https://api.perplexity.ai",
+                   "api_key_env": "PERPLEXITY_API_KEY"},
+    "moonshot":   {"base_url": "https://api.moonshot.ai/v1",
+                   "api_key_env": "MOONSHOT_API_KEY"},
+    # Local servers: no credential, so no `api_key_env`. Nothing listens until you start one.
+    "ollama":     {"base_url": "http://localhost:11434/v1", "api_key_env": ""},
+    "lmstudio":   {"base_url": "http://localhost:1234/v1", "api_key_env": ""},
+    "vllm":       {"base_url": "http://localhost:8000/v1", "api_key_env": ""},
+    "llamacpp":   {"base_url": "http://localhost:8080/v1", "api_key_env": ""},
+    # A self-hosted gateway (LiteLLM & co) in front of everything: one endpoint, one key.
+    "gateway":    {"base_url": "http://localhost:4000/v1",
+                   "api_key_env": "LITELLM_API_KEY"},
+}
+
+
+def providers_table(cfg_providers: dict | None = None) -> dict:
+    """Shipped providers merged with the repo's own, per FIELD, repo wins.
+
+    Per field so a repo can repoint one provider (`base_url` at a mirror) without
+    restating its `api_key_env`, and can add a provider without touching the shipped set.
+    """
+    merged = {name: dict(spec) for name, spec in PROVIDERS.items()}
+    for name, spec in (cfg_providers or {}).items():
+        if isinstance(spec, dict):
+            merged[name] = {**merged.get(name, {}), **spec}
+    return merged
+
+
+def resolve_target(cfg_model: str = "", role_model: str = "", cfg_tier: str = "",
+                   role_tier: str = "", cfg_provider: str = "", role_provider: str = "",
+                   providers: dict | None = None,
+                   models: dict | None = None) -> dict:
+    """Resolve ONE call's whole target: model id, provider, endpoint, credential source.
+
+    The model ladder is unchanged (`SOLAR_MODEL` > role `model` > role `model_tier` >
+    `cfg.model` > `cfg.model_tier` > default), with one addition: at EVERY rung, a value that
+    names an entry in `models` is an **alias** and wins, because it is a name the repo defined
+    on purpose. An alias carries its own provider, id and `extra_body`, so a model is declared
+    once and referred to by name from a config, a role or a chain.
+
+    A model id is OPAQUE. `anthropic/claude-sonnet-4.5`, a `:nitro` routing variant, a `~latest`
+    alias and llama.cpp's `C:\\models\\x.gguf` are all valid ids that mean nothing here, so
+    nothing in this module parses, splits or normalises one.
+
+    Returns a dict; `base_url` empty means the env/default endpoint (the pre-v5.7 behaviour).
+    Raises ValueError for an unknown provider NAME, because falling back to the default
+    endpoint would silently run somewhere other than where the config pointed.
+    """
+    table = models if isinstance(models, dict) else {}
+    known = providers or {}
+    provider_hint = (role_provider or cfg_provider or "").strip()
+    # A declared-but-unknown name is a config error even when an alias ends up choosing a
+    # different provider: the user believes that name is in effect, and silence would mean it is
+    # quietly ignored - the same defect as a typo selecting a different runner.
+    if provider_hint and provider_hint not in known:
+        raise ValueError(
+            f"unknown provider {provider_hint!r} (have: {', '.join(sorted(known))}) - "
+            f"declare it under `providers` in .solar/config.json")
+    alias: dict = {}
+    model, model_source = DEFAULT_MODEL, "default"
+
+    for source, kind, value in (
+            ("env SOLAR_MODEL", "id", os.environ.get("SOLAR_MODEL") or ""),
+            ("role model", "id", role_model or ""),
+            ("role model_tier", "tier", role_tier or ""),
+            ("config model", "id", cfg_model or ""),
+            ("config model_tier", "tier", cfg_tier or "")):
+        value = (value or "").strip()
+        if not value:
+            continue
+        entry = table.get(value)
+        if isinstance(entry, dict) and entry.get("id"):
+            alias = entry
+            model = str(entry["id"])
+            model_source = f"{source}={value} -> {model}"
+        elif kind == "id":
+            model, model_source = value, source
+        else:
+            model = resolve_tier(value, provider_family(provider_hint, known))
+            model_source = f"{source}={value}"
+        break
+
+    provider = (provider_hint or str(alias.get("provider") or "")).strip()
+    if alias.get("provider") and not role_provider:
+        provider = str(alias["provider"]).strip()
+    if provider and provider not in known:
+        raise ValueError(
+            f"unknown provider {provider!r} (have: {', '.join(sorted(known))}) - declare it "
+            f"under `providers` in .solar/config.json")
+    spec = known.get(provider) or {}
+    base = str(spec.get("base_url") or "").rstrip("/")
+    return {
+        "model": model,
+        "model_source": model_source,
+        "provider": provider,
+        "base_url": base,
+        "endpoint": base or base_url(),
+        "api_key_env": str(spec.get("api_key_env") or ""),
+        "headers": dict(spec.get("headers") or {}),
+        "extra_body": dict(alias.get("extra_body") or {}),
+    }
+
+
+# Ids a provider serves through an alias it does not list in /models. DeepSeek accepts
+# `deepseek-chat` while `GET /models` returns only `deepseek-flash` and `deepseek-v4-pro`,
+# so absence from that list is not proof of a bad id.
 UNLISTED_ALIASES = ("deepseek-chat",)
 
 
-def known_models(timeout: float = 15.0, runner: str = "") -> tuple[list[str] | None, str]:
+def known_models(timeout: float = 15.0, runner: str = "",
+                 target: dict | None = None) -> tuple[list[str] | None, str]:
     """Ask the provider which model ids it serves: (ids|None, error).
 
     `doctor`-only. A mis-set id is otherwise invisible until the first chat call
@@ -256,12 +401,15 @@ def known_models(timeout: float = 15.0, runner: str = "") -> tuple[list[str] | N
     what lets `doctor` say "the endpoint did not answer" instead of PASS - the one check
     that answers "is my local server actually up?".
     """
-    key = resolved_key(runner)
+    key = resolved_key(runner, (target or {}).get("api_key_env", ""))
     if key is None:
         return None, "no API key"
+    endpoint = (target or {}).get("endpoint") or base_url()
+    headers = (target or {}).get("headers") or None
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=key, base_url=base_url(), timeout=timeout)
+        client = OpenAI(api_key=key, base_url=endpoint, timeout=timeout,
+                        default_headers=headers)
         return [m.id for m in client.models.list().data], ""
     except Exception as e:  # network, auth, or SDK failure
         return None, str(e)
@@ -405,7 +553,7 @@ class ExecutorResult(dict):
 
 
 def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
-               effort: str = "") -> ExecutorResult:
+               effort: str = "", extra_body: dict | None = None) -> ExecutorResult:
     """Run the model/tool loop for one specialist node.
 
     Three termination rules, each added because the loop was measured returning
@@ -446,6 +594,15 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
             payload["reasoning_effort"] = effort
         if not final_round:
             payload["tools"] = tools
+        if extra_body:
+            # MEASURED, not assumed: the SDK REJECTS unknown keywords outright
+            # (`Completions.create() got an unexpected keyword argument 'provider'`) and no
+            # request leaves the process. Router fields - OpenRouter's `provider`, `models`,
+            # `route`, `plugins` - have to ride in `extra_body=`, which sends them in the JSON
+            # body. Reserved keys are dropped first, because an `extra_body` that silently
+            # replaced the message list or the tool schema would be a trap, not a feature.
+            payload["extra_body"] = {k: v for k, v in extra_body.items()
+                                     if k not in RESERVED_BODY_KEYS}
         try:
             resp = client.chat.completions.create(**payload)
             if getattr(resp, "usage", None):
@@ -498,53 +655,65 @@ def stub_result(role: str, objective: str, why: str) -> ExecutorResult:
                 f"  - implement the minimal change\n"
                 f"  - self-check + tests"),
         usage={"in": 0, "out": 0}, tool_calls=0, error=None, model="stub",
-        usage_reported=False)
+        provider="stub", usage_reported=False)
 
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
         cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
         spec: dict | None = None, human_approval: bool = False,
-        cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "") -> ExecutorResult:
+        cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "",
+        cfg_provider: str = "", providers: dict | None = None,
+        models: dict | None = None) -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
     policy derives from the ROLE, not the process: which tools are offered, where the
     role may write, and which commands it may run. Its `model` is the per-node model
-    override (TD-5.4-1) and its `reasoning` the per-node effort (TD-5.4-2).
-    `human_approval` reaches the command layer's approval gate.
+    override (TD-5.4-1), its `reasoning` the per-node effort (TD-5.4-2) and its
+    `provider` the per-node endpoint (v5.7.0). `human_approval` reaches the command
+    layer's approval gate.
 
     `runner` is the ALREADY-RESOLVED runner from `select_runner` (TD-5.6-7). It is
-    passed in rather than re-resolved here because one ladder must have one outcome:
-    this function previously decided on the api key alone, so `run --runner stub` with
-    a key in the environment made a real, billable HTTP call — the exact opposite of
-    what reaching for the stub is for.
+    passed in rather than re-resolved here because one ladder must have one outcome.
 
-    Falls back to a stub (no network) when no API key is present, so the graph
-    stays runnable/testable without credentials.
+    `providers`/`models` are the resolved tables (see `providers_table`); the target they
+    produce decides the endpoint, the credential SOURCE, any request headers and any extra
+    request-body fields. An empty target means the env/default endpoint - the behaviour
+    from before a provider could be declared.
+
+    Falls back to a stub (no network) when the endpoint cannot be reached at all, so the
+    graph stays runnable/testable without credentials.
     """
     if runner == "stub":
         return stub_result(role, objective, "runner=stub, by request")
-    key = resolved_key(runner)
+    try:
+        target = resolve_target(
+            cfg_model=cfg_model, role_model=(spec or {}).get("model", ""),
+            cfg_tier=cfg_tier, role_tier=(spec or {}).get("model_tier", ""),
+            cfg_provider=cfg_provider, role_provider=(spec or {}).get("provider", ""),
+            providers=providers, models=models)
+    except ValueError as e:
+        # An unresolvable tier and an unknown provider NAME are both configuration errors,
+        # and the honest place for them is the error path: the review node REJECTS the run
+        # instead of approving output produced somewhere nobody asked for.
+        return ExecutorResult(output=f"ERROR: {e}", usage={"in": 0, "out": 0},
+                              tool_calls=0, error=str(e), model="unresolved",
+                              provider="unresolved", usage_reported=False)
+    label = endpoint_label(runner, target["provider"], target["endpoint"])
+    key = resolved_key(runner, target["api_key_env"])
     if key is None:
-        return stub_result(role, objective, "no SOLAR_API_KEY set")
+        why = (f"no {target['api_key_env']} set" if target["api_key_env"]
+               else "no SOLAR_API_KEY set")
+        return stub_result(role, objective, why)
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=key, base_url=base_url())
+        client = OpenAI(api_key=key, base_url=target["endpoint"],
+                        default_headers=target["headers"] or None)
     except Exception as e:  # pragma: no cover - import/init failure
         return ExecutorResult(output=f"ERROR initializing client: {e}",
                               usage={"in": 0, "out": 0}, tool_calls=0, error=str(e),
-                              model=model_name(cfg_model))
-    try:
-        model, _source = resolve_model(cfg_model=cfg_model,
-                                       role_model=(spec or {}).get("model", ""),
-                                       cfg_tier=cfg_tier,
-                                       role_tier=(spec or {}).get("model_tier", ""))
-    except ValueError as e:
-        # An unresolvable tier is a configuration error, and the honest place for it is
-        # the executor's error path: the review node then REJECTS the run instead of
-        # approving output produced with a model nobody asked for.
-        return ExecutorResult(output=f"ERROR: {e}", usage={"in": 0, "out": 0},
-                              tool_calls=0, error=str(e), model="unresolved")
+                              model=target["model"], provider=label,
+                              usage_reported=False)
     ws = _ToolLayer(Workspace(repo, spec),
                     CommandRunner(repo, spec, human_approval=human_approval))
     messages: list[dict] = [
@@ -557,4 +726,9 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         {"role": "user", "content": objective},
     ]
     effort = reasoning_effort(cfg_reasoning, (spec or {}).get("reasoning", ""))
-    return _tool_loop(client, model, messages, ws, max_rounds, effort)
+    res = _tool_loop(client, target["model"], messages, ws, max_rounds, effort,
+                     extra_body=target["extra_body"])
+    # Provenance travels with the result: the graph records it, and the run-card is how a
+    # local run is told apart from a cloud run of the same model id.
+    res["provider"] = label
+    return res

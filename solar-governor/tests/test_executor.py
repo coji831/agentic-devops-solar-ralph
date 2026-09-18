@@ -187,13 +187,16 @@ def test_run_resolves_the_role_model_from_the_spec():
 
     seen: dict = {}
 
-    def _spy(**kwargs) -> tuple:
+    def _spy(**kwargs) -> dict:
         seen.update(kwargs)
         raise _Stop()
 
-    orig_key, orig_resolve = executor.api_key, executor.resolve_model
+    # v5.7.0 moved the seam: `resolve_model` is now a two-line view of `resolve_target`, and
+    # the role's model/tier/provider all travel through that ONE resolver. Two ladders would
+    # drift, which is why the assertion below follows the seam rather than the old name.
+    orig_key, orig_resolve = executor.api_key, executor.resolve_target
     executor.api_key = lambda: "sk-test-not-used"
-    executor.resolve_model = _spy
+    executor.resolve_target = _spy
     try:
         executor.run("implementer", "sys", "obj", Path(tempfile.gettempdir()),
                      cfg_model="deepseek-chat", cfg_tier="",
@@ -201,12 +204,15 @@ def test_run_resolves_the_role_model_from_the_spec():
     except _Stop:
         pass
     else:
-        raise AssertionError("run() never resolved a model")
+        raise AssertionError("run() never resolved a target")
     finally:
-        executor.api_key, executor.resolve_model = orig_key, orig_resolve
+        executor.api_key, executor.resolve_target = orig_key, orig_resolve
 
-    assert seen == {"cfg_model": "deepseek-chat", "role_model": "deepseek-v4-pro",
-                    "cfg_tier": "", "role_tier": "fast"}
+    assert seen["cfg_model"] == "deepseek-chat"
+    assert seen["role_model"] == "deepseek-v4-pro"
+    assert seen["cfg_tier"] == "" and seen["role_tier"] == "fast"
+    # the provider half travels with it, empty because nothing declared a provider here
+    assert seen["cfg_provider"] == "" and seen["role_provider"] == ""
 
 
 def test_handoff_hint_reports_the_role_model():
@@ -647,8 +653,8 @@ def test_doctor_warns_on_an_id_the_provider_does_not_serve():
     """The exact bug that sat unnoticed in a real repo config: a pin of
     `deepseek-v4-flash`, which does not exist."""
     orig = executor.known_models
-    executor.known_models = lambda timeout=15.0, runner="": (["deepseek-flash",
-                                                             "deepseek-v4-pro"], "")
+    executor.known_models = lambda timeout=15.0, runner="", target=None: (
+        ["deepseek-flash", "deepseek-v4-pro"], "")
     try:
         status, detail = cli._model_check(Config(model="deepseek-v4-flash"), {})
         assert status == "WARN" and "deepseek-v4-flash" in detail

@@ -102,11 +102,13 @@ def _execute(cfg: Config, state: SolarState, runner: str = "") -> dict:
                        objective=objective, repo=cfg.root, cfg_model=cfg.model,
                        spec=spec, human_approval=cfg.human_approval,
                        cfg_reasoning=cfg.reasoning_effort, cfg_tier=cfg.model_tier,
-                       runner=runner)
+                       runner=runner, cfg_provider=cfg.provider,
+                       providers=executor.providers_table(cfg.providers),
+                       models=cfg.models)
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),
-        "provider": executor.endpoint_label(runner),
+        "provider": res.get("provider", "") or executor.endpoint_label(runner),
         "usage_reported": bool(res.get("usage_reported", False)),
         "tokens_in": res.get("usage", {}).get("in", 0),
         "tokens_out": res.get("usage", {}).get("out", 0),

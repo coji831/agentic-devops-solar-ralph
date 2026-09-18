@@ -329,6 +329,7 @@ def cmd_doctor(args):
             checks["runner"] = ("PASS", f"{runner} ({detail})")
     except ValueError as e:
         checks["runner"] = ("FAIL", str(e))
+    checks["provider"] = _provider_check(cfg)
     checks["model"] = _model_check(cfg, reg, runner)
     checks["uplink"] = uplink.status(cfg)
     checks["install"] = install.version_status(root)
@@ -337,6 +338,32 @@ def cmd_doctor(args):
         return
     _print_doctor(checks)
     sys.exit(1 if any(v[0] == "FAIL" for v in checks.values()) else 0)
+
+
+def _provider_check(cfg) -> tuple:
+    """What this repo declares, and which entry will be used (v5.7.0).
+
+    A declaration-only overview: it never prints a credential, only whether the named env
+    var is present, because the whole point of `api_key_env` is that the config names a
+    variable instead of holding a secret.
+    """
+    declared = cfg.providers if isinstance(cfg.providers, dict) else {}
+    aliases = cfg.models if isinstance(cfg.models, dict) else {}
+    shipped = len(executor.PROVIDERS)
+    custom = sorted(n for n in declared if n not in executor.PROVIDERS)
+    overrides = sorted(n for n in declared if n in executor.PROVIDERS)
+    detail = f"{shipped} shipped"
+    if custom:
+        detail += f" + {len(custom)} declared: {', '.join(custom[:4])}"
+    if overrides:
+        detail += f"; overrides: {', '.join(overrides[:4])}"
+    if aliases:
+        names = ", ".join(sorted(aliases)[:4])
+        detail += f"; {len(aliases)} model alias(es): {names}"
+    detail += f"; selected: {cfg.provider or 'env/default endpoint'}"
+    if cfg.provider and cfg.provider not in executor.providers_table(declared):
+        return "FAIL", f"unknown provider {cfg.provider!r} - {detail}"
+    return "PASS", detail
 
 
 def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
@@ -352,10 +379,14 @@ def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
     "the endpoint did not answer" into a WARN instead of a PASS - the check that answers
     "is my local server actually up?"
     """
+    providers = executor.providers_table(cfg.providers)
     try:
-        model, source = executor.resolve_model(cfg.model, cfg_tier=cfg.model_tier)
+        target = executor.resolve_target(cfg_model=cfg.model, cfg_tier=cfg.model_tier,
+                                         cfg_provider=cfg.provider, providers=providers,
+                                         models=cfg.models)
     except ValueError as e:
         return "FAIL", str(e)
+    model, source = target["model"], target["model_source"]
     # Two model PLANES exist and they are named differently: the IDE pins display names
     # (`model: DeepSeek V4 Flash (deepseek)` in .agent.md frontmatter) while the runtime
     # needs the provider's API id. Transcribing between them is how a phantom
@@ -368,17 +399,32 @@ def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
                        and (spec.get("model") or spec.get("model_tier")))
     effort = executor.reasoning_effort(cfg.reasoning_effort)
     detail = f"{model} (from {source}"
+    if target["provider"]:
+        # WHICH endpoint, and whether its credential is even present - the name only, never a
+        # value. A provider whose api_key_env is unset is the likeliest reason a run fails on
+        # a correctly named model, and it is otherwise invisible until the first call.
+        key_env = target["api_key_env"]
+        state = (f"{key_env} set" if os.environ.get(key_env) else f"{key_env} NOT set") \
+            if key_env else "no key needed"
+        detail += (f"; provider {target['provider']} @ {target['endpoint']} [{state}]")
     if overrides:
         shown = ", ".join(overrides[:4]) + ("..." if len(overrides) > 4 else "")
         detail += f"; {len(overrides)} role(s) override: {shown}"
     if effort:
         detail += f"; reasoning_effort={effort}"
     detail += ")"
-    ids, err = executor.known_models(runner=runner)
+    ids, err = executor.known_models(runner=runner, target=target)
     if ids is None:
         if err == "no API key":
             # nothing to compare against, and nothing was asked: not a WARN
             return "PASS", detail
+        # A 404 is NOT "the server is down": some providers (Google's OpenAI-compat surface,
+        # Perplexity) simply expose no model list. Reporting that as unreachable would be a
+        # wrong signal about a working endpoint.
+        lowered = err.lower()
+        if "404" in lowered or "not found" in lowered:
+            return "WARN", (f"{detail} - the endpoint exposes no model list, so the id could "
+                            f"not be verified")
         # The endpoint did not answer. A silent PASS here would be a report about a run
         # that cannot happen - and for a local endpoint it is the one signal that the
         # server is down rather than merely slow.

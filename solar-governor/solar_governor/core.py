@@ -69,6 +69,14 @@ DEFAULTS: dict = {
     # instead of one edit per repo. An explicit `model` at the same level still wins.
     "model_tier": "",
     "human_approval": False,
+    # WHICH endpoint, and the models this repo names (v5.7.0). `provider` selects an entry
+    # from `providers`; `models` maps a repo-chosen ALIAS to a provider + an opaque id, so a
+    # model is declared once and referred to by name from a config, a role or a chain.
+    # Neither ever holds a credential: `providers.<name>.api_key_env` names the environment
+    # variable to read, because this file is committed.
+    "provider": "",
+    "providers": {},
+    "models": {},
     # Reasoning/thinking effort passed through to the provider (TD-5.4-2). "" sends
     # no such field, which is the default: providers disagree about the scale and
     # about whether they accept it, so opting in is explicit.
@@ -95,6 +103,9 @@ class Config:
     model: str = DEFAULTS["model"]
     model_tier: str = DEFAULTS["model_tier"]
     human_approval: bool = DEFAULTS["human_approval"]
+    provider: str = DEFAULTS["provider"]
+    providers: dict = dataclasses.field(default_factory=dict)
+    models: dict = dataclasses.field(default_factory=dict)
     reasoning_effort: str = DEFAULTS["reasoning_effort"]
     runner: str = DEFAULTS["runner"]
     # Where this config was read from. Runtime-only: never persisted, because it IS
@@ -139,6 +150,11 @@ class Config:
             d.pop(name, None)
         if not d.get("repo"):
             d.pop("repo", None)
+        # The empty provider/model fields are omitted for the same reason as `repo`: a repo
+        # that declares neither should not gain three lines of noise in a COMMITTED file.
+        for empty in ("provider", "providers", "models"):
+            if not d.get(empty):
+                d.pop(empty, None)
         return d
 
     def save(self, path: Path) -> None:
