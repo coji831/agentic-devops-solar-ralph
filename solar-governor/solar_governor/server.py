@@ -36,13 +36,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import chain, executor, runcard
+from . import __version__          # single source: the package, not a second literal
 from .core import Config
 from .graph import pending_interrupt, run_step
 from .ledger import render
 from .registry import load as load_registry
 from .registry import role_keys
-
-__version__ = "5.3.1"
 
 
 def _cfg_for(repo: str) -> Config:

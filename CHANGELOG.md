@@ -10,10 +10,56 @@ Format: newest version first. Each entry covers what changed from the previous v
      https://code.visualstudio.com/docs/copilot/customization/custom-agents
      Update if any name changed between VS Code releases.
   2. Re-verify hook field names against: https://code.visualstudio.com/docs/copilot/customization/hooks
-  3. Bump version in this file and in solar-install.prompt.md header.
+  3. Bump the version in the three code files (`solar-governor/pyproject.toml`,
+     `solar_governor/__init__.py` — `server.py` imports it) + `docs/versions/v5.md`.
+     NOTE 2026-09-18: this item used to name `solar-install.prompt.md`. That file carries
+     no version string, so the step could never have been carried out.
 -->
 
 ---
+
+## v5.4.0 — Released (2026-09-18) — HTTP runner capacity without a shell
+
+**Theme:** give `--runner http` full role capacity **without giving it a shell**. On this
+runner there is no supervisor — the light profile's tiny tool set *was* the substitute for
+supervision — so what is added here is containment, not capability for its own sake. Every
+rule below traces to a measurement.
+
+### Added
+
+- **`read_file(rel, start, end)` line ranges** (Part A) — 1-based inclusive, clamped to the file, erroring past the end, and **bypassing the 40000-char whole-file cap** so a large file is read in bounded slices instead of truncated mid-file. The range params are advertised in `tool_schemas()`: a param absent from the schema is a param the model never sends.
+- **Write policy** (Part B) — an **unconditional** deny-list (`.solar/`, `.git/`, `.github/`, `.vscode/`, plus `package.json`/`pyproject.toml`/`requirements.txt`/`Dockerfile`/`.mcp.json`, matched case-insensitively on any path segment at any depth), plus per-role `write`/`write_scope`/`write_deny`. **Closes a live hole: `.solar/registry.json` is the agent's own system prompt and was writable with no shell needed.**
+- **Role-gated tool schemas** (Part B1) — `tools` finally does something: a read-only role is never *offered* `write_file`, and `write_file` refuses anyway (a model can emit a call for a tool it never got). A role without `exec` is never offered `run_command`.
+- **Vetted command vocabulary** (Part C) — `.solar/commands.json`: fixed argv, **no free-text command or argument field**, per-role `exec_allow`. `cwd` is repo-relative and confined; `timeout` enforced; output ANSI-stripped and clipped keeping head **and** tail. `exec` defaults to NOTHING (opt-in), deliberately unlike `write`, which had to default to allowed for compatibility.
+- **Tool-enforced approval gate** (Part D) — `kind: act` with `human_approval` means the command **does not run**: it writes `.solar/approvals/<id>.md` and returns `AWAITING APPROVAL <id>`, so the model cannot proceed. Everything a human reads is config-derived; the id derives from the command, not the round.
+- **Shaped checker output** (Part E) — `kind: check` + exit 0 collapses to one line; a failure keeps its failures, always the final summary line, and states how many lines it suppressed. `shape.summary_only` / `shape.keep` / `shape.max_items` override. `kind: read` is never summarised.
+- **Per-node model routing** (absorbs TD-5.4-1) — `SOLAR_MODEL` → role `model` → `cfg.model` → default, skipping empty levels. `write_handoff` names the resolved model.
+
+### Changed
+
+- `graph._role_spec` returned `(role, system)` and **dropped every other registry key**, so no role policy could reach the tool layer; it now returns the full dict (`_role_prompt` helper added, both call sites updated).
+- `executor.run` takes `spec` and `human_approval`; the tool layers compose behind one dispatch surface.
+- `server.py` no longer hand-duplicates `__version__` — it imports it, so `/health` cannot drift from the package (it held a second literal at L45).
+- `docs/versions/v5.md` §6 (registry keys + why capability rather than prose), §8 (light-profile write-guard and model rows), §10 (guard scope, approval gate, shaped checks), status header.
+
+### Fixed
+
+- Windows `.CMD` resolution: `shell=False` cannot execute an `npm` shim (`WinError 2`), so `argv[0]` is resolved through `shutil.which` (git worked, npm did not — both were tried).
+- Windows exit codes normalised from the 32-bit DWORD (`4294963238` → the signed value).
+- ANSI escapes stripped from tool output.
+
+### Measured
+
+- Shaped vs unshaped on the same real checkers (client monorepo): `format_check` 4282 → **368** chars (−91%, 581 lines suppressed) · `lint` 1351 → **107** (−92%) · `typecheck` 135 → 115.
+- `npm --silent` verified as source-level noise removal: success → 0 chars; failure → exit code **and all 30983 chars of stderr preserved**, so a failing checker cannot go quiet.
+- Tests **28 → 111**. New `tests/test_workspace.py` and `tests/test_commands.py`.
+
+### Not in this release
+
+- **No sandbox.** The container front is still separate work; this narrows what needs sandboxing to a closed command set.
+- **No shell, permanently, for the light profile.**
+- **The approval gate ships inert** — every command in the reference vocabulary is `read` or `check`, so nothing is gated in production yet. It is exercised by a synthetic `act` command in tests.
+- `docs/install-mandarin-main.md` stays pinned to v5.3.1 by choice: it records one install event and is updated on re-install.
 
 ## v5.3.1 — Released (2026-09-05) — driver-orchestrated only (self-chain removed)
 

@@ -5,7 +5,9 @@ repo-bounded. See `../docs/versions/v5.md` for the full design.
 
 ## Status
 
-Released (tagged `v5.3.x`). Pilot-validated on the mandarin repo (branch
+Released (**v5.4.0** — the `http` runner has full role capacity without a shell:
+line ranges, write policy, a closed command vocabulary, an approval gate, shaped
+checkers; plus per-node model routing). Pilot-validated on the mandarin repo (branch
 `solar-v5-wire`, kept as reference proof): T1–T5 PASS, epic-25 Phase A
 delivered, driver-orchestrated verify close-out APPROVED, known-answer eval
 battery 18/18. Chaining is **driver-orchestrated** — agents never self-chain
@@ -39,6 +41,65 @@ Run without installing: `python -m solar_governor.cli ...` from this directory.
 Chains are **driver-orchestrated**: a bare `--chain` (no `--auto`) is rejected
 — run headless with `--auto`, or in the IDE drive each link as its own
 `--role` from the Governor agent.
+
+## Tool layers — what a role is actually offered (v5.4.0)
+
+A specialist gets two tool layers, each **gated by the role's registry entry**. A tool the
+role may not use is **not offered at all** — it is not a rule in the prompt:
+
+| Layer       | Tools                                          | Gated by                                                     |
+| :---------- | :--------------------------------------------- | :----------------------------------------------------------- |
+| `workspace` | `list_tree`, `read_file`, `glob`, `write_file` | `tools` (group), `write`, `write_scope`, `write_deny`         |
+| `exec`      | `run_command`                                  | `tools` (group), `exec_allow`                                 |
+
+`read_file(rel, start, end)` takes a 1-based inclusive line range, and a ranged read
+**bypasses the 40000-char whole-file cap** — so a large file is read in bounded slices
+instead of being truncated mid-file and re-read.
+
+### The write guard
+
+Root confinement is always enforced. On top of it an **unconditional** deny-list refuses
+writes to `.solar/`, `.git/`, `.github/`, `.vscode/` and to agent/CI-defining files
+(`package.json`, `pyproject.toml`, `requirements.txt`, `Dockerfile`, `.mcp.json`, …),
+matched case-insensitively on any path segment at any depth. This closes a live hole:
+`.solar/registry.json` **is the agent's system prompt**, and it used to be writable.
+
+## `exec` — a closed vocabulary, not a shell
+
+A repo declares named commands with **fixed** argv in `.solar/commands.json`, and a role
+may only run the names it is granted:
+
+```jsonc
+{
+  "typecheck":  { "argv": ["npm", "--silent", "run", "typecheck"],
+                  "cwd": "apps/web", "kind": "check", "timeout": 180 },
+  "git_status": { "argv": ["git", "status", "--short"], "kind": "read", "timeout": 30 }
+}
+```
+
+| Field      | Meaning                                                                                                                     |
+| :--------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| `argv`     | fixed, never model-supplied. There is no free-text command field **or** argument field.                                       |
+| `cwd`      | repo-relative (default: the repo root), confined to the repo.                                                                |
+| `kind`     | `read` (the output IS the information) · `check` (shaped; a pass is one line) · `act` (needs approval when `human_approval`). |
+| `timeout`  | seconds, enforced.                                                                                                          |
+| `shape`    | `{ "summary_only": true }` or `{ "keep": "<regex>", "max_items": N }`, for checkers whose raw output is mostly noise.        |
+| `describe` | the only prose a human is shown at an approval gate — from config, never from the model.                                     |
+
+An entry's `argv[0]` is resolved through `shutil.which`, because `shell=False` cannot
+execute a Windows `.CMD` shim (`npm` would raise `WinError 2`; `git` is a real `.EXE`).
+
+**Absence is the mechanism.** A command the repo does not declare does not exist; a command
+it declares but does not grant to a role does not exist *for that role* — and the error says
+which case applies, so a fixable config problem is distinguishable from a missing command.
+
+### Approval gate
+
+With `human_approval: true` a `kind: act` command does **not** run. It writes
+`.solar/approvals/<id>.md` and returns `AWAITING APPROVAL <id>` — the tool cannot proceed, so
+the model cannot either. A human writes `allow` or `deny: <reason>` to
+`.solar/approvals/<id>.decision`. The id derives from the command, not the round, so a
+decision is never re-asked.
 
 ## Runners — how a specialist executes (provider-agnostic)
 
@@ -129,7 +190,7 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python tests/test_smoke.py        # smoke: graph + routing + ledger
-python tests/test_executor.py     # executor + workspace guard tests
-# or: python -m pytest tests/
+python -m pytest tests/           # 111 tests: graph, routing, ledger, executor, server,
+                                  # workspace guards, command vocabulary + approval gate
+python tests/test_smoke.py        # smoke only
 ```
