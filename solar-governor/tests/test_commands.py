@@ -92,27 +92,29 @@ def test_handles_only_the_command_tool():
 
 # --- execution --------------------------------------------------------------
 
-def test_granted_command_runs_and_reports_exit_and_output():
+def test_granted_command_runs_and_is_shaped():
     r, cr = _tmp_repo(vocabulary=_vocab(hello=("print('hello world')", "check")),
                       spec={"exec_allow": ["hello"]})
     out = cr.call_tool("run_command", {"command": "hello"})
-    assert "[hello] exit 0" in out
-    assert "hello world" in out
+    assert "[hello] PASS exit 0" in out
     assert "kind=check" in out
+    assert "result: PASSED" in out          # a passing check carries no body (Part E)
     shutil.rmtree(r)
 
 
 def test_a_failing_command_is_reported_not_raised():
     """A checker that fails is the SIGNAL, not an exception - the node has to read it."""
-    r, cr = _tmp_repo(vocabulary=_vocab(boom=("import sys; sys.exit(3)", "check")),
-                      spec={"exec_allow": ["boom"]})
+    r, cr = _tmp_repo(vocabulary=_vocab(
+        boom=("print('the reason it failed'); import sys; sys.exit(3)", "check")),
+        spec={"exec_allow": ["boom"]})
     out = cr.call_tool("run_command", {"command": "boom"})
-    assert "[boom] exit 3" in out
+    assert "[boom] FAIL exit 3" in out
+    assert "the reason it failed" in out     # the final line is always kept
     shutil.rmtree(r)
 
 
 def test_stderr_is_surfaced():
-    r, cr = _tmp_repo(vocabulary=_vocab(noisy=("import sys; print('bad', file=sys.stderr)", "check")),
+    r, cr = _tmp_repo(vocabulary=_vocab(noisy=("import sys; print('bad', file=sys.stderr)", "read")),
                       spec={"exec_allow": ["noisy"]})
     out = cr.call_tool("run_command", {"command": "noisy"})
     assert "--- stderr ---" in out and "bad" in out
@@ -176,7 +178,7 @@ def test_invalid_kind_is_rejected():
 
 def test_large_output_is_clipped_keeping_head_and_tail():
     r, cr = _tmp_repo(vocabulary={"big": {"argv": [PY, "-c", "print('A'*300 + 'MID' + 'Z'*300)"],
-                                          "kind": "check", "max_output": 200}},
+                                          "kind": "read", "max_output": 200}},
                       spec={"exec_allow": ["big"]})
     out = cr.call_tool("run_command", {"command": "big"})
     assert "chars elided" in out
@@ -340,8 +342,148 @@ def test_executor_offers_both_layers_gated_by_the_role():
     layer = _ToolLayer(Workspace(r, spec), CommandRunner(r, spec))
     names = {s["function"]["name"] for s in layer.tool_schemas()}
     assert names == {"list_tree", "read_file", "glob", "run_command"}
-    assert layer.call_tool("run_command", {"command": "peek"}).startswith("[peek] exit 0")
+    assert "[peek] PASS exit 0" in layer.call_tool("run_command", {"command": "peek"})
     assert layer.call_tool("nope", {}).startswith("ERROR: unknown tool")
+    shutil.rmtree(r)
+
+
+# --- Part E: shaped checker output -----------------------------------------
+# Measured on a real Next.js monorepo: a PASSING `npm --silent run typecheck` emits
+# 0 chars, and a FAILING `prettier --check .` emits ~31k chars whose only actionable
+# line is the last one. An unshaped failure report also cost +10% prompt tokens with
+# more rounds (16 §11.3).
+
+def test_passing_check_collapses_to_one_line():
+    r, cr = _tmp_repo(vocabulary=_vocab(ok=("print('a'*5000)", "check")),
+                      spec={"exec_allow": ["ok"]})
+    out = cr.call_tool("run_command", {"command": "ok"})
+    assert "] PASS exit 0" in out
+    assert "result: PASSED" in out
+    assert "aaaa" not in out          # the body is dropped, not carried
+    assert len(out) < 200
+    shutil.rmtree(r)
+
+
+def test_failing_check_keeps_failures_and_reports_what_it_hid():
+    code = ("print('noise line 1')\n"
+            "print('noise line 2')\n"
+            "print('src/app.ts:12:5 error Something broke')\n"
+            "print('noise line 3')\n"
+            "print('4 problems (1 error, 3 hidden)')\n"
+            "import sys; sys.exit(1)")
+    r, cr = _tmp_repo(vocabulary={"bad": {"argv": [PY, "-c", code], "kind": "check"}},
+                      spec={"exec_allow": ["bad"]})
+    out = cr.call_tool("run_command", {"command": "bad"})
+    assert "[bad] FAIL exit 1" in out
+    assert "--- failures" in out
+    assert "src/app.ts:12:5 error Something broke" in out
+    assert "noise line 1" not in out
+    assert "further line(s) suppressed" in out
+    # the final line is always kept: it is usually the summary
+    assert "4 problems" in out
+    shutil.rmtree(r)
+
+
+def test_summary_only_keeps_just_the_last_line():
+    """`prettier --check .` lists 580 files; only the count matters."""
+    code = ("print('unrelated chatter')\n"
+            "print('Code style issues found in 30 files.')\n"
+            "import sys; sys.exit(1)")
+    r, cr = _tmp_repo(vocabulary={
+        "fmt": {"argv": [PY, "-c", code], "kind": "check",
+                "shape": {"summary_only": True}}},
+        spec={"exec_allow": ["fmt"]})
+    out = cr.call_tool("run_command", {"command": "fmt"})
+    assert "Code style issues found in 30 files." in out
+    assert "unrelated chatter" not in out
+    assert "1 further line(s) suppressed" in out
+    shutil.rmtree(r)
+
+
+def test_declared_keep_regex_overrides_the_default():
+    code = ("print('SOMETHING_CUSTOM_42')\nprint('unrelated chatter')\n"
+            "print('tail line')\nimport sys; sys.exit(1)")
+    r, cr = _tmp_repo(vocabulary={
+        "k": {"argv": [PY, "-c", code], "kind": "check",
+              "shape": {"keep": "SOMETHING_CUSTOM_\\d+"}}},
+        spec={"exec_allow": ["k"]})
+    out = cr.call_tool("run_command", {"command": "k"})
+    assert "SOMETHING_CUSTOM_42" in out
+    assert "unrelated chatter" not in out
+    shutil.rmtree(r)
+
+
+def test_max_items_caps_the_failure_list():
+    code = "\n".join([f"print('error number {i}')" for i in range(40)]
+                     + ["import sys; sys.exit(1)"])
+    r, cr = _tmp_repo(vocabulary={
+        "m": {"argv": [PY, "-c", code], "kind": "check",
+              "shape": {"max_items": 3}}},
+        spec={"exec_allow": ["m"]})
+    out = cr.call_tool("run_command", {"command": "m"})
+    assert "error number 0" in out and "error number 2" in out
+    assert "error number 5" not in out
+    # 3 matched by max_items, plus the final line which is always kept = 4 of 40
+    assert "error number 39" in out
+    assert "36 further line(s) suppressed" in out
+    shutil.rmtree(r)
+
+
+def test_ansi_escapes_are_stripped():
+    code = "print('\\x1b[33mwarn\\x1b[39m something \\x1b[1m bold\\x1b[0m')"
+    r, cr = _tmp_repo(vocabulary=_vocab(rainbow=(code, "read")),
+                      spec={"exec_allow": ["rainbow"]})
+    out = cr.call_tool("run_command", {"command": "rainbow"})
+    assert "\x1b" not in out
+    assert "warn something" in out and "bold" in out
+    shutil.rmtree(r)
+
+
+def test_read_output_is_never_summarised():
+    """A READ command's output IS the information - shaping it would destroy it."""
+    code = "for i in range(20): print('line', i)"
+    r, cr = _tmp_repo(vocabulary=_vocab(peek=(code, "read")),
+                      spec={"exec_allow": ["peek"]})
+    out = cr.call_tool("run_command", {"command": "peek"})
+    assert "line 0" in out and "line 19" in out and "--- stdout ---" in out
+    assert "suppressed" not in out
+    shutil.rmtree(r)
+
+
+def test_passing_check_with_no_output_is_not_an_error():
+    """`npm --silent run typecheck` on success emits literally nothing."""
+    r, cr = _tmp_repo(vocabulary=_vocab(quiet=("pass", "check")),
+                      spec={"exec_allow": ["quiet"]})
+    out = cr.call_tool("run_command", {"command": "quiet"})
+    assert "] PASS exit 0" in out and "result: PASSED" in out
+    shutil.rmtree(r)
+
+
+def test_failing_check_with_no_output_says_so():
+    r, cr = _tmp_repo(vocabulary=_vocab(mute=("import sys; sys.exit(2)", "check")),
+                      spec={"exec_allow": ["mute"]})
+    out = cr.call_tool("run_command", {"command": "mute"})
+    assert "] FAIL exit 2" in out
+    assert "produced no output" in out
+    shutil.rmtree(r)
+
+
+def test_nonzero_exit_is_normalised_from_the_windows_dword():
+    """Windows surfaces a failing exit as e.g. 4294967294, which teaches nothing."""
+    r, cr = _tmp_repo(vocabulary=_vocab(neg=("import sys; sys.exit(-2)", "check")),
+                      spec={"exec_allow": ["neg"]})
+    out = cr.call_tool("run_command", {"command": "neg"})
+    assert "exit -2" in out
+    assert "4294967" not in out
+    shutil.rmtree(r)
+
+
+def test_a_long_failure_line_is_clipped():
+    code = "print('error ' + 'x'*3000); import sys; sys.exit(1)"
+    r, cr = _tmp_repo(vocabulary={"long": {"argv": [PY, "-c", code], "kind": "check"}},
+                      spec={"exec_allow": ["long"]})
+    out = cr.call_tool("run_command", {"command": "long"})
+    assert "chars elided" in out
     shutil.rmtree(r)
 
 

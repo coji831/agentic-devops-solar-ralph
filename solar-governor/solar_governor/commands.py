@@ -24,6 +24,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -37,8 +38,24 @@ DEFAULT_TIMEOUT = 60
 MAX_TIMEOUT = 900
 DEFAULT_MAX_OUTPUT = 4000
 MAX_OUTPUT_CEILING = 40_000
+DEFAULT_MAX_ITEMS = 15
+LINE_CAP = 400
 
 VALID_KINDS = ("read", "check", "act")
+
+# Tool output arrives coloured. Escape sequences are wasted tokens and they obscure the
+# text a model has to read, so they are stripped before anything else looks at it.
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+# On a NON-ZERO exit, lines that usually carry the reason. Only consulted for failures:
+# the exit code is the reliable pass/fail signal, and line-matching on a PASSING checker
+# produces false positives (a clean `next lint` emits nine 'error'-ish lines of info text,
+# measured 2026-09-18). A repo can override this with `shape.keep`.
+_FAILURE_HINT = re.compile(
+    r"(\berror\b|\berrors\b|✖|✘|×|✗|\bFAIL\b|not ok|expected|assert|\bTS\d{4}\b|"
+    r"\bCannot find\b|\bexited with\b|\bcommand not found\b|_test\.|\.test\.|\.spec\.|"
+    r"\[warn\]|\bWarning\b)",
+    re.I)
 
 
 def vocabulary_path(root: Path) -> Path:
@@ -83,6 +100,59 @@ def _clip(text: str, cap: int) -> str:
     head = cap // 2
     tail = cap - head
     return f"{text[:head]}\n…[{len(text) - cap} chars elided]…\n{text[-tail:]}"
+
+
+def strip_ansi(text: str) -> str:
+    """Drop terminal colour escapes - they are tokens spent on nothing."""
+    return _ANSI.sub("", text)
+
+
+def _exit_code(code: int) -> int:
+    """Windows reports a 32-bit DWORD, so a failure can surface as 4294963238.
+    Reading that teaches a model nothing; it is normalised to the signed value."""
+    return code - 2 ** 32 if code > 2 ** 31 - 1 else code
+
+
+def _shape_check(stdout: str, stderr: str, returncode: int, spec: dict,
+                 cap: int) -> list[str]:
+    """CHECK output, shaped: failures only.
+
+    Grounded in measurement on a real Next.js monorepo (2026-09-18): a PASSING
+    `npm --silent run typecheck` emits 0 chars, and a FAILING `prettier --check .`
+    emits ~31k chars of which the only actionable line is the last ("Code style
+    issues found in 580 files"). Unshaped failure reports also cost +10% prompt
+    tokens with more rounds (16 §11.3), so shaping is what makes a check actionable
+    rather than merely present.
+
+    `shape.summary_only` keeps just the final line (right for a formatter that lists
+    every file); `shape.keep` is a repo-supplied regex; `shape.max_items` caps the list.
+    """
+    if returncode == 0:
+        return ["result: PASSED"]
+
+    body = "\n".join(x for x in (stdout, stderr) if x.strip()).strip()
+    raw = [ln.rstrip() for ln in body.splitlines() if ln.strip()]
+    if not raw:
+        return ["result: FAILED (the command produced no output)"]
+
+    shape = spec.get("shape") or {}
+    max_items = _bounded_int(shape.get("max_items"), DEFAULT_MAX_ITEMS, 1, 200)
+
+    if shape.get("summary_only"):
+        kept = raw[-1:]
+    else:
+        keep = shape.get("keep")
+        pattern = re.compile(keep, re.I) if keep else _FAILURE_HINT
+        kept = [ln for ln in raw if pattern.search(ln)][:max_items]
+        if raw[-1] not in kept:
+            kept.append(raw[-1])
+
+    kept = [_clip(ln, LINE_CAP) for ln in kept]
+    out = [f"--- failures ({len(kept)} of {len(raw)} lines) ---"] + kept
+    suppressed = len(raw) - len(kept)
+    if suppressed > 0:
+        out.append(f"…[{suppressed} further line(s) suppressed]")
+    return out
 
 
 class CommandRunner:
@@ -196,20 +266,29 @@ class CommandRunner:
 
         cap = _bounded_int(spec.get("max_output"), DEFAULT_MAX_OUTPUT, 200,
                            MAX_OUTPUT_CEILING)
-        out = _clip(proc.stdout or "", cap)
-        err = _clip(proc.stderr or "", cap)
+        # escapes off first: --silent removes npm's banner, but a script's own output
+        # still arrives coloured
+        out = strip_ansi(proc.stdout or "")
+        err = strip_ansi(proc.stderr or "")
         try:
             shown_cwd = str(cwd.relative_to(self.root)) or "."
         except ValueError:
             shown_cwd = "."
 
-        lines = [f"[{command}] exit {proc.returncode} in {elapsed:.1f}s "
-                 f"(kind={spec.get('kind', 'read')}, cwd={shown_cwd})"]
+        kind = spec.get("kind", "read")
+        verdict = "PASS" if proc.returncode == 0 else "FAIL"
+        lines = [f"[{command}] {verdict} exit {_exit_code(proc.returncode)} "
+                 f"in {elapsed:.1f}s (kind={kind}, cwd={shown_cwd})"]
         if spec.get("describe"):
             lines.append(f"note: {spec['describe']}")
-        lines += ["--- stdout ---", out.strip() or "(empty)"]
-        if err.strip():
-            lines += ["--- stderr ---", err.strip()]
+
+        if kind == "check":
+            lines += _shape_check(out, err, proc.returncode, spec, cap)
+        else:
+            # a READ command's output IS the information - never summarise it
+            lines += ["--- stdout ---", _clip(out, cap).strip() or "(empty)"]
+            if err.strip():
+                lines += ["--- stderr ---", _clip(err, cap).strip()]
         return "\n".join(lines)
 
     # --- Part D: the approval gate ----------------------------------------
