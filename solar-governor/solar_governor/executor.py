@@ -151,8 +151,12 @@ class ExecutorResult(dict):
 
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
-        cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS) -> ExecutorResult:
+        cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
+        spec: dict | None = None) -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
+
+    `spec` is the role's registry entry (v5 §6). It is handed to the workspace
+    tool layer so policy derives from the ROLE, not the process.
 
     Falls back to a stub (no network) when no API key is present, so the graph
     stays runnable/testable without credentials.
@@ -174,7 +178,7 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                               usage={"in": 0, "out": 0}, tool_calls=0, error=str(e),
                               model=model_name(cfg_model))
     model = model_name(cfg_model)
-    ws = Workspace(repo)
+    ws = Workspace(repo, spec)
     messages: list[dict] = [
         {"role": "system",
          "content": (system_prompt or f"You are the {role} specialist.")

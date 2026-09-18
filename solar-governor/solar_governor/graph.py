@@ -54,11 +54,22 @@ def _classify(task: str, registry: dict | None = None) -> str:
     return best
 
 
-def _role_spec(cfg: Config, role: str) -> tuple[str, str]:
-    """Return (role, system_prompt) from the loaded registry (repo wins)."""
+def _role_spec(cfg: Config, role: str) -> dict:
+    """Return a role's FULL registry spec (repo-specific role wins).
+
+    The whole entry is returned, not just the prompt: the workspace tool layer
+    needs the role's declared `tools` — and, once the deny-list lands, its
+    `write_scope`/`write_deny` — to decide what the role may be OFFERED and
+    where it may write. An unknown role yields {} so callers fall back to a
+    generic prompt instead of raising.
+    """
     reg = load_registry(cfg.root / ".solar" / "registry.json")
-    spec = reg.get(role, {})
-    return role, spec.get("system", f"You are the {role} specialist.")
+    return reg.get(role) or {}
+
+
+def _role_prompt(spec: dict, role: str) -> str:
+    """The role's system prompt, or a generic one when the registry has none."""
+    return spec.get("system", f"You are the {role} specialist.")
 
 
 def _chain_note(cfg: Config, chain_name: str) -> str:
@@ -74,14 +85,18 @@ def _chain_note(cfg: Config, chain_name: str) -> str:
 def _execute(cfg: Config, state: SolarState) -> dict:
     """Run the routed specialist role through the HTTP/stub runner.
 
-    System prompt comes from the loaded registry (repo-specific role wins). The
-    executor falls back to a stub when no API key is present (cfg.model "" or
-    SOLAR_API_KEY unset), so the graph stays testable without credentials.
+    System prompt comes from the loaded registry (repo-specific role wins), and
+    the WHOLE role spec is passed on so the workspace tool layer can derive its
+    policy from the role. The executor falls back to a stub when no API key is
+    present (cfg.model "" or SOLAR_API_KEY unset), so the graph stays testable
+    without credentials.
     """
-    role, system = _role_spec(cfg, state.get("role", "implementer"))
+    role = state.get("role", "implementer")
+    spec = _role_spec(cfg, role)
     objective = state.get("objective", "")
-    res = executor.run(role=role, system_prompt=system, objective=objective,
-                       repo=cfg.root, cfg_model=cfg.model)
+    res = executor.run(role=role, system_prompt=_role_prompt(spec, role),
+                       objective=objective, repo=cfg.root, cfg_model=cfg.model,
+                       spec=spec)
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),
@@ -101,9 +116,10 @@ def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
     the handoff only carries neutral chain context (the coordinator runs the
     links) — it never tells the agent to run the rest of the chain itself.
     """
-    role, system = _role_spec(cfg, state.get("role", "implementer"))
+    role = state.get("role", "implementer")
+    spec = _role_spec(cfg, role)
     chain_note = _chain_note(cfg, state.get("chain", ""))
-    handoff = executor.write_handoff(role=role, system_prompt=system,
+    handoff = executor.write_handoff(role=role, system_prompt=_role_prompt(spec, role),
                                      objective=state.get("objective", ""),
                                      repo=cfg.root, cfg_model=cfg.model,
                                      attempt=attempts, chain_note=chain_note)
