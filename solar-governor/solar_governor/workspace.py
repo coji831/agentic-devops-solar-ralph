@@ -17,6 +17,22 @@ _SKIP_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff",
               ".woff2", ".ttf", ".eot", ".map", ".sqlite", ".db", ".lock"}
 MAX_READ_CHARS = 40_000
 
+# A line is NOT a size bound (TD-5.7-5). `read_file(rel, 1, 60)` on a file whose only line was
+# 282,604 chars - a `.tsbuildinfo`, minified JS, a lockfile, a one-line data blob - returned
+# 282,669 chars: about 70k tokens against a window a local model has 16k of, and it then stays
+# in history for the rest of the run. One line is capped at the size this runtime already gives
+# one COMMAND's output (`commands.DEFAULT_MAX_OUTPUT`), and the marker names the line and its
+# real length, so the elision is a fact the model can report rather than a silent gap.
+MAX_LINE_CHARS = 4_000
+
+
+def _clip_line(text: str, lineno: int) -> str:
+    """One line of a file, bounded, with the elision spelling itself out (see MAX_LINE_CHARS)."""
+    if len(text) <= MAX_LINE_CHARS:
+        return text
+    return (f"{text[:MAX_LINE_CHARS]}…[line {lineno} elided: {len(text)} chars, "
+            f"first {MAX_LINE_CHARS} shown]")
+
 # Write deny-list (v5.4.0). Agent configuration and execution-defining files:
 # rewriting one of these lets an injected prompt change the agent's own
 # instructions, its tool policy, or the repo's CI behaviour — with no shell
@@ -166,6 +182,12 @@ class Workspace:
         in bounded slices instead of being truncated mid-file and re-read. The
         range is clamped to the file, and a range that lands past the end is an
         error rather than an empty success.
+
+        A RANGE BOUNDS LINES, NOT CHARS, so both halves stay bounded here: a line
+        longer than MAX_LINE_CHARS is elided with a marker naming the line and its
+        real length, and a selection larger than MAX_READ_CHARS is elided in the
+        middle with a marker saying to narrow the range. Neither is silent — a
+        hidden elision is how a model comes to believe it read something it did not.
         """
         p = self._resolve(rel)
         if not p.is_file():
@@ -193,8 +215,17 @@ class Workspace:
         if lo > hi:
             return (f"ERROR: empty range {start}-{end} for {rel} "
                     f"(file has {total} lines; ranges are 1-based inclusive)")
-        body = "\n".join(lines[lo - 1:hi])
-        return f"--- {rel} [lines {lo}-{hi} of {total}] ---\n{body}"
+        body = "\n".join(_clip_line(lines[n - 1], n) for n in range(lo, hi + 1))
+        note = ""
+        if len(body) > MAX_READ_CHARS:
+            # Head AND tail, for the reason the command layer clips that way: a file's shape
+            # is at the top, and a tail read is a real request. The marker names the fix.
+            head = MAX_READ_CHARS // 2
+            tail = MAX_READ_CHARS - head
+            note = " [capped]"
+            body = (f"{body[:head]}\n…[elided {len(body) - MAX_READ_CHARS} chars between "
+                    f"lines {lo} and {hi}; narrow the range with start/end]…\n{body[-tail:]}")
+        return f"--- {rel} [lines {lo}-{hi} of {total}]{note} ---\n{body}"
 
     def glob(self, pattern: str) -> str:
         """Return repo-relative paths matching a glob (e.g. 'apps/frontend/src/**/*.test.*')."""
@@ -263,7 +294,10 @@ class Workspace:
                                 "(truncated at 40000 chars) unless start/end give a "
                                 "1-based inclusive line range, in which case only "
                                 "those lines are returned — prefer a range over "
-                                "re-reading a large file."),
+                                "re-reading a large file. A very long line, or a range "
+                                "larger than the read budget, is elided with a marker "
+                                "saying so; narrow the range rather than assuming the "
+                                "file continues past it."),
                 "parameters": {"type": "object", "properties": {
                     "rel": {"type": "string", "description": "repo-relative file path"},
                     "start": {"type": "integer", "description": "first line, 1-based (optional)"},

@@ -303,6 +303,59 @@ def test_read_file_bad_range_type_is_an_error_not_a_crash():
     shutil.rmtree(r)
 
 
+def test_read_file_range_keeps_a_small_slice_byte_identical():
+    """The bound must not touch the ordinary case — no marker, no note, same bytes."""
+    r = _tmp_repo()
+    (r / "n.txt").write_text("\n".join(f"L{i}" for i in range(1, 11)) + "\n",
+                             encoding="utf-8")
+    out = Workspace(r).read_file("n.txt", start=3, end=5)
+    assert out == "--- n.txt [lines 3-5 of 10] ---\nL3\nL4\nL5"
+    shutil.rmtree(r)
+
+
+def test_read_file_range_is_bounded_when_one_line_is_enormous():
+    """THE DEFECT (TD-5.7-5), as measured: a range bounds LINES, not CHARS.
+
+    A 282,604-char single line — `.tsbuildinfo`, minified JS, a lockfile, a one-line data
+    blob — made `read_file(rel, 1, 60)` return 282,669 chars, about 70k tokens, into a 16k
+    window. The whole-file path was capped; the ranged path was not, because its docstring
+    assumed a line range is a size bound.
+    """
+    r = _tmp_repo()
+    (r / "blob.json").write_text("x" * 282_604, encoding="utf-8")
+    out = Workspace(r).read_file("blob.json", start=1, end=60)
+    assert len(out) < 5_000, f"range returned {len(out)} chars for a 1-line file"
+    # Bounded AND honest: the model is told a line was elided, which line, and how long it was.
+    assert "line 1 elided: 282604 chars" in out
+    assert out.startswith("--- blob.json [lines 1-1 of 1]")
+    shutil.rmtree(r)
+
+
+def test_read_file_range_is_bounded_in_total_across_many_lines():
+    """One line no longer explodes, so the second half: many lines still add up."""
+    r = _tmp_repo()
+    (r / "wide.txt").write_text("\n".join("y" * 500 for _ in range(400)), encoding="utf-8")
+    out = Workspace(r).read_file("wide.txt", start=1, end=400)
+    assert len(out) <= MAX_READ_CHARS + 200, f"range returned {len(out)} chars"
+    assert "[capped]" in out                      # the header says so too, not just the body
+    assert "narrow the range with start/end" in out
+    # The middle is what goes, so both ends of the selection are still readable.
+    assert out.count("y" * 500) >= 2
+    shutil.rmtree(r)
+
+
+def test_read_file_range_elision_never_hides_that_it_happened():
+    """An elision a model cannot see is how it reports reading what it did not."""
+    r = _tmp_repo()
+    (r / "blob.json").write_text("z" * 100_000 + "\n" + "w" * 100_000, encoding="utf-8")
+    out = Workspace(r).read_file("blob.json", start=1, end=2)
+    assert "elided" in out
+    for marker in ("[line 1 elided", "[line 2 elided"):
+        assert marker in out, marker
+    assert len(out) < 10_000
+    shutil.rmtree(r)
+
+
 # --- schema / handler contract ----------------------------------------------
 
 def test_tool_schemas_shape():
