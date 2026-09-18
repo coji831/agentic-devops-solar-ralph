@@ -32,6 +32,7 @@ class SolarState(TypedDict):
     tokens_out: Annotated[int, operator.add]   # completion tokens (accumulates)
     tool_calls: Annotated[int, operator.add]   # workspace tool calls
     error: str                                 # executor error, if any
+    forced_final: bool                         # answer came from the tool-less last round
 
 
 DEFAULTS: dict = {

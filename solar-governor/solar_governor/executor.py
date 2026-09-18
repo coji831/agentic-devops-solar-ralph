@@ -15,6 +15,7 @@ tools. Returns {output, usage, tool_calls, error}.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -26,6 +27,20 @@ DEFAULT_MODEL = "deepseek-chat"
 # model round-trips per specialist node; configurable via SOLAR_MAX_ROUNDS
 # (complex read-heavy roles like investigator/code-reviewer exceed a low cap)
 MAX_TOOL_ROUNDS = int(os.environ.get("SOLAR_MAX_ROUNDS", "12"))
+# Sampling temperature for specialist calls. The loop used to send none and so
+# inherited the provider default, which made tool-use convergence a coin flip:
+# identical role + objective + model finished in 5 rounds on one run and burned
+# the entire budget on the next. "default" omits the field entirely, for
+# OpenAI-compatible gateways that reject it.
+DEFAULT_TEMPERATURE = "0.2"
+# tool rounds remaining from which the model is told it is running out
+NUDGE_ROUNDS_LEFT = 1
+# the last round is called with NO tools offered, so it has to return text
+FINAL_ROUND_INSTRUCTION = (
+    "Tool budget exhausted: there are no tool rounds left. Answer now, in plain "
+    "text, from the evidence already gathered. Cite what you established and "
+    "write 'not verified' for anything you did not get to establish. Do not guess "
+    "and do not request another tool call - none is available.")
 
 
 def tool_output_chars() -> int:
@@ -47,6 +62,38 @@ def _cap_tool(text: str) -> str:
         return text[:cap] + f"\n…[truncated {len(text)} chars to {cap} " \
                             f"by SOLAR_TOOL_OUTPUT_CHARS]"
     return text
+
+
+def temperature() -> float | None:
+    """Sampling temperature for a specialist call (None = omit the parameter).
+
+    Read per call, not at import, so a run can be reproduced without restarting
+    anything. An unparseable or out-of-range value falls back to the default
+    rather than failing the run.
+    """
+    raw = (os.environ.get("SOLAR_TEMPERATURE", DEFAULT_TEMPERATURE) or "").strip()
+    if raw.lower() in ("", "default", "none", "off"):
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_TEMPERATURE)
+    return value if 0.0 <= value <= 2.0 else float(DEFAULT_TEMPERATURE)
+
+
+def _budget_notice(rounds_left: int) -> str:
+    """Tell the model how much tool budget is left, and what to do about it.
+
+    The loop previously had no termination pressure of any kind: a model that
+    kept finding one more file to read could spend every round and return
+    nothing at all. Naming the remaining budget, and the 'not verified' escape,
+    is what lets it stop without pretending to know something it does not.
+    """
+    return (f"Budget notice: {rounds_left} tool round(s) left after this one. "
+            f"If the evidence you already have answers the objective, answer now "
+            f"in plain text with no tool call. If a fact cannot be established "
+            f"with the tools you have, write 'not verified' for it and answer "
+            f"anyway.")
 
 
 def api_key() -> str | None:
@@ -180,7 +227,81 @@ class _ToolLayer:
 
 
 class ExecutorResult(dict):
-    """Thin dict: output / usage(in,out) / tool_calls / error / model."""
+    """Thin dict: output / usage(in,out) / tool_calls / error / model / forced_final."""
+
+
+def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int) -> ExecutorResult:
+    """Run the model/tool loop for one specialist node.
+
+    Three termination rules, each added because the loop was measured returning
+    NO answer at all 4 runs in 5 on a real read-only role over a one-file,
+    one-fact objective:
+
+      * an explicit temperature (an inherited provider default made convergence
+        non-deterministic on identical inputs);
+      * a budget notice once the tool rounds nearly run out;
+      * a FINAL round called with no tools offered at all, so the response has to
+        be text. A node that cannot finish now hands back what it did establish,
+        with the gaps named, instead of failing the run outright.
+
+    `forced_final` marks an answer produced by that last, tool-less round, so a
+    reader can tell "answered" from "cut off, and answered anyway".
+    """
+    rounds = max(1, max_rounds)
+    temp = temperature()
+    tools = ws.tool_schemas()
+    total_in = total_out = tool_calls = 0
+
+    def _result(output: str, err: str | None, forced: bool) -> ExecutorResult:
+        return ExecutorResult(output=output, usage={"in": total_in, "out": total_out},
+                              tool_calls=tool_calls, error=err, model=model,
+                              forced_final=forced)
+
+    for rnd in range(1, rounds + 1):
+        final_round = rnd == rounds
+        if final_round:
+            messages.append({"role": "user", "content": FINAL_ROUND_INSTRUCTION})
+        elif rounds - rnd <= NUDGE_ROUNDS_LEFT:
+            messages.append({"role": "user", "content": _budget_notice(rounds - rnd)})
+        payload: dict = {"model": model, "messages": messages}
+        if temp is not None:
+            payload["temperature"] = temp
+        if not final_round:
+            payload["tools"] = tools
+        try:
+            resp = client.chat.completions.create(**payload)
+            if getattr(resp, "usage", None):
+                total_in += resp.usage.prompt_tokens or 0
+                total_out += resp.usage.completion_tokens or 0
+            msg = resp.choices[0].message
+            text = (msg.content or "").strip()
+            calls = list(getattr(msg, "tool_calls", None) or [])
+        except Exception as e:  # provider/network failure
+            return _result(f"ERROR calling model ({model}): {e}", str(e), False)
+        # A tool-less final round must answer; so must any round that chose to
+        # answer without tools. Text wins over a stray call in both cases.
+        if final_round or not calls:
+            if text:
+                return _result(msg.content, None, final_round)
+            return _result("ERROR: model returned no answer text", "empty_output",
+                           final_round)
+        messages.append({"role": "assistant", "content": msg.content or "",
+                         "tool_calls": [{"id": tc.id, "type": "function",
+                                          "function": {"name": tc.function.name,
+                                                       "arguments": tc.function.arguments}}
+                                         for tc in calls]})
+        for tc in calls:
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except Exception:
+                args = {}
+            tool_calls += 1
+            messages.append({"role": "tool", "tool_call_id": tc.id,
+                             "content": _cap_tool(ws.call_tool(tc.function.name, args))})
+    # Unreachable: the final round always returns above. Defensive only, and it
+    # keeps the old error id so anything keyed on it still recognises the case.
+    return _result("ERROR: reached max tool rounds without a final answer",
+                   "max_rounds", False)
 
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
@@ -224,43 +345,4 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                       "no tool call needed."},
         {"role": "user", "content": objective},
     ]
-    total_in = total_out = 0
-    tool_calls = 0
-    error = None
-    try:
-        for _ in range(max_rounds):
-            resp = client.chat.completions.create(
-                model=model, messages=messages, tools=ws.tool_schemas())
-            if getattr(resp, "usage", None):
-                total_in += resp.usage.prompt_tokens or 0
-                total_out += resp.usage.completion_tokens or 0
-            msg = resp.choices[0].message
-            if msg.tool_calls:
-                messages.append({"role": "assistant",
-                                 "content": msg.content or "", "tool_calls": [
-                                     {"id": tc.id, "type": "function",
-                                      "function": {"name": tc.function.name,
-                                                   "arguments": tc.function.arguments}}
-                                     for tc in msg.tool_calls]})
-                for tc in msg.tool_calls:
-                    import json as _json
-                    try:
-                        args = _json.loads(tc.function.arguments or "{}")
-                    except Exception:
-                        args = {}
-                    tool_calls += 1
-                    result = ws.call_tool(tc.function.name, args)
-                    messages.append({"role": "tool", "tool_call_id": tc.id,
-                                     "content": _cap_tool(result)})
-                continue
-            return ExecutorResult(output=msg.content or "(no output)",
-                                  usage={"in": total_in, "out": total_out},
-                                  tool_calls=tool_calls, error=None, model=model)
-        return ExecutorResult(output="ERROR: reached max tool rounds without a final answer",
-                              usage={"in": total_in, "out": total_out},
-                              tool_calls=tool_calls, error="max_rounds", model=model)
-    except Exception as e:
-        error = str(e)
-        return ExecutorResult(output=f"ERROR calling model ({model}): {error}",
-                              usage={"in": total_in, "out": total_out},
-                              tool_calls=tool_calls, error=error, model=model)
+    return _tool_loop(client, model, messages, ws, max_rounds)

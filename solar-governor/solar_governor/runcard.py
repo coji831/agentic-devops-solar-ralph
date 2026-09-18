@@ -34,6 +34,7 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "tool_calls": state.get("tool_calls", 0),
         "model": state.get("model", "stub"),
         "error": state.get("error", ""),
+        "forced_final": bool(state.get("forced_final", False)),
         "duration_ms": int((time.time() - started_at) * 1000),
     }
     path = run_dir / f"{thread}.json"

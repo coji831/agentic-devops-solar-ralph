@@ -110,7 +110,8 @@ def _write_artifacts(cfg, state, thread, started) -> None:
 def _state_summary(state: dict) -> dict:
     return {k: state.get(k) for k in
             ("objective", "role", "materials_status", "stage", "verdict",
-             "attempts", "tokens_in", "tokens_out", "tool_calls", "error")}
+             "attempts", "tokens_in", "tokens_out", "tool_calls", "error",
+             "forced_final")}
 
 
 def _json_out(obj: dict, code: int) -> None:

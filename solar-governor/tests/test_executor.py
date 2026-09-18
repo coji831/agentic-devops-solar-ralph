@@ -8,6 +8,8 @@ import os
 import shutil
 import sys
 import tempfile
+import time
+import types
 from pathlib import Path
 
 # make these tests deterministic-offline even when a real key is set in the env
@@ -201,6 +203,208 @@ def test_handoff_hint_reports_the_role_model():
                                   cfg_model="deepseek-chat",
                                   role_model="deepseek-v4-pro")
     assert "deepseek-v4-pro" in path.read_text(encoding="utf-8")
+    shutil.rmtree(r)
+
+
+# ---------------------------------------------------------------------------
+# tool-loop termination (v5.4.1)
+#
+# These drive the loop against a scripted fake client: no network, and the exact
+# payload sent on each round is recorded - which is the only way to assert that
+# the final round is called WITHOUT tools.
+# ---------------------------------------------------------------------------
+
+
+class _FakeToolCall:
+    def __init__(self, id: str, name: str, arguments: str):
+        self.id, self.type = id, "function"
+        self.function = types.SimpleNamespace(name=name, arguments=arguments)
+
+
+class _FakeMessage:
+    def __init__(self, content=None, tool_calls=None):
+        self.content, self.tool_calls = content, tool_calls
+
+
+class _FakeResponse:
+    def __init__(self, message, prompt_tokens=10, completion_tokens=5):
+        self.choices = [types.SimpleNamespace(message=message)]
+        self.usage = types.SimpleNamespace(prompt_tokens=prompt_tokens,
+                                           completion_tokens=completion_tokens)
+
+
+class _FakeClient:
+    """Replays a scripted list of responses, recording every payload sent."""
+
+    def __init__(self, script):
+        self._script = list(script)
+        self.payloads: list = []
+        self.chat = types.SimpleNamespace(
+            completions=types.SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.payloads.append(kwargs)
+        return self._script.pop(0)
+
+
+class _StubWs:
+    """Minimal stand-in for _ToolLayer (the loop is what is under test)."""
+
+    def __init__(self):
+        self.calls: list = []
+
+    def tool_schemas(self):
+        return [{"type": "function",
+                 "function": {"name": "read_file",
+                              "parameters": {"type": "object", "properties": {}}}}]
+
+    def call_tool(self, name, args):
+        self.calls.append((name, args))
+        return "the file contents"
+
+
+def _tool_call(i: int):
+    return _FakeToolCall(f"call{i}", "read_file", '{"rel": "a.ts"}')
+
+
+def _text(content: str):
+    return _FakeResponse(_FakeMessage(content=content))
+
+
+def _calls(*tc):
+    return _FakeResponse(_FakeMessage(content=None, tool_calls=list(tc)))
+
+
+def _loop(client, ws=None, max_rounds=3):
+    return executor._tool_loop(client, "test-model",
+                               [{"role": "system", "content": "sys"},
+                                {"role": "user", "content": "obj"}],
+                               ws or _StubWs(), max_rounds)
+
+
+def test_tool_loop_sends_an_explicit_temperature():
+    """The loop must not inherit the provider default: an inherited sampling
+    temperature is what made convergence a coin flip on identical inputs."""
+    os.environ.pop("SOLAR_TEMPERATURE", None)
+    client = _FakeClient([_text("answer")])
+    _loop(client)
+    assert client.payloads[0]["temperature"] == 0.2
+
+
+def test_temperature_can_be_omitted_for_gateways_that_reject_it():
+    os.environ["SOLAR_TEMPERATURE"] = "default"
+    try:
+        client = _FakeClient([_text("answer")])
+        _loop(client)
+        assert "temperature" not in client.payloads[0]
+    finally:
+        os.environ.pop("SOLAR_TEMPERATURE", None)
+
+
+def test_temperature_falls_back_on_junk_or_out_of_range():
+    for raw, expected in (("abc", 0.2), ("9", 0.2), ("-1", 0.2), ("0", 0.0),
+                          ("1.5", 1.5), ("off", None), ("", None)):
+        os.environ["SOLAR_TEMPERATURE"] = raw
+        try:
+            assert executor.temperature() == expected, raw
+        finally:
+            os.environ.pop("SOLAR_TEMPERATURE", None)
+
+
+def test_the_final_round_is_called_without_tools():
+    """A round that cannot call a tool has to return text. This is the rule that
+    turns a hard 'no answer' failure into a best-effort answer."""
+    client = _FakeClient([_calls(_tool_call(1)), _calls(_tool_call(2)), _text("final")])
+    res = _loop(client, max_rounds=3)
+    assert "tools" in client.payloads[0]
+    assert "tools" in client.payloads[1]
+    assert "tools" not in client.payloads[2]
+    assert res["output"] == "final"
+    assert res["forced_final"] is True
+    assert res["error"] is None
+
+
+def test_a_budget_notice_is_sent_before_the_final_round():
+    client = _FakeClient([_calls(_tool_call(1)), _calls(_tool_call(2)), _text("final")])
+    _loop(client, max_rounds=3)
+    second = client.payloads[1]["messages"]
+    assert any("Budget notice" in (m.get("content") or "") for m in second)
+    # the final round gets the stop instruction, and only ONE notice was ever added
+    final = client.payloads[2]["messages"]
+    assert any(m.get("content") == executor.FINAL_ROUND_INSTRUCTION for m in final)
+    assert sum("Budget notice" in (m.get("content") or "") for m in final) == 1
+
+
+def test_a_model_that_only_calls_tools_is_cut_off_not_failed():
+    """Regression: this used to return 'reached max tool rounds without a final
+    answer' and fail the run. Measured 4 runs in 5 on a real read-only role over
+    a one-file, one-fact objective."""
+    client = _FakeClient([_calls(_tool_call(1)) for _ in range(3)])
+    res = _loop(client, max_rounds=3)
+    assert res["error"] == "empty_output"   # nothing to hand back, and it says so
+    assert res["forced_final"] is True
+    assert res["tool_calls"] == 2           # no tools were run on the final round
+    assert "no answer text" in res["output"]
+
+
+def test_a_single_round_budget_is_still_answered():
+    client = _FakeClient([_text("one-shot")])
+    res = _loop(client, max_rounds=1)
+    assert "tools" not in client.payloads[0]
+    assert res["output"] == "one-shot"
+    assert res["forced_final"] is True
+
+
+def test_a_normal_answer_is_not_marked_forced():
+    client = _FakeClient([_text("answered immediately")])
+    res = _loop(client, max_rounds=3)
+    assert res["output"] == "answered immediately"
+    assert res["forced_final"] is False
+
+
+def test_an_empty_final_answer_is_an_error_not_a_blank_success():
+    client = _FakeClient([_FakeResponse(_FakeMessage(content="   "))])
+    res = _loop(client, max_rounds=1)
+    assert res["error"] == "empty_output"
+    assert res["output"].startswith("ERROR")
+
+
+def test_a_provider_failure_is_reported_with_the_real_message():
+    class _Boom:
+        def __init__(self):
+            self.chat = types.SimpleNamespace(
+                completions=types.SimpleNamespace(create=self._create))
+
+        def _create(self, **kwargs):
+            raise RuntimeError("502 upstream")
+
+    res = _loop(_Boom(), max_rounds=3)
+    assert res["error"] == "502 upstream"
+    assert "502 upstream" in res["output"]
+    assert res["forced_final"] is False
+
+
+def test_usage_and_tool_call_counts_accumulate():
+    client = _FakeClient([
+        _FakeResponse(_FakeMessage(tool_calls=[_tool_call(1), _tool_call(2)]),
+                      prompt_tokens=100, completion_tokens=7),
+        _text("done"),
+    ])
+    res = _loop(client, max_rounds=2)
+    assert res["tool_calls"] == 2
+    assert res["usage"] == {"in": 110, "out": 12}
+
+
+def test_run_card_records_a_forced_answer():
+    """An operator must be able to tell 'answered' from 'cut off, and answered
+    anyway' from the run-card alone."""
+    from solar_governor import runcard
+    r = _tmp_repo()
+    cfg = _cfg(r)
+    state = {"stage": "complete", "verdict": "APPROVED", "forced_final": True,
+             "decisions_log": []}
+    path = runcard.write(cfg, state, "t-forced", time.time())
+    assert json.loads(path.read_text(encoding="utf-8"))["forced_final"] is True
     shutil.rmtree(r)
 
 

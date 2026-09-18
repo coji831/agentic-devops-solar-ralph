@@ -104,6 +104,7 @@ def _execute(cfg: Config, state: SolarState) -> dict:
         "tokens_out": res.get("usage", {}).get("out", 0),
         "tool_calls": res.get("tool_calls", 0),
         "error": res.get("error") or "",
+        "forced_final": bool(res.get("forced_final", False)),
     }
 
 
