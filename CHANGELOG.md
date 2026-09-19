@@ -62,18 +62,18 @@ not in that test's list.
 A driven clock holds the millisecond exact, which is the only way this rule is assertable at all
 (`graph.py` reads `time` nowhere else, so the module can be replaced on the graph alone):
 
-| one thread, two CLI invocations                                        | `node_ms` |
-| :--------------------------------------------------------------------- | --------: |
-| first — `material_gate`, `dispatch`, `specialist`, then `review` **interrupts** | 750 |
-| resume — `review`, `complete`                                          | 1250 |
+| one thread, two CLI invocations                                                 | `node_ms` |
+| :------------------------------------------------------------------------------ | --------: |
+| first — `material_gate`, `dispatch`, `specialist`, then `review` **interrupts** |       750 |
+| resume — `review`, `complete`                                                   |      1250 |
 
 The first number is the load-bearing one: three nodes were timed and the interrupting fourth added
 nothing. The other direction, where the two clocks must **disagree**, is a real stub run:
 
 | clock         | stub run |
 | :------------ | -------: |
-| `node_ms`     | 2 ms     |
-| `duration_ms` | 26 ms    |
+| `node_ms`     |     2 ms |
+| `duration_ms` |    26 ms |
 
 Tests **257 → 261** (`tests/test_thread_state.py`): the per-node slice, the accumulation across a
 resume, the fresh-start reset, and what the card carries.
