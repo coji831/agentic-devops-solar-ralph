@@ -551,6 +551,53 @@ def test_per_role_deny_cannot_override_the_unconditional_list():
     shutil.rmtree(r)
 
 
+def test_a_default_install_reviewer_is_not_offered_write_file():
+    """The SHIPPED default registry, not a hand-written spec - which is the whole point of the test.
+
+    Found 2026-09-20 by the wiretap of T1.1. `DEFAULT_SPECIALISTS["reviewer"]` omitted `write`, and
+    `allows_write()` reads an omitted key as YES - so a fresh install handed `write_file` to the one
+    built-in role whose product is a verdict rather than an edit, **which let a reviewer edit the
+    output it was reviewing.** `tool_schemas`'s own docstring promised the opposite, so the defect
+    was never a wrong rule; it was a rule the registry did not carry.
+
+    **Measured before the fix**, at a default install: the tool list was
+    `['list_tree', 'read_file', 'glob', 'write_file']` and `records/x.md`, `docs/x.md` and
+    `emails/x.md` all wrote. `../repos/PTM-EC/x.ts` and `package.json` did not, so the unconditional
+    deny list was holding - the gap was everything else.
+    """
+    from solar_governor.registry import DEFAULT_SPECIALISTS
+    r = _tmp_repo()
+    ws = Workspace(r, DEFAULT_SPECIALISTS["reviewer"])
+    names = {s["function"]["name"] for s in ws.tool_schemas()}
+    assert "write_file" not in names, f"a reviewer was handed write_file: {sorted(names)}"
+    # Offered is not the enforcement, so the CALL is asserted too: a model can emit a call for a
+    # tool it was never given, and "not offered" is not by itself a refusal.
+    assert ws.write_file("records/x.md", "x").startswith("ERROR: refusing")
+    shutil.rmtree(r)
+
+
+def test_a_default_install_implementer_may_still_write():
+    """The other half, so the fix above cannot be mistaken for 'deny everything'."""
+    from solar_governor.registry import DEFAULT_SPECIALISTS
+    r = _tmp_repo()
+    ws = Workspace(r, DEFAULT_SPECIALISTS["implementer"])
+    names = {s["function"]["name"] for s in ws.tool_schemas()}
+    assert "write_file" in names, f"an implementer lost its write tool: {sorted(names)}"
+    assert ws.write_file("apps/x.ts", "x").startswith("wrote")
+    shutil.rmtree(r)
+
+
+def test_every_built_in_role_states_its_write_capability():
+    """**The default must not be reachable by OMISSION.** `allows_write()` reads a missing `write`
+    key as True, so a built-in that forgets it is a built-in that may write - and the absence is
+    invisible in a diff. This asserts the key is PRESENT on every shipped role, which is what stops
+    the same defect from arriving again under a different role name."""
+    from solar_governor.registry import DEFAULT_SPECIALISTS
+    silent = sorted(name for name, spec in DEFAULT_SPECIALISTS.items() if "write" not in spec)
+    assert not silent, (f"{silent} omit `write`, and an omitted key means ALLOW - declare it, "
+                        f"whichever way it goes")
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

@@ -14,6 +14,19 @@ DEFAULT_SPECIALISTS: dict = {
         "role": "Implementer",
         "system": "You implement the task precisely and minimally. Verify your work.",
         "tools": ["workspace", "exec"],
+        # **`write` IS DECLARED ON EVERY BUILT-IN ROLE, AND THAT IS THE FIX OF 2026-09-20.**
+        # `Workspace.allows_write()` reads `bool(spec.get("write", True))`, so an OMITTED key means
+        # YES. Until this line existed, every built-in role omitted it - which meant a fresh install
+        # handed `write_file` to `reviewer`, and `workspace.py::tool_schemas`'s own promise that
+        # *"a read-only role is never handed write_file"* was unmet by the registry the installer
+        # writes. Measured on 2026-09-20: at a default install the tool list on an `http` link for
+        # `reviewer` was `['list_tree', 'read_file', 'glob', 'write_file']`, and a reviewer could
+        # write `records/`, `docs/` and `emails/` - anywhere except the unconditional deny list.
+        # **An allow-list key that defaults to ALLOW is the same asymmetry as `write_scope: []`
+        # meaning unrestricted:** both are read as "nothing was restricted" when they should read
+        # as "nothing was granted". Spelling the value out does not change the default for a repo
+        # that omits it - it stops the SHIPPED set from being the thing that omits it.
+        "write": True,
         "next_edges": ["review"],
         "model": "",
     },
@@ -21,6 +34,7 @@ DEFAULT_SPECIALISTS: dict = {
         "role": "Tester",
         "system": "You add or repair tests and run the test suite for the task output.",
         "tools": ["workspace", "exec"],
+        "write": True,
         "next_edges": ["review"],
         "model": "",
     },
@@ -28,6 +42,12 @@ DEFAULT_SPECIALISTS: dict = {
         "role": "Reviewer",
         "system": "You review the output adversarially (non-author). Verdict: APPROVED or REJECTED.",
         "tools": ["workspace"],
+        # **A REVIEWER THAT CAN WRITE CAN EDIT WHAT IT REVIEWS.** It is the one built-in role whose
+        # product is a verdict rather than an edit, so handing it `write_file` is not a wider grant
+        # than necessary - it is a different job. `False` here is what makes `tool_schemas` drop the
+        # schema, and `write_file` ALSO refuses on it, because a model can emit a call for a tool it
+        # was never offered and "not offered" is not by itself an enforcement.
+        "write": False,
         "next_edges": ["complete"],
         "model": "",
     },
