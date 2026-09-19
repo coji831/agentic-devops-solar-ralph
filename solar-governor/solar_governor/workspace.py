@@ -63,6 +63,41 @@ _WRITE_DENY_NAMES = {".mcp.json", "package.json", "package-lock.json",
                      "pyproject.toml", "requirements.txt", "dockerfile",
                      "docker-compose.yml", "makefile"}
 
+# The READ side of the sibling grant (C2, 2026-09-20). **The same two lists, imported rather than
+# restated** - a second copy of a deny list is a second thing to keep in sync, and rule 4 of the
+# engagement's decoupling rules says a set has one home.
+_READ_DENY_DIRS = _WRITE_DENY_DIRS
+_READ_DENY_NAMES = _WRITE_DENY_NAMES
+
+
+def _read_denial(rel: str) -> str | None:
+    """Why `rel` may not be READ through a glob, or None. **Only consulted OUTSIDE the root.**
+
+    **The deny NAMES cost something here that they do not cost on the write side, and that is not
+    obvious.** On a write, `package.json` is protected because a role editing it changes what the
+    project resolves. On a READ the same name is the most useful file in a JavaScript repository -
+    so reusing the list is a real restriction on the feature's usefulness, and it is stated here
+    rather than discovered later: **an `http` implementer cannot read the clone's `package.json`,
+    `pyproject.toml` or lockfiles.** The DIRECTORIES are the part that pays for itself, because
+    `.git/config` can carry a credential inside a remote URL.
+
+    **`.env` is added here, and it was in NEITHER write list** - so "reuse the deny list" leaked it.
+    A read deny list whose stated purpose is keeping secrets out of the payload, that omits the one
+    file secrets are conventionally written in, is not a scope choice; it is the defect the list
+    exists to prevent. `.env.local` and friends are matched by prefix, because a suffix rule would
+    miss the files people actually use.
+    """
+    raw = [p for p in rel.replace("\\", "/").split("/") if p not in ("", ".")]
+    for part in raw[:-1]:
+        if part.lower() in _READ_DENY_DIRS:
+            return f"{part}/ is protected (agent config / repo metadata)"
+    name = (raw[-1] if raw else "").lower()
+    if name in _READ_DENY_NAMES:
+        return f"{name} is protected (defines tooling, deps or CI)"
+    if name == ".env" or name.startswith(".env."):
+        return f"{name} is protected (credentials)"
+    return None
+
 
 def _collapse(segments: list[str]) -> list[str]:
     """Collapse `.` and `..` the way `Path.resolve()` does, so policy sees the real path.
@@ -151,8 +186,20 @@ def _glob_covers(norm: str, patterns: list[str]) -> bool:
     Case-SENSITIVE on every platform (`fnmatchcase`, not `fnmatch`): a policy that answers
     differently on Windows than on Linux is not a policy, and a path differing only in case
     then fails closed, which is the direction a grant should fail.
+
+    **A pattern ending `/**` also covers the directory itself** - added 2026-09-20 with C2, and it
+    is not a convenience. `X/**` is the ordinary spelling for "everything under X", and without this
+    clause it covered `X/src/a.js` and NOT `X`: a role could read every file in a sibling and could
+    not LIST it, because `list_tree` addresses the directory. **That is the write-only grant's
+    failure one layer up** - the grant works, the traversal does not, and the role cannot find what
+    it is allowed to touch. `**` means "inside", and finding what is inside starts by addressing it.
     """
-    return any(fnmatch.fnmatchcase(norm, p) for p in patterns)
+    for pat in patterns:
+        if fnmatch.fnmatchcase(norm, pat):
+            return True
+        if pat.endswith("/**") and norm == pat[:-3].rstrip("/"):
+            return True
+    return False
 
 
 def resolve_in_root(root: Path, rel: str) -> Path:
@@ -221,6 +268,57 @@ class Workspace:
         """Whether this role's anchored `write_glob` covers `rel` - its sibling reach."""
         globs, _ = _glob_parts(self.spec.get("write_glob"))
         return _glob_covers(_norm_rel(rel), globs)
+
+    def _glob_roots(self) -> list[tuple[Path, str]]:
+        """The directories this role's globs literally name: `(resolved dir, prefix as written)`.
+
+        Derived from the pattern rather than declared beside it, so there is one home for the
+        grant. `../repos/solar-sandbox/**` gives `(C:/CodeProjects/Freelance/repos/solar-sandbox,
+        '../repos/solar-sandbox/')`. The prefix keeps the `../` because that is how the model has
+        to write the path - the tools speak repo-relative, and a sibling is only addressable from
+        outside.
+        """
+        roots: list[tuple[Path, str]] = []
+        for pat in _glob_parts(self.spec.get("write_glob"))[0]:
+            parts = [p for p in pat.split("/") if p]
+            cut = next((i for i, p in enumerate(parts) if any(c in p for c in "*?[")), len(parts))
+            literal = "/".join(parts[:cut])
+            if not literal:
+                continue
+            base = (self.root / literal).resolve()
+            if base.is_dir():
+                roots.append((base, literal.rstrip("/") + "/"))
+        return roots
+
+    def _resolve_for_read(self, rel: str) -> Path:
+        """Resolve `rel` for a READ, admitting a glob-covered sibling (C2, 2026-09-20).
+
+        **The escape is still the default answer.** `resolve_in_root` runs first, and a path
+        outside the root raises exactly as it did - unless the role's anchored `write_glob` covers
+        it AND the path survives the read deny list. So this is the write grant's rule pointed the
+        other way, with the same two properties: the glob can only ADD permission, and it is
+        matched against the COLLAPSED path so `../repos/x/../../etc/passwd` cannot arrive obliquely.
+
+        **One key governs both layers, deliberately, and the measurement is why.** A role that may
+        write in a tree it cannot read cannot list it, cannot match the style of the files it was
+        told to change, and cannot read back what it wrote. Measured 2026-09-20 in the Promyro
+        engagement: the write grant worked, the agent refused to use it, and said in its own report
+        that a write it knows will be rejected *"is not a test of anything"*. The two halves are one
+        capability.
+
+        **The read deny list applies ONLY to a glob-covered path.** Inside the root, reads are
+        exactly what they were - those lists exist because a sibling is somebody else's tree, and
+        applying them to our own would be a restriction nobody asked for.
+        """
+        try:
+            return resolve_in_root(self.root, rel)
+        except ValueError:
+            if not self._glob_allows(rel):
+                raise                        # unchanged: no glob covers it, so it escapes
+            denial = _read_denial(rel)
+            if denial:
+                raise ValueError(f"refusing to read {rel}: {denial}")
+            return (self.root / str(rel)).resolve()
 
     def _write_denial(self, rel: str) -> str | None:
         """Why `rel` may not be written, or None when it may.
@@ -295,10 +393,16 @@ class Workspace:
 
     # --- tools (each returns a string for the LLM) ------------------------
     def list_tree(self, rel: str = ".", depth: int = 3) -> str:
-        """Return an indented tree of the repo (skipping vendored/build dirs)."""
-        start = self._resolve(rel)
+        """Return an indented tree of the repo (skipping vendored/build dirs).
+
+        A sibling the role's glob reaches can be listed too - see `_resolve_for_read`. The listing
+        keeps the `../` prefix the caller used, because that is the only spelling the read tools
+        accept, and a listing the reader cannot act on is a listing that wastes a round.
+        """
+        start = self._resolve_for_read(rel)
         if not start.exists():
             return f"ERROR: no such path: {rel}"
+        sibling = start != self.root and self.root not in start.parents
         lines: list[str] = []
 
         def walk(d: Path, level: int):
@@ -307,6 +411,12 @@ class Workspace:
             entries = sorted(d.iterdir(), key=lambda e: (e.is_file(), e.name.lower()))
             for e in entries:
                 if e.name in _SKIP_DIRS or e.suffix.lower() in _SKIP_EXTS:
+                    continue
+                # In a SIBLING, list only what the read layer will accept. Showing `.github/` and
+                # then refusing to open it costs a round and teaches the model nothing - and the
+                # listing is the first thing it tries, so the refusal looks like the whole tree.
+                # Inside the root nothing is hidden: reads there are exactly what they were.
+                if sibling and _read_denial(e.relative_to(start).as_posix()):
                     continue
                 lines.append("  " * level + ("📄 " if e.is_file() else "📁 ") + e.name)
                 if e.is_dir():
@@ -334,8 +444,11 @@ class Workspace:
 
         Every returned line carries its 1-based number (`  12| text`), so the reader
         can CITE a line rather than count to it — see `_numbered`. Added 2026-09-20.
+
+        A sibling the role's glob reaches can be read too (C2, 2026-09-20) - see
+        `_resolve_for_read` for the rule and `_read_denial` for what stays out.
         """
-        p = self._resolve(rel)
+        p = self._resolve_for_read(rel)
         if not p.is_file():
             return f"ERROR: not a file: {rel}"
         try:
@@ -376,18 +489,41 @@ class Workspace:
         return f"--- {rel} [lines {lo}-{hi} of {total}]{note} ---\n{body}"
 
     def glob(self, pattern: str) -> str:
-        """Return repo-relative paths matching a glob (e.g. 'apps/frontend/src/**/*.test.*')."""
+        """Return repo-relative paths matching a glob (e.g. 'apps/frontend/src/**/*.test.*').
+
+        **A sibling root is searched when the PATTERN NAMES IT** (C2, 2026-09-20), so
+        `glob("../repos/solar-sandbox/src/*.js")` works for a role whose glob reaches there, and
+        the matches come back with the same `../` prefix - which is what makes them usable by
+        `read_file`. A bare `**/*.js` still searches only the repo root.
+
+        **Prefix-routed rather than searched-everywhere, deliberately.** A pattern is a request
+        for a place; silently widening it to a second tree would make the result set a thing the
+        caller did not ask for, and `../repos/...` in the answer would look like a bug.
+        """
+        roots = [(self.root, "")]
+        for base, prefix in self._glob_roots():
+            if pattern.startswith(prefix):
+                roots.append((base, prefix))
+
         matches: list[str] = []
-        for p in self.root.rglob("*"):
-            if not p.is_file():
-                continue
-            if any(part in _SKIP_DIRS for part in p.relative_to(self.root).parts):
-                continue
-            if p.suffix.lower() in _SKIP_EXTS:
-                continue
-            if fnmatch.fnmatch(p.as_posix(), pattern) or \
-               fnmatch.fnmatch(str(p.relative_to(self.root)).replace("\\", "/"), pattern):
-                matches.append(str(p.relative_to(self.root)).replace("\\", "/"))
+        for base, prefix in roots:
+            pat = pattern[len(prefix):] if prefix else pattern
+            for p in base.rglob("*"):
+                if not p.is_file():
+                    continue
+                if any(part in _SKIP_DIRS for part in p.relative_to(base).parts):
+                    continue
+                if p.suffix.lower() in _SKIP_EXTS:
+                    continue
+                rel = str(p.relative_to(base)).replace("\\", "/")
+                if not (fnmatch.fnmatch(p.as_posix(), pat) or fnmatch.fnmatch(rel, pat)):
+                    continue
+                # A denied path is not MATCHED rather than matched-and-refused: the model would
+                # otherwise spend a round on a read it cannot complete, which is the failure the
+                # write-only grant already taught.
+                if prefix and _read_denial(prefix + rel):
+                    continue
+                matches.append(prefix + rel)
         matches.sort()
         return "\n".join(matches[:200]) or "(no matches)"
 
@@ -469,6 +605,18 @@ class Workspace:
         ]
         if "workspace" not in self._declared_tools():
             return []
+        # **The model cannot guess where it may go, and the first version of this grant made it find
+        # out by failing.** Measured 2026-09-20: the agent tried `list_tree`, `read_file` and `glob`
+        # on the sibling, was refused by all three, concluded that a write it knows will be rejected
+        # "is not a test of anything", and wrote nothing. Naming the roots in the description costs
+        # ~60 bytes on the three tools that are affected and removes that round entirely.
+        reach = [prefix for _base, prefix in self._glob_roots()]
+        if reach:
+            note = (f" Reachable siblings: {', '.join(reach)} "
+                    f"(this role's `write_glob`; reads there are granted, writes too).")
+            for s in schemas:
+                if s["function"]["name"] in ("list_tree", "read_file", "glob"):
+                    s["function"]["description"] += note
         if not self.allows_write():
             return [s for s in schemas
                     if s["function"]["name"] != "write_file"]

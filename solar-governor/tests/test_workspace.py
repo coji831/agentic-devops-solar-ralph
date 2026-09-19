@@ -598,6 +598,166 @@ def test_every_built_in_role_states_its_write_capability():
                         f"whichever way it goes")
 
 
+# --- C2: the glob governs READS too (2026-09-20) -----------------------------
+# The write half of `write_glob` shipped first and was useless on its own: measured 2026-09-20, the
+# agent could not LIST the sibling it could write to, could not read the files it was told to match
+# in style, and could not read back what it wrote. It refused to write anything and said so. These
+# tests pin both halves and the rule that keeps the grant narrow.
+
+SIBLING_GLOB = {"write": True, "write_glob": ["../repos/sandbox/**"]}
+
+
+def _root_and_sibling() -> Path:
+    """A repo and a SIBLING of it - the shape the grant exists for.
+
+    The clones sit at `Freelance/repos/<name>`, outside the engagement folder the runtime is rooted
+    at, so `../repos/sandbox` is not a convenience: it is the only spelling that addresses one. The
+    sibling carries the three files a deny list is about - `.git/config` (which can hold a token in
+    a remote URL), `.env`, and `package.json` - because a fixture without them cannot prove the
+    read denial does anything.
+    """
+    base = Path(tempfile.mkdtemp(prefix="solar-sib-"))
+    root, sib = base / "engagement", base / "repos" / "sandbox"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "a.ts").write_text("export const a = 1;\n", encoding="utf-8")
+    (root / "package.json").write_text('{"name": "ours"}\n', encoding="utf-8")
+    (sib / "src").mkdir(parents=True)
+    (sib / "src" / "inventory.js").write_text("exports.stock = 1;\n", encoding="utf-8")
+    (sib / ".git").mkdir()
+    (sib / ".git" / "config").write_text("[remote]\n\turl = https://tok@github.com/x\n",
+                                        encoding="utf-8")
+    (sib / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    (sib / ".env.local").write_text("SECRET=2\n", encoding="utf-8")
+    (sib / "package.json").write_text('{"name": "theirs"}\n', encoding="utf-8")
+    return root
+
+
+def _refusal(fn, *args, **kwargs) -> str:
+    """The message a refusal RAISES with, or a marker when the call returned instead.
+
+    The read layer refuses by raising (`resolve_in_root`'s contract) and `call_tool` turns that into
+    an `ERROR:` string. **Both surfaces are asserted**, because a test that only checked `call_tool`
+    would still pass if the raise were replaced by a quiet empty answer - and an empty answer is the
+    failure that reads as a pass.
+    """
+    try:
+        out = fn(*args, **kwargs)
+    except ValueError as exc:
+        return str(exc)
+    return f"<returned instead of raising: {str(out)[:70]}>"
+
+
+def test_a_glob_covered_sibling_can_be_listed():
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    listing = ws.list_tree("../repos/sandbox")
+    assert "inventory.js" in listing, listing
+    # The listing names only what the READ layer will accept: `.git` and `.env` do not appear, so a
+    # model cannot spend a round discovering them.
+    assert ".env" not in listing, listing
+    assert ".git" not in listing, listing
+    shutil.rmtree(root.parent)
+
+
+def test_a_glob_covered_sibling_can_be_read():
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    out = ws.read_file("../repos/sandbox/src/inventory.js")
+    assert "exports.stock = 1" in out, out
+    # Numbered, because that is how an `http` link earns its `path:line` contract.
+    assert "1| " in out, out
+    shutil.rmtree(root.parent)
+
+
+def test_a_sibling_the_glob_does_not_cover_still_raises():
+    """**The default answer is unchanged.** One glob admits one tree; everything else escapes."""
+    root = _root_and_sibling()
+    (root.parent / "repos" / "other" / "src").mkdir(parents=True)
+    (root.parent / "repos" / "other" / "src" / "x.ts").write_text("x\n", encoding="utf-8")
+    ws = Workspace(root, SIBLING_GLOB)
+    assert "escapes repo root" in _refusal(ws.read_file, "../repos/other/src/x.ts")
+    assert "escapes repo root" in _refusal(ws.list_tree, "../repos/other")
+    shutil.rmtree(root.parent)
+
+
+def test_the_read_denial_holds_inside_the_grant():
+    """`.git`, `.env` and a lockfile are covered by the glob and still unreadable - and the refusal
+    names the rule, so a reader can tell WHICH list refused."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    for rel, expected in (("../repos/sandbox/.git/config", ".git/"),
+                          ("../repos/sandbox/.env", "credentials"),
+                          ("../repos/sandbox/.env.local", "credentials"),
+                          ("../repos/sandbox/package.json", "tooling")):
+        assert expected in _refusal(ws.read_file, rel), (rel, _refusal(ws.read_file, rel))
+    shutil.rmtree(root.parent)
+
+
+def test_the_read_denial_does_NOT_apply_inside_the_root():
+    """Our own `package.json` stays readable. The deny lists exist because a sibling is somebody
+    else's tree - applying them at home would be a restriction nobody asked for."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    assert "ours" in ws.read_file("package.json")
+    shutil.rmtree(root.parent)
+
+
+def test_a_collapsed_escape_cannot_arrive_at_the_sibling_obliquely():
+    """`..` is collapsed BEFORE the glob is matched, so a path that only lands in the sibling after
+    three `..`s is judged on where it ends up, not on how it got there."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    sneaky = "../repos/sandbox/src/../../../repos/sandbox/src/inventory.js"
+    assert "exports.stock = 1" in ws.read_file(sneaky), "collapse should still land inside the grant"
+    outside = "../repos/sandbox/../../secrets.txt"
+    assert "escapes repo root" in _refusal(ws.read_file, outside), _refusal(ws.read_file, outside)
+    shutil.rmtree(root.parent)
+
+
+def test_glob_reaches_a_sibling_only_when_the_pattern_names_it():
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    named = ws.glob("../repos/sandbox/src/*.js")
+    assert named.strip() == "../repos/sandbox/src/inventory.js", named
+    # A bare pattern still means THE ROOT. Widening it silently would make the result set a thing
+    # the caller did not ask for.
+    bare = ws.glob("**/*.ts")
+    assert "a.ts" in bare and "inventory" not in bare, bare
+    shutil.rmtree(root.parent)
+
+
+def test_glob_does_not_match_a_denied_path():
+    """Matched-and-refused would cost a round; the denied path is not offered at all."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    assert "(no matches)" in ws.glob("../repos/sandbox/.env*")
+    shutil.rmtree(root.parent)
+
+
+def test_the_tool_description_names_the_reachable_roots():
+    """The grant is unusable if the model cannot find it - measured 2026-09-20, when the agent
+    tried all three read tools, was refused, and wrote nothing."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    described = {s["function"]["name"]: s["function"]["description"] for s in ws.tool_schemas()}
+    for tool in ("list_tree", "read_file", "glob"):
+        assert "../repos/sandbox/" in described[tool], (tool, described[tool])
+    # and no note when the role reaches nowhere, so the description does not nag
+    plain = Workspace(root, {"write": True})
+    assert "Reachable siblings" not in plain.tool_schemas()[0]["function"]["description"]
+    shutil.rmtree(root.parent)
+
+
+def test_reading_through_a_glob_needs_no_write_permission():
+    """The two halves are separate grants for a reason: a read-only role may be sent to a sibling to
+    report on it, and `write: False` must not take the read away."""
+    root = _root_and_sibling()
+    ws = Workspace(root, {"write": False, "write_glob": ["../repos/sandbox/**"]})
+    assert "inventory" in ws.read_file("../repos/sandbox/src/inventory.js")
+    assert ws.write_file("../repos/sandbox/src/new.js", "x").startswith("ERROR: refusing")
+    shutil.rmtree(root.parent)
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:
