@@ -146,12 +146,24 @@ def test_read_file_rejects_a_directory():
 
 
 def test_read_file_truncates_above_max_read_chars():
+    """The cap bites, and it says so - by LINE for one enormous line, by FILE for a long file.
+
+    Changed 2026-09-20 with the line numbers: `_clip_line` now runs before the file cap, so a
+    single 40k-char line is elided AS A LINE and names its own real length - the more useful
+    marker of the two. A file that is long because it has many lines still gets `[truncated]`.
+    Neither is silent, which is the property this test exists to hold.
+    """
     r = _tmp_repo()
     big = "x" * (MAX_READ_CHARS + 500)
     (r / "big.txt").write_text(big, encoding="utf-8")
     out = Workspace(r).read_file("big.txt")
-    assert "[truncated]" in out
+    assert "elided" in out or "[truncated]" in out
     assert len(out) < len(big)             # the cap actually bites
+
+    (r / "many.txt").write_text("\n".join(f"L{i}" for i in range(20000)), encoding="utf-8")
+    many = Workspace(r).read_file("many.txt")
+    assert many.startswith("--- many.txt ---\n")
+    assert "[truncated]" in many           # the file cap, not the line cap
     shutil.rmtree(r)
 
 
@@ -304,12 +316,34 @@ def test_read_file_bad_range_type_is_an_error_not_a_crash():
 
 
 def test_read_file_range_keeps_a_small_slice_byte_identical():
-    """The bound must not touch the ordinary case — no marker, no note, same bytes."""
+    """The bound must not touch the ordinary case - no marker, no note, and only the prefix added.
+
+    Changed 2026-09-20: every returned line now carries its 1-based number, padded to the FILE's
+    width, so ` 3| ` here rather than `3| `. Nothing else moved - a small slice is still returned
+    whole, with no elision marker and no `[capped]` note.
+    """
     r = _tmp_repo()
     (r / "n.txt").write_text("\n".join(f"L{i}" for i in range(1, 11)) + "\n",
                              encoding="utf-8")
     out = Workspace(r).read_file("n.txt", start=3, end=5)
-    assert out == "--- n.txt [lines 3-5 of 10] ---\nL3\nL4\nL5"
+    assert out == "--- n.txt [lines 3-5 of 10] ---\n 3| L3\n 4| L4\n 5| L5"
+    shutil.rmtree(r)
+
+
+def test_read_file_numbers_every_line_so_a_reader_can_cite_one():
+    """The whole-file path is numbered too, and the width comes from the FILE, not the read.
+
+    This is the contract `investigator` needs on the `http` runner: its evidence is `path:line`,
+    and this tool is the only way it can read a file there. Padded to the file's width so line 2
+    and line 200 read consistently across two reads of one file.
+    """
+    r = _tmp_repo()
+    (r / "n.txt").write_text("\n".join(f"L{i}" for i in range(1, 101)), encoding="utf-8")
+    out = Workspace(r).read_file("n.txt")
+    body = out.split("\n", 1)[1].splitlines()
+    assert body[0] == "  1| L1"            # width 3, from the 100 lines in the file
+    assert body[1] == "  2| L2"
+    assert body[99] == "100| L100"
     shutil.rmtree(r)
 
 

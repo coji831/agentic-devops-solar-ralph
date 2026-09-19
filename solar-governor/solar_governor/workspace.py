@@ -33,6 +33,25 @@ def _clip_line(text: str, lineno: int) -> str:
     return (f"{text[:MAX_LINE_CHARS]}…[line {lineno} elided: {len(text)} chars, "
             f"first {MAX_LINE_CHARS} shown]")
 
+
+def _numbered(lines: list[str], lo: int, hi: int, total: int) -> str:
+    """The selected lines, each prefixed with its 1-based number and a pipe.
+
+    **Added 2026-09-20, because its absence made a role's contract unkeepable.** This tool is
+    the `http` runner's ONLY way to read a file, and it returned bare text: a model could quote
+    a line but not cite one, so `investigator`'s `path:line` contract had no implementable form
+    on that runner - and the whole point of moving links to `http` is that they carry the
+    numbers. `read_file` already received every line's number for its elision marker; this
+    passes the same number through to the reader.
+
+    The number is padded to the FILE's width rather than the selection's, so a citation reads
+    the same across two reads of one file.
+    """
+    if not lines or hi < lo:
+        return ""
+    pad = len(str(total))
+    return "\n".join(f"{n:>{pad}}| {_clip_line(lines[n - 1], n)}" for n in range(lo, hi + 1))
+
 # Write deny-list (v5.4.0). Agent configuration and execution-defining files:
 # rewriting one of these lets an injected prompt change the agent's own
 # instructions, its tool policy, or the repo's CI behaviour — with no shell
@@ -220,6 +239,9 @@ class Workspace:
         real length, and a selection larger than MAX_READ_CHARS is elided in the
         middle with a marker saying to narrow the range. Neither is silent — a
         hidden elision is how a model comes to believe it read something it did not.
+
+        Every returned line carries its 1-based number (`  12| text`), so the reader
+        can CITE a line rather than count to it — see `_numbered`. Added 2026-09-20.
         """
         p = self._resolve(rel)
         if not p.is_file():
@@ -230,9 +252,11 @@ class Workspace:
             return f"ERROR reading {rel}: {e}"
 
         if start is None and end is None:
-            if len(text) > MAX_READ_CHARS:
-                text = text[:MAX_READ_CHARS] + "\n…[truncated]"
-            return f"--- {rel} ---\n{text}"
+            all_lines = text.splitlines()
+            body = _numbered(all_lines, 1, len(all_lines), len(all_lines))
+            if len(body) > MAX_READ_CHARS:
+                body = body[:MAX_READ_CHARS] + "\n…[truncated]"
+            return f"--- {rel} ---\n{body}"
 
         try:
             lines = text.splitlines()
@@ -247,7 +271,7 @@ class Workspace:
         if lo > hi:
             return (f"ERROR: empty range {start}-{end} for {rel} "
                     f"(file has {total} lines; ranges are 1-based inclusive)")
-        body = "\n".join(_clip_line(lines[n - 1], n) for n in range(lo, hi + 1))
+        body = _numbered(lines, lo, hi, total)
         note = ""
         if len(body) > MAX_READ_CHARS:
             # Head AND tail, for the reason the command layer clips that way: a file's shape
