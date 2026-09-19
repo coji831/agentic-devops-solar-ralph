@@ -45,6 +45,34 @@ _WRITE_DENY_NAMES = {".mcp.json", "package.json", "package-lock.json",
                      "docker-compose.yml", "makefile"}
 
 
+def _collapse(segments: list[str]) -> list[str]:
+    """Collapse `.` and `..` the way `Path.resolve()` does, so policy sees the real path.
+
+    **Read, reproduced 2026-09-20.** The write policy matched its RAW segments, dropping only
+    `""` and `"."`, so `repos/../records/x.md` kept the prefix `repos/`, satisfied a
+    `write_scope` of `["repos"]`, and then `resolve_in_root` collapsed the `..` and wrote
+    `records/x.md`. **A scope is an ALLOW list, so matching it wrongly is a bypass rather than a
+    false alarm** - while `write_deny` on the same string happened to fail closed, by luck of
+    direction. Two layers that decide the same write must see the same path; this is how.
+
+    A `..` that would climb past the start is KEPT rather than dropped: escaping the root is not
+    this function's call to make, and leaving it in makes the prefix match fail, which is the
+    safe direction.
+    """
+    out: list[str] = []
+    for part in segments:
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if out and out[-1] != "..":
+                out.pop()
+            else:
+                out.append(part)
+            continue
+        out.append(part)
+    return out
+
+
 def _norm_prefixes(value) -> list[str]:
     """Normalise a registry prefix list to repo-relative, forward-slashed form."""
     if isinstance(value, str):
@@ -103,14 +131,18 @@ class Workspace:
         and, when `write_scope` is set, confinement to an allowed subtree.
         Neither is a suggestion.
         """
-        parts = [p for p in rel.replace("\\", "/").split("/") if p not in ("", ".")]
-        for part in parts[:-1]:
+        # The UNCONDITIONAL layer stays matched on the RAW segments, deliberately: it protects
+        # specific files and directories, a false alarm there costs a retry, and a miss costs the
+        # agent's own config. Only the ROLE layer takes the collapsed path - a scope decides what
+        # is ALLOWED, so matching it against the wrong path is the bypass closed on 2026-09-20.
+        raw = [p for p in rel.replace("\\", "/").split("/") if p not in ("", ".")]
+        for part in raw[:-1]:
             if part.lower() in _WRITE_DENY_DIRS:
                 return f"{part}/ is protected (agent config / repo metadata)"
-        name = parts[-1] if parts else ""
+        name = raw[-1] if raw else ""
         if name.lower() in _WRITE_DENY_NAMES:
             return f"{name} is protected (defines tooling, deps or CI)"
-        return self._role_write_denial("/".join(parts))
+        return self._role_write_denial("/".join(_collapse(raw)))
 
     def _role_write_denial(self, norm: str) -> str | None:
         """The per-role half of the write policy: denied prefixes, then scope."""

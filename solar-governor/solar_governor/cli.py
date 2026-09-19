@@ -516,7 +516,7 @@ def _print_doctor(checks: dict[str, tuple]) -> None:
     for name, (status, detail) in checks.items():
         mark = marks.get(status, "?")
         lines = str(detail or "").split("\n")
-        print(f"{mark} {name}: {status}{(' - ' + lines[0]) if lines[0] else ''}")
+        print(f"{mark} {name}: {status}{(' - ' + lines[0]) if lines else ''}")
         for extra in lines[1:]:
             print(f"    {extra}")
 
