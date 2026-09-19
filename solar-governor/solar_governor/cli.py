@@ -199,7 +199,17 @@ def _state_summary(state: dict) -> dict:
 
 
 def _json_out(obj: dict, code: int) -> None:
-    print(json.dumps(obj, indent=2, ensure_ascii=False))
+    """The machine interface, and it must survive an encoding it cannot see.
+
+    `ensure_ascii=True` is deliberate, and the opposite of what this line did until
+    2026-09-20. **Read, reproduced:** a redirected stdout gets the LOCALE encoding - cp1252
+    on this machine - and this module prints status marks (U+2705, U+274C, U+26A0) whose code
+    points are not in it, so `init | Out-File` died with `UnicodeEncodeError` and exit 1.
+    Escaping non-ASCII keeps the JSON valid, keeps `json.loads` decoding to the same
+    characters, and makes the payload independent of whatever console the caller has.
+    **A machine interface must never depend on the terminal it is printed to.**
+    """
+    print(json.dumps(obj, indent=2, ensure_ascii=True))
     sys.exit(code)
 
 
@@ -511,7 +521,31 @@ def _print_doctor(checks: dict[str, tuple]) -> None:
             print(f"    {extra}")
 
 
+def _arm_stdio() -> None:
+    """Make output survive a console or a locale that cannot encode it.
+
+    **Read, reproduced 2026-09-20.** When stdout is a pipe or a file, Python uses the
+    LOCALE encoding, not the console's - cp1252 on this machine. The status marks this module
+    prints (U+2705, U+274C, U+26A0) are not in cp1252, so `solar-governor init | Out-File`
+    exited 1 with `UnicodeEncodeError: 'charmap' codec can't encode character U+2705`.
+    **Every non-interactive caller hits that**, which is exactly how agents and scripts drive
+    this CLI - the engagement's wrapper only survived it by exporting PYTHONIOENCODING=utf-8,
+    a workaround on the caller's side for a defect on ours.
+
+    `errors="replace"` and not "strip the marks": a decorative character must never abort a
+    command, and on a console that can render them they still render. **The machine interface
+    is handled separately** - `_json_out` escapes non-ASCII, so a substituted character can
+    never reach the payload.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass  # a replaced or detached stream is the caller's business, not ours
+
+
 def main():
+    _arm_stdio()
     ap = argparse.ArgumentParser(prog="solar-governor", description="SOLAR-Ralph v5 runtime")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
