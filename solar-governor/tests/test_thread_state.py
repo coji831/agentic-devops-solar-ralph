@@ -1,7 +1,7 @@
 """TD-5.6-6: a fresh start on a re-used thread must not inherit the last run.
 
-`work_queue`, `decisions_log`, `tokens_in`, `tokens_out` and `tool_calls` are all
-`operator.add` channels, so invoking over an existing checkpoint APPENDS to the
+`work_queue`, `decisions_log`, `tokens_in`, `tokens_out`, `tool_calls` and `node_ms`
+are all `operator.add` channels, so invoking over an existing checkpoint APPENDS to the
 previous run's values. The default thread is a fixed `t1`, which made the polluted
 state the NORMAL path rather than an edge case.
 
@@ -10,12 +10,19 @@ The counter-constraint is what these tests exist for: `run --json` followed by
 no pending interrupt, and `test_a_resume_continues_instead_of_starting_clean` is the
 guard that keeps it scoped.
 
+**v5.7.4 adds `node_ms`,** and it is a reducer that has to survive a RESUME for the
+opposite reason `tokens_in` has to be cleared on a fresh start: a run driven step by step
+with `--result` is several CLI invocations, so the run's clock only exists if the
+checkpoint carries it. Both directions are asserted below.
+
 Offline deterministically: no key, therefore the stub runner, therefore no network.
 """
+import json
 import os
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 os.environ.pop("SOLAR_API_KEY", None)
@@ -25,6 +32,7 @@ os.environ.pop("SOLAR_RUNNER", None)     # an ambient runner would change what r
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from solar_governor import graph, runcard                # noqa: E402
 from solar_governor.core import Config                 # noqa: E402
 from solar_governor.graph import pending_interrupt, run_step, run_task  # noqa: E402
 
@@ -107,5 +115,102 @@ def test_a_resume_continues_instead_of_starting_clean():
         assert len(resumed["decisions_log"]) >= len(paused["decisions_log"])
         assert len(resumed["work_queue"]) == 1
         assert not any("cleared the previous run" in d for d in resumed["decisions_log"])
+    finally:
+        shutil.rmtree(repo)
+
+
+# --------------------------------------------------------------------------- v5.7.4
+#
+# The run's own clock. `_timed` is the only reader of `time` in `graph.py`, so replacing
+# the module on `graph` isolates the clock completely - and an exact millisecond is only
+# assertable against a clock a test can drive.
+
+class _AdvancingClock:
+    """Advances a fixed amount per read, so an assertion can name the millisecond."""
+
+    def __init__(self, step: float) -> None:
+        self.step = step
+        self.now = 0.0
+
+    def perf_counter(self) -> float:
+        self.now += self.step
+        return self.now
+
+
+def test_the_run_clock_contributes_only_its_own_slice(monkeypatch):
+    """The unit of the change, and the trap beside it. `_timed` reports THIS node's clock
+    and nothing else: `node_ms` is an `operator.add` channel, so adding the incoming
+    value here as well would total the run twice. One place sums, and it is the reducer â€”
+    which is why the graph-level test below is the one that can prove accumulation."""
+    monkeypatch.setattr(graph, "time", _AdvancingClock(step=0.250))
+    assert graph._timed("a", lambda state: {})({})["node_ms"] == 250
+
+    carried = graph._timed("b", lambda state: {"verdict": "APPROVED"})({"node_ms": 9999})
+    assert carried["node_ms"] == 250, "the incoming total is the reducer's business, not ours"
+    assert carried["verdict"] == "APPROVED", "a node's own return is passed through untouched"
+
+
+def test_the_run_clock_totals_a_resumed_run(monkeypatch):
+    """v5.7.4's whole point. Two CLI invocations on one thread: the first reaches the
+    review interrupt (material_gate, dispatch, specialist -> three slices), the second
+    resumes it (review, complete -> two more). The card's `duration_ms` sees only the last
+    invocation; this sees 5 slices.
+
+    That the interrupting `review` adds NOTHING is asserted by the first number: its work
+    is thrown away and re-done on resume, so counting it would charge twice for one node.
+    """
+    monkeypatch.setattr(graph, "time", _AdvancingClock(step=0.250))
+    repo = _tmp_repo()
+    try:
+        cfg = _cfg(repo, approval=True)
+        paused = run_step(cfg, "refactor the API layer", thread="t2")
+        assert "__interrupt__" in paused
+        assert paused["node_ms"] == 750, "three timed nodes; the interrupted one adds none"
+
+        resumed = run_step(cfg, "refactor the API layer", thread="t2", resume="approve")
+        assert "__interrupt__" not in resumed
+        assert resumed["node_ms"] == 1250, "the resume added its own two nodes' clocks"
+    finally:
+        shutil.rmtree(repo)
+
+
+def test_the_run_clock_does_not_leak_into_a_fresh_start(monkeypatch):
+    """It is a reducer, so it inherits across a re-used thread exactly as `tokens_in`
+    does. TD-5.6-6's reset is what stops it, and this proves the reset covers the new
+    channel rather than only the ones that existed when it was written."""
+    monkeypatch.setattr(graph, "time", _AdvancingClock(step=0.250))
+    repo = _tmp_repo()
+    try:
+        cfg = _cfg(repo)
+        first = run_task(cfg, "refactor the API layer", thread="t1")
+        second = run_task(cfg, "add a login feature with tests", thread="t1")
+        assert first["node_ms"] == 1250, "five nodes on a fresh thread"
+        assert second["node_ms"] == 1250, "...and the second run starts from zero too"
+    finally:
+        shutil.rmtree(repo)
+
+
+def test_the_card_carries_the_run_clock_and_nulls_it_when_nothing_was_timed():
+    """`runcard.write` is called from five places, including error paths that pass a state
+    no node ever touched. `null` is the difference between "never timed" and "took 0 ms",
+    which is the same asymmetry `tokens.reported` closes for `0/0` (TD-5.6-12).
+
+    `duration_ms` stays: it is a real reading of a different thing, and every card already
+    on disk means it.
+    """
+    repo = _tmp_repo()
+    try:
+        cfg = _cfg(repo)
+        timed = runcard.write(cfg, {"thread": "t-card", "objective": "x",
+                                    "node_ms": 1234}, "t-card", time.time())
+        card = json.loads(timed.read_text(encoding="utf-8"))
+        assert card["node_ms"] == 1234
+        assert card["duration_ms"] >= 0, "the invocation clock is still there"
+
+        untimed = runcard.write(cfg, {"thread": "t-card2", "objective": "x"},
+                                "t-card2", time.time())
+        dropped = json.loads(untimed.read_text(encoding="utf-8"))
+        assert dropped["node_ms"] is None
+        assert dropped["duration_ms"] >= 0
     finally:
         shutil.rmtree(repo)

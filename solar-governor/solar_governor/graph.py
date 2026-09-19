@@ -4,6 +4,8 @@ Light profile (default): MATERIAL_GATE -> DISPATCH -> SPECIALIST -> REVIEW
 (conditional) -> COMPLETE, with a bounded rework loop (<=3 attempts). Full
 profile adds design-gate interrupt + compactor + adversarial (later).
 """
+import time
+
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
@@ -232,11 +234,58 @@ def build_nodes(cfg: Config):
     return locals()
 
 
+def _timed(name: str, node):
+    """Time one node into `node_ms`, the run's own clock (v5.7.4).
+
+    **Why the card needed a second clock.** `runcard`'s `duration_ms` is
+    `time.time() - started_at`; `started_at` is set once per CLI INVOCATION (`cli.py:105`);
+    and the card is rewritten at every `--json` step. So a run driven step-by-step with
+    `--result` — which is how `scripts/solar-run.py` drives a link, and how the Promyro
+    engagement drives every one — records the LAST step's clock and calls it the run's.
+
+    **Read, and the card said so itself.** `.solar/runs/Q-2026-09-20-01-implementer.json`
+    recorded 3 988 completion tokens, 21 tool calls and 3 attempts against
+    `duration_ms: 48`. No hosted model emits 3 988 tokens in 48 ms.
+
+    Every other metric on the card totals correctly across a resume because it is an
+    `operator.add` channel and the checkpoint carries it: `tokens_in`, `tokens_out`,
+    `tool_calls`, `decisions_log`. This makes the clock one of them, one node at a time.
+
+    **What it totals is NODE time, which is not `duration_ms` and not the wall clock.** The
+    per-invocation process overhead (opening the checkpoint, compiling the graph) is outside
+    every node, and so is any pause between invocations. Measured on a stub run: `node_ms`
+    **2 ms** against `duration_ms` **26 ms** for the same run. The name says which of the two
+    it is, because the value people reach for when they read "duration" is the other one.
+
+    A node that calls `interrupt()` does not return through here, so its partial work adds
+    nothing — which is right rather than merely convenient: LangGraph re-runs that node from
+    the top on resume, so billing the interrupted pass as well would charge twice for one
+    node's work.
+
+    Millisecond resolution, rounded per node: a node faster than half a millisecond adds
+    nothing. That is the honest reading at this unit — the clock is for catching a run that
+    took minutes, not for sub-millisecond accounting.
+    """
+    def wrapper(state: SolarState) -> dict:
+        began = time.perf_counter()
+        out = node(state)
+        slice_ms = int(round((time.perf_counter() - began) * 1000))
+        merged = dict(out or {})
+        merged["node_ms"] = (merged.get("node_ms") or 0) + slice_ms
+        return merged
+
+    wrapper.__name__ = name
+    return wrapper
+
+
 def build_graph(cfg: Config):
     n = build_nodes(cfg)
     b = StateGraph(SolarState)
     for name in ("material_gate", "dispatch", "specialist", "review", "complete"):
-        b.add_node(name, n[name])
+        # Every node is timed (v5.7.4), not only `specialist`. The number the card could not
+        # total is the RUN's clock, and a node set timed unevenly gives a number that drifts
+        # whenever the graph changes shape.
+        b.add_node(name, _timed(name, n[name]))
     b.add_edge(START, "material_gate")
     b.add_edge("material_gate", "dispatch")
     b.add_edge("dispatch", "specialist")

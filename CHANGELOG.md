@@ -18,6 +18,73 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.7.4 — Released (2026-09-20) — the card had two clocks, and only one of them was right
+
+**Theme:** every metric on the run-card totals correctly across a resume — `tokens_in`, `tokens_out`,
+`tool_calls`, `decisions_log` — because each is an `operator.add` channel and the checkpoint carries
+it. `duration_ms` was not one of them. It is `time.time() - started_at`, `started_at` is set once per
+CLI **invocation** (`cli.py:105`), and the card is rewritten at every `--json` step. So a run driven
+step by step with `--result` — which is how `scripts/solar-run.py` drives a link, and how the Promyro
+engagement drives every one — recorded the **last step's** clock and called it the run's.
+
+### Fixed — the clock that measured the last step
+
+**Read**, and the card said so itself. `.solar/runs/Q-2026-09-20-01-implementer.json` recorded
+3 988 completion tokens, 21 tool calls and 3 attempts against `duration_ms: 48`. No hosted model emits
+3 988 tokens in 48 ms, so the field could not be describing that run — and **nothing noticed, because
+no test in this repo named `duration_ms` at all.**
+
+- **`node_ms` is new, and it totals.** `graph._timed` wraps every node and adds that node's clock to
+  an `operator.add` channel, so the checkpoint accumulates it exactly as it accumulates tokens. Every
+  node is timed, not only `specialist`: a node set timed unevenly gives a number that drifts whenever
+  the graph changes shape.
+- **A node that interrupts adds nothing,** which is right rather than convenient: LangGraph re-runs
+  that node from the top on resume, so counting the interrupted pass as well would bill one node's
+  work twice.
+- **`node_ms` is NODE time, and the name says so.** Process overhead around the graph (opening the
+  checkpoint, compiling the graph) and any pause between invocations are outside it. Measured on a
+  stub run: `node_ms` **2 ms** against `duration_ms` **26 ms** for the same run. Two fields that both
+  read as "duration" would invite comparing them, so the new one is named for what it counts —
+  v5.7.3's own rule (`passed` → `approved`), applied here.
+- **`duration_ms` is unchanged on purpose.** It is still the wall clock around the invocation that
+  wrote the card, which is a real reading of a different thing. Redefining it would silently rewrite
+  the meaning of every card already on disk, so this release is additive: a patch, not a migration.
+- **`node_ms` is `null` when nothing was timed** — a state built by hand, or a driver's error row —
+  because `0` and "never timed" would be the same digits. That is the asymmetry `tokens.reported`
+  closed for `0/0`, and it applies to a clock too.
+
+That last one carried a second guard: `node_ms` is a reducer, so it inherits across a re-used thread
+exactly as `tokens_in` does, and TD-5.6-6's fresh-start reset has to cover it. It was the one channel
+not in that test's list.
+
+### Measured
+
+A driven clock holds the millisecond exact, which is the only way this rule is assertable at all
+(`graph.py` reads `time` nowhere else, so the module can be replaced on the graph alone):
+
+| one thread, two CLI invocations                                        | `node_ms` |
+| :--------------------------------------------------------------------- | --------: |
+| first — `material_gate`, `dispatch`, `specialist`, then `review` **interrupts** | 750 |
+| resume — `review`, `complete`                                          | 1250 |
+
+The first number is the load-bearing one: three nodes were timed and the interrupting fourth added
+nothing. The other direction, where the two clocks must **disagree**, is a real stub run:
+
+| clock         | stub run |
+| :------------ | -------: |
+| `node_ms`     | 2 ms     |
+| `duration_ms` | 26 ms    |
+
+Tests **257 → 261** (`tests/test_thread_state.py`): the per-node slice, the accumulation across a
+resume, the fresh-start reset, and what the card carries.
+
+### Found by, and for, the same instrument
+
+The defect was found while building the Promyro engagement's tuning view (`scripts/render-runs.py`,
+N3 in `context/records-review.md`), whose whole job is to render `n/a` rather than a number that means
+"not measured". A view built to refuse `0` on an unmetered field is what noticed a clock that could
+not cover its own run.
+
 ## v5.7.3 — Released (2026-09-19) — bench leaves evidence, and the count is named for what it counts
 
 **Theme:** `bench` is the instrument the local-vs-cloud comparison is meant to run on, and it kept

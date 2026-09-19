@@ -49,6 +49,20 @@ class SolarState(TypedDict):
     tokens_in: Annotated[int, operator.add]    # prompt tokens (accumulates)
     tokens_out: Annotated[int, operator.add]   # completion tokens (accumulates)
     tool_calls: Annotated[int, operator.add]   # workspace tool calls
+    # The run's NODE clock, in ms: every node's execution, summed (v5.7.4).
+    #
+    # It is a reducer for exactly the reason the three above are, and the reason the card's
+    # `duration_ms` was wrong: `run_step` executes one step and the driver resumes with
+    # `--result`, so a run's time is spread across several CLI INVOCATIONS, and nothing that
+    # lives only inside one process can total it. The checkpoint carries it, so a resume adds
+    # to it instead of replacing it. See `graph._timed`.
+    #
+    # **It is not `duration_ms`, and the two are not comparable.** `node_ms` counts work
+    # inside the graph; `duration_ms` is a wall clock around one CLI invocation, which is
+    # mostly process overhead when the run was resumed and mostly the model call when one
+    # invocation did everything. Measured on a stub run: `node_ms` 2 ms, `duration_ms` 26 ms.
+    # Named for what it counts - v5.7.3's own rule (`passed` -> `approved`), applied here.
+    node_ms: Annotated[int, operator.add]
     error: str                                 # executor error, if any
     forced_final: bool                         # answer came from the tool-less last round
     provider: str                              # endpoint the run went to (host:port, or "stub")

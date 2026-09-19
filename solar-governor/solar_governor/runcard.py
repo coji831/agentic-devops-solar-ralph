@@ -62,6 +62,22 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         # the decisions log lives in the ledger section too, but the structured record
         # has to stand on its own: the ledger is a growing human view, this is the card
         "decisions": list(state.get("decisions_log") or []),
+        # TWO CLOCKS (v5.7.4), because they measure different things and only one of them
+        # was ever right about the run.
+        #
+        # `node_ms` is the run's own clock: every node's execution, summed, accumulated
+        # through the checkpoint so a run driven step-by-step with `--result` totals all of
+        # its steps rather than only the last one. It is NODE time - per-invocation process
+        # overhead and any human pause between invocations are outside it, so it is not
+        # `duration_ms` and the two are not comparable. `null` when no node was timed - a
+        # state built by hand, or a driver's error row - because `0` and "never timed" would
+        # be the same digits, the asymmetry `tokens.reported` closes for `0/0` (TD-5.6-12).
+        "node_ms": state.get("node_ms"),
+        # `duration_ms` is UNCHANGED and means what it always meant to this writer: the wall
+        # clock around the invocation that wrote this card. It is kept, not replaced,
+        # because it is a real reading of a different thing (the driver's own wait) — and
+        # because redefining it would silently rewrite the meaning of every card already on
+        # disk. Additive, so this is a patch and not a migration.
         "duration_ms": int((time.time() - started_at) * 1000),
     }
     path = run_dir / f"{thread}.json"
