@@ -101,6 +101,60 @@ def _norm_prefixes(value) -> list[str]:
     return [str(v).replace("\\", "/").strip("/") for v in value if str(v).strip("/")]
 
 
+_WILDCARDS = ("*", "?", "[")
+
+
+def _norm_rel(rel: str) -> str:
+    """The path the POLICY decides on: repo-relative, forward-slashed, and COLLAPSED.
+
+    One function, so that two layers judging the same write cannot be shown two different
+    paths - which is precisely what produced the `..` bypass. A leading `..` survives here:
+    escaping the root is the caller's call to make, and this one only normalises.
+    """
+    raw = [p for p in str(rel).replace("\\", "/").split("/") if p not in ("", ".")]
+    return "/".join(_collapse(raw))
+
+
+def _glob_parts(value) -> tuple[list[str], list[str]]:
+    """Split a registry `write_glob` into (anchored patterns, refused patterns).
+
+    A pattern is REFUSED rather than repaired when its first segment after the leading `..`
+    run is a wildcard. `../*/**` reads like a pattern and behaves like a blanket, because
+    `fnmatch`'s `*` crosses `/` (unlike `glob`'s) - and the unconditional deny list has no
+    rule for `../Windows/System32`. One rule instead, and it is checkable by eye: **a
+    pattern must name a literal directory before any wildcard.**
+
+    A refused pattern is returned rather than dropped, so the refusal can name it; dropping
+    it silently would turn a typo into a mystery.
+    """
+    if isinstance(value, str):
+        value = [value]
+    if not value:
+        return [], []
+    good: list[str] = []
+    bad: list[str] = []
+    for v in value:
+        pat = _norm_rel(v)
+        parts = [p for p in pat.split("/") if p]
+        first_wild = next((i for i, p in enumerate(parts)
+                           if any(c in p for c in _WILDCARDS)), None)
+        if first_wild is not None and all(p == ".." for p in parts[:first_wild]):
+            bad.append(pat)
+            continue
+        good.append(pat)
+    return good, bad
+
+
+def _glob_covers(norm: str, patterns: list[str]) -> bool:
+    """Whether an anchored pattern covers the collapsed, repo-relative path.
+
+    Case-SENSITIVE on every platform (`fnmatchcase`, not `fnmatch`): a policy that answers
+    differently on Windows than on Linux is not a policy, and a path differing only in case
+    then fails closed, which is the direction a grant should fail.
+    """
+    return any(fnmatch.fnmatchcase(norm, p) for p in patterns)
+
+
 def resolve_in_root(root: Path, rel: str) -> Path:
     """Resolve a repo-relative path and enforce confinement to the repo root.
 
@@ -129,6 +183,10 @@ class Workspace:
                                            neither offered nor permitted
         write_deny   ["emails"]            extra path prefixes this role may not write
         write_scope  ["repos/pvl-rentals"] if set, writes MUST fall under one of these
+        write_glob   ["../repos/x/**"]     anchored globs over the COLLAPSED repo-relative
+                                           path: the only way a write may reach a SIBLING
+                                           of the root. Checked last, after every deny,
+                                           and it can only add permission.
     """
 
     def __init__(self, root: Path, spec: dict | None = None):
@@ -139,6 +197,30 @@ class Workspace:
     def _resolve(self, rel: str) -> Path:
         """Resolve a repo-relative path and enforce confinement to root."""
         return resolve_in_root(self.root, rel)
+
+    def _resolve_for_write(self, rel: str) -> tuple[Path, bool]:
+        """Resolve `rel` for the WRITE layer, and say whether it stayed inside the root.
+
+        The write layer cannot start at `resolve_in_root`, and that is not a weakening of
+        it: a `write_glob` can only be matched against a path that has ALREADY been
+        resolved, and the write a glob exists to permit is exactly the one that escapes.
+
+        **So the refusal moves rather than disappears.** `write_file` still refuses every
+        path that is outside the root and outside the globs, so the escape remains the
+        DEFAULT answer and a glob is an explicit second chance - the shape matters more
+        than the check, because a guard that raises cannot accidentally allow.
+
+        The command layer keeps the original resolver untouched: a `cwd` is not a write,
+        and the vocabulary's argv already reaches a clone legitimately.
+        """
+        root = self.root
+        p = (root / str(rel)).resolve()
+        return p, (p == root or root in p.parents)
+
+    def _glob_allows(self, rel: str) -> bool:
+        """Whether this role's anchored `write_glob` covers `rel` - its sibling reach."""
+        globs, _ = _glob_parts(self.spec.get("write_glob"))
+        return _glob_covers(_norm_rel(rel), globs)
 
     def _write_denial(self, rel: str) -> str | None:
         """Why `rel` may not be written, or None when it may.
@@ -164,14 +246,24 @@ class Workspace:
         return self._role_write_denial("/".join(_collapse(raw)))
 
     def _role_write_denial(self, norm: str) -> str | None:
-        """The per-role half of the write policy: denied prefixes, then scope."""
+        """The per-role half of the write policy: denied prefixes, then scope, then globs.
+
+        `write_scope` is a prefix list over paths INSIDE the root; `write_glob` is the
+        explicit exception that reaches a sibling. The glob is consulted LAST and only when
+        the scope would refuse, so it can add permission and can never remove any.
+        """
         for prefix in _norm_prefixes(self.spec.get("write_deny")):
             if norm == prefix or norm.startswith(prefix + "/"):
                 return f"{prefix}/ is denied for this role"
         scope = _norm_prefixes(self.spec.get("write_scope"))
+        globs, refused = _glob_parts(self.spec.get("write_glob"))
         if scope and not any(norm == a or norm.startswith(a + "/") for a in scope):
+            if _glob_covers(norm, globs):
+                return None
+            hint = (f" (write_glob refused as unanchored: {', '.join(refused)})"
+                    if refused else "")
             return ("outside this role's write scope "
-                    f"({', '.join(a + '/' for a in scope)})")
+                    f"({', '.join(a + '/' for a in scope)}){hint}")
         return None
 
     # --- role capability --------------------------------------------------
@@ -300,22 +392,24 @@ class Workspace:
         return "\n".join(matches[:200]) or "(no matches)"
 
     def write_file(self, rel: str, content: str) -> str:
-        """Create/overwrite a file inside the repo.
+        """Create/overwrite a file inside the repo, or in a glob-named sibling.
 
-        Three refusals, all structural: a role that is not permitted to write at
-        all, a path that escapes the repo root, and a path on the write policy
-        (unconditional deny-list, per-role deny, or outside the role's scope).
+        Four refusals, all structural: a role that is not permitted to write at all, a path
+        that escapes the repo root AND is covered by no `write_glob`, and a path on the
+        write policy (unconditional deny-list, per-role deny, or outside the role's scope).
         """
         if not self.allows_write():
             return (f"ERROR: refusing to write {rel}: this role is read-only "
                     f"(`write` is false in the registry)")
         try:
-            p = self._resolve(rel)
-        except ValueError as e:
-            return f"ERROR: {e}"
+            p, inside = self._resolve_for_write(rel)
+        except (OSError, ValueError) as e:
+            return f"ERROR: refusing to write {rel}: {e}"
         denial = self._write_denial(rel)
         if denial:
             return f"ERROR: refusing to write {rel}: {denial}"
+        if not inside and not self._glob_allows(rel):
+            return f"ERROR: refusing to write {rel}: path escapes repo root: {rel!r}"
         if p.is_dir():
             return f"ERROR: {rel} is a directory"
         p.parent.mkdir(parents=True, exist_ok=True)
