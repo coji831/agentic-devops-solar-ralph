@@ -436,6 +436,53 @@ def target_for(cfg, role_spec: dict | None = None) -> dict:
 # so absence from that list is not proof of a bad id.
 UNLISTED_ALIASES = ("deepseek-chat",)
 
+# ------------------------------------------------------------------ the chat client's budget (v5.7.5)
+#
+# **STATED, because until 2026-09-20 it was INHERITED and nobody had done the arithmetic.** The
+# client a chat call used was constructed with no timeout at all, so a link that hung was bounded by
+# the SDK's defaults alone - a 600 s read with two retries, which is THREE of them - and the honest
+# answer to "what does a hung link cost" was about thirty minutes with nothing of ours in the loop.
+# Measured by T1.1 in the Promyro engagement and left unowned for four days.
+#
+# The two levers MULTIPLY, so the worst case is one line:
+#
+#     read x (1 + retries) = 180 x 3 = 540 s = 9 minutes, against 1,800 s before.
+#
+# `connect` is deliberately much shorter than `read`. An unreachable or black-holed host is the case
+# that LOOKS like a hang while nothing is being served, and ten seconds is enough for a host that is
+# going to answer at all. `read` stays generous because it bounds a model THINKING, not a transfer:
+# the slowest whole run measured on this harness is 21.5 s (T2.3, in the Promyro engagement), so 180
+# is an order of magnitude of headroom before a real run is failed rather than hung.
+#
+# **Retrying a TIMEOUT is the part worth knowing.** `APITimeoutError` subclasses
+# `APIConnectionError`, so the SDK retries it by default - and each retry re-sends a request the
+# provider may already have served, which costs money as well as wall time. `CHAT_MAX_RETRIES` is
+# therefore part of the budget rather than a coincidence of the SDK's defaults.
+CHAT_CONNECT_TIMEOUT = 10.0
+CHAT_READ_TIMEOUT = 180.0
+CHAT_WRITE_TIMEOUT = 30.0
+CHAT_POOL_TIMEOUT = 10.0
+CHAT_MAX_RETRIES = 2
+
+
+def chat_client(key: str, endpoint: str, headers: dict | None = None,
+                read_timeout: float = CHAT_READ_TIMEOUT,
+                max_retries: int = CHAT_MAX_RETRIES):
+    """The client a CHAT call uses, with its whole budget stated. See the constants above.
+
+    A function rather than an inline construction for two reasons: the budget becomes something a
+    test can assert on instead of something a reader has to check by noticing an absence, and a test
+    can pass a SHORT `read_timeout` to watch a hung endpoint fail in a second rather than wait three
+    minutes for the real one. `Timeout` is imported from the SDK rather than from `httpx`, which is
+    the same class - `openai.Timeout is httpx.Timeout` - but does not make httpx a dependency of
+    this file.
+    """
+    from openai import OpenAI, Timeout
+    return OpenAI(api_key=key, base_url=endpoint, default_headers=headers,
+                  timeout=Timeout(connect=CHAT_CONNECT_TIMEOUT, read=read_timeout,
+                                  write=CHAT_WRITE_TIMEOUT, pool=CHAT_POOL_TIMEOUT),
+                  max_retries=max_retries)
+
 
 def known_models(timeout: float = 15.0, runner: str = "",
                  target: dict | None = None) -> tuple[list[str] | None, str]:
@@ -795,9 +842,7 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                else "no SOLAR_API_KEY set")
         return stub_result(role, objective, why)
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=key, base_url=target["endpoint"],
-                        default_headers=target["headers"] or None)
+        client = chat_client(key, target["endpoint"], target["headers"] or None)
     except Exception as e:  # pragma: no cover - import/init failure
         return ExecutorResult(output=f"ERROR initializing client: {e}",
                               usage={"in": 0, "out": 0}, tool_calls=0, error=str(e),

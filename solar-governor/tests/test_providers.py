@@ -13,9 +13,10 @@ import sys
 import tempfile
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
+import openai
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -74,6 +75,26 @@ def endpoint():
     srv = HTTPServer(("127.0.0.1", 0), _Endpoint)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     SEEN.clear()
+    yield f"http://127.0.0.1:{srv.server_address[1]}/v1"
+    srv.shutdown()
+
+
+class _NeverAnswers(BaseHTTPRequestHandler):
+    """Accepts the connection and then says nothing. The end that hangs."""
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        time.sleep(30)
+
+
+@pytest.fixture
+def hung_endpoint():
+    """A THREADING server, deliberately: `HTTPServer` handles one request at a time, so
+    `shutdown()` would wait for the sleeping handler and the test would take 30 s to tear down."""
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), _NeverAnswers)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}/v1"
     srv.shutdown()
 
@@ -286,3 +307,61 @@ def test_the_shipped_table_is_the_documented_set():
         assert spec["base_url"].startswith("https://") or "localhost" in spec["base_url"], name
     for local in ("ollama", "lmstudio", "vllm", "llamacpp"):
         assert executor.PROVIDERS[local]["api_key_env"] == "", f"{local} must need no key"
+
+
+# --- the client's budget, which used to be inherited from the SDK (v5.7.5) ---------
+
+def test_the_chat_client_states_its_budget():
+    """A hung link's cost must be DERIVABLE from this repo, not inherited from the SDK's defaults.
+
+    Measured 2026-09-20 in the Promyro engagement (T1.1): the client a CHAT call used was
+    constructed with **no timeout at all**, so the SDK's 600 s read applied with its two retries -
+    three of them - and the honest answer to "what does a hung link cost" was about thirty minutes
+    with nothing of ours in the loop. The assertion that matters is not the number but that the
+    number REACHES the client, and that the worst case is one multiplication rather than a guess.
+    """
+    client = executor.chat_client("k", "http://127.0.0.1:9/v1")
+    assert client.timeout.read == executor.CHAT_READ_TIMEOUT
+    assert client.timeout.connect == executor.CHAT_CONNECT_TIMEOUT
+    assert client.max_retries == executor.CHAT_MAX_RETRIES
+    worst = executor.CHAT_READ_TIMEOUT * (1 + executor.CHAT_MAX_RETRIES)
+    assert worst == 540, f"the comment beside the constants claims 9 minutes; this says {worst}s"
+
+
+def test_a_hung_endpoint_fails_instead_of_hanging(hung_endpoint):
+    """The behavioural half: an endpoint that accepts and never answers must END the call.
+
+    A SHORT read timeout, because the point is that the bound is ours - waiting the real 180 s would
+    prove the same thing three minutes later.
+    """
+    client = executor.chat_client("k", hung_endpoint, read_timeout=1.0, max_retries=0)
+    started = time.time()
+    with pytest.raises(openai.APITimeoutError):
+        client.chat.completions.create(model="m", messages=[{"role": "user", "content": "hi"}])
+    assert time.time() - started < 15, "the read timeout did not bound the call"
+
+
+def test_the_run_path_gets_the_stated_budget(endpoint, monkeypatch):
+    """**And that is the budget a RUN gets.** The warning in this file's own docstring applies here:
+    a unit test on a value that is computed correctly does not catch a value that is computed and
+    then not used - so the run path is spied on rather than trusted.
+    """
+    seen = {}
+    real = executor.chat_client
+
+    def spy(key, endpoint_, headers=None, **kw):
+        seen["endpoint"] = endpoint_
+        seen["kw"] = kw
+        return real(key, endpoint_, headers, **kw)
+
+    monkeypatch.setattr(executor, "chat_client", spy)
+    repo = _repo()
+    try:
+        cfg = _cfg(repo, model="local-qwen", provider="",
+                   providers={"local": {"base_url": endpoint, "api_key_env": ""}},
+                   models={"local-qwen": {"provider": "local", "id": "qwen3:8b"}})
+        _run(cfg, repo, "budget")
+        assert seen["endpoint"].startswith("http://127.0.0.1:")
+        assert seen["kw"] == {}, "the run path overrides the stated budget"
+    finally:
+        shutil.rmtree(repo)

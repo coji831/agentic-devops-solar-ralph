@@ -18,6 +18,34 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## v5.7.5 — Released (2026-09-20) — the chat client had no clock, and a hung link cost thirty minutes
+
+**Theme:** the last unbounded number in this runtime is now bounded by something in this repo rather
+than by a library's default.
+
+The client a CHAT call used was constructed with **no `timeout` argument at all** — while
+`known_models`, three hundred lines above it, passed one. So the bound was the SDK's: a 600 s read
+with `max_retries=2`. `APITimeoutError` subclasses `APIConnectionError`, so the SDK retries a
+timeout, and those are **three** attempts: **about thirty minutes, with nothing of ours in the loop.**
+
+**It was measured before it was fixed, by a wiretap.** The Promyro engagement's T1.1 built a fake
+provider to see what the `http` path sends, and it recorded **3 identical requests, 2 196 B each**
+against a card that claimed one attempt. The reading has been on disk since; this release owns it.
+
+**The fix states the budget and makes it assertable.** `chat_client()` builds the client from four
+constants, so the worst case is one multiplication — `180 x (1 + 2) = 540 s`, nine minutes instead of
+thirty — and `connect` is ten seconds, because an unreachable host is the case that _looks_ like a
+hang while nothing is being served. `read` stays ten times the slowest whole run measured here
+(21.5 s), so a real run is failed rather than hung. A factory rather than an inline construction
+because a budget stated inline is asserted by a reader noticing an **absence**: a test can now pass a
+short `read_timeout` and watch a hung endpoint fail in a second.
+
+**Three tests, 261 → 264.** They assert the values reach the client, that a server which accepts and
+never answers raises `APITimeoutError` in 1.88 s, and that the run path constructs through the factory
+and overrides nothing — the last being this repo's §27 rule applied to itself.
+
+---
+
 ## v5.7.4 — Released (2026-09-20) — the card had two clocks, and only one of them was right
 
 **Theme:** every metric on the run-card totals correctly across a resume — `tokens_in`, `tokens_out`,
