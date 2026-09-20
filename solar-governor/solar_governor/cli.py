@@ -15,6 +15,7 @@ from .registry import chains as load_chains
 from .registry import declared as declared_roles
 from .registry import load as load_registry
 from .registry import role_keys
+from .workspace import MAX_READ_CHARS
 
 # exit codes for the --json step contract (agent wrapper drives on these)
 EXIT_OK = 0
@@ -351,6 +352,7 @@ def cmd_doctor(args):
     checks["routing"] = _routing_check(cfg, reg)
     checks["uplink"] = uplink.status(cfg)
     checks["install"] = install.version_status(root)
+    checks["tool-output"] = _tool_output_check()
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
@@ -503,6 +505,46 @@ def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
         return "PASS", f"{detail} [provider serves {len(ids)} id(s)]"
     return "WARN", (f"{detail} - not in the provider's model list "
                     f"({', '.join(ids)}); may be an alias, or a typo")
+
+
+def _tool_output_check() -> tuple:
+    """Is the tool-output cap sized against the context the server actually serves?
+
+    The cap itself fails LOUDLY: `_cap_tool` keeps the head of one tool result and appends
+    `...[truncated N chars to M by SOLAR_TOOL_OUTPUT_CHARS]`, so the cut is visible and the
+    model can re-read a narrower range instead. The failure with NO marker is the other one -
+    a cap that is fine while the WINDOW is not, so the server drops the oldest tokens (the
+    system prompt and the objective) silently. Its symptom is a model that read the file and
+    missed the fact, which reads as a model defect and is not one.
+
+    Every round re-sends the whole context, so the worst case is `cap x SOLAR_MAX_ROUNDS`.
+    The served window cannot be read over the OpenAI surface (`/v1/models` carries no
+    `num_ctx`), so it is DECLARED with `SOLAR_CONTEXT_TOKENS` rather than guessed - and when
+    it is not declared the arithmetic is printed anyway, because that line is the point.
+    """
+    cap = executor.tool_output_chars()
+    rounds = executor.MAX_TOOL_ROUNDS
+    # `read_file` caps its OWN output first (`MAX_READ_CHARS`), so a value above that buys no
+    # more text - it only spends more of the window. The effective figure is the smaller one.
+    effective = MAX_READ_CHARS if cap <= 0 else min(cap, MAX_READ_CHARS)
+    label = "unlimited" if cap <= 0 else f"cap {cap} chars"
+    note = ("" if cap <= 0 or cap <= MAX_READ_CHARS else
+            f"; {cap} is above read_file's own {MAX_READ_CHARS}-char ceiling, which binds first")
+    worst = int(effective / 3.5) * rounds
+    est = f"{worst / 1000:.1f}k" if worst >= 1000 else str(worst)
+    try:
+        window = int(os.environ.get("SOLAR_CONTEXT_TOKENS", "0") or 0)
+    except ValueError:
+        window = 0
+    if not window:
+        return "PASS", (f"{label} x {rounds} rounds ~ {est} tokens worst case{note}; declare "
+                        f"SOLAR_CONTEXT_TOKENS to have this checked against the served window")
+    if worst > window:
+        return "WARN", (f"{label} x {rounds} rounds ~ {est} tokens exceeds the declared window of "
+                        f"{window}: the server drops the OLDEST tokens silently (system prompt "
+                        f"and objective first). Raise the model's num_ctx, then the cap{note}")
+    return "PASS", (f"{label} x {rounds} rounds ~ {est} tokens, within the declared window of "
+                    f"{window}{note}")
 
 
 def _print_doctor(checks: dict[str, tuple]) -> None:

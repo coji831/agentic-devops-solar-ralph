@@ -257,10 +257,11 @@ All of them serve the same OpenAI surface, so nothing else changes — no key, n
 $env:SOLAR_BASE_URL = "http://localhost:11434/v1"   # Ollama; vLLM defaults to :8000/v1, LM Studio :1234/v1
 $env:SOLAR_MODEL    = "qwen3:8b"                    # the id from GET /v1/models - required, and opaque
 $env:SOLAR_RUNNER   = "http"                        # or `run --runner http`
-$env:SOLAR_TOOL_OUTPUT_CHARS = "2000"               # sized for a small local context
+$env:SOLAR_TOOL_OUTPUT_CHARS = "2000"               # MUST FIT: cap x SOLAR_MAX_ROUNDS vs the served num_ctx
+$env:SOLAR_CONTEXT_TOKENS    = "16384"              # what the server actually serves, so `doctor` checks the line above
 ```
 
-Three things worth knowing before you measure:
+Four things worth knowing before you measure:
 
 - **No key is needed, and the placeholder is deliberate.** A declared keyless provider sends
   `sk-no-key-required` and is **never** handed an unrelated key; local servers ignore it, a cloud
@@ -276,6 +277,19 @@ Three things worth knowing before you measure:
   absence rather than a measurement (the same numbers a stub reports). The run-card says which,
   and records `provider` (host:port) next to `model` so a local run is distinguishable from a
   cloud run of the same model id.
+- **`SOLAR_TOOL_OUTPUT_CHARS` is sized against what the server serves, not against taste - and the
+  two failures are not equally visible.** The cap keeps the **head** of one tool result and appends
+  `...[truncated N chars to M by SOLAR_TOOL_OUTPUT_CHARS]`, so the cut is _marked_: the model can
+  see it, and it can re-read a narrower range instead. Nothing marks the other failure. If the cap
+  is fine but the **window** is not, the server drops the _oldest_ tokens - the system prompt and
+  the objective - silently, and the symptom is a model that read the file and missed the fact.
+  Every round re-sends the whole context, so size it as `chars / ~3.5 x SOLAR_MAX_ROUNDS`:
+  **2000 x 12 ~ 6.8k tokens** fits the `num_ctx 16384` a local model commonly serves, and
+  **8000 x 12 ~ 27.5k** does not. **Raise `num_ctx` first, the cap second**, via the Modelfile
+  described above - the `/v1` surface cannot set it per run. Declare `SOLAR_CONTEXT_TOKENS` and
+  `doctor` checks the two against each other. **There is also a ceiling, and it is not this
+  variable:** `read_file` returns at most `MAX_READ_CHARS` (40000) chars on its own, so a value
+  above that buys no more text - `doctor` reports the effective figure when you set one.
 
 `doctor` against a local endpoint: `runner: PASS - http (... no SOLAR_API_KEY: a placeholder is
 sent ...)` and `model: PASS - qwen3:8b (from config model) [provider serves 1 id(s)]` when the
