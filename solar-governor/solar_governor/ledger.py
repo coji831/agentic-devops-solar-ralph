@@ -127,8 +127,22 @@ def record(cfg: Config, state: dict, thread: str = "") -> tuple[Path, str]:
     key = thread or "-"
     section = _section(key, state)
 
+    # **BOTH WRITES PASS `newline="\n"`, AND IT IS NOT COSMETIC (`T57`).** Without it
+    # `Path.write_text` translates every `\n` to `\r\n` on Windows, so the file written here is one
+    # this module cannot reproduce: `render` emits `\n` between blocks while the section text it read
+    # back carries `\r\n`, and the mixed result is a different string. Measured 2026-09-23 - a real
+    # `.solar/ledger.md` of 79,717 B fails its own round trip, and a two-record ledger renders 936 B
+    # from a file of 939 B. **`render`'s docstring already promises "normalised so a re-write is
+    # byte-identical"; this is the line that makes the promise true on the platform it runs on.**
+    #
+    # **And `git status` cannot see it**, because `core.autocrlf=true` here normalises the diff -
+    # which is why a CRLF ledger can sit in a tracked file and read as clean.
+    #
+    # **Compare BYTES when checking this, never `read_text()`.** Python's universal-newline mode
+    # translates CRLF back to `\n` on read, so a text-mode comparison reports the defect as ABSENT;
+    # both directions were measured, and the text-mode one lies.
     if not previous.strip():
-        path.write_text(f"{HEADER}\n\n{section}\n", encoding="utf-8")
+        path.write_text(f"{HEADER}\n\n{section}\n", encoding="utf-8", newline="\n")
         return path, "created"
 
     tokens = tokenize(previous)
@@ -141,6 +155,6 @@ def record(cfg: Config, state: dict, thread: str = "") -> tuple[Path, str]:
     else:
         tokens.append(("section", key, section))
 
-    path.write_text(render(tokens), encoding="utf-8")
+    path.write_text(render(tokens), encoding="utf-8", newline="\n")
     return path, action
 
