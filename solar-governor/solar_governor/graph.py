@@ -69,9 +69,77 @@ def _role_spec(cfg: Config, role: str) -> dict:
     return reg.get(role) or {}
 
 
-def _role_prompt(spec: dict, role: str) -> str:
-    """The role's system prompt, or a generic one when the registry has none."""
-    return spec.get("system", f"You are the {role} specialist.")
+# **WHERE A CLONE'S OWN FACTS LIVE: one directory, one file per clone** (`T53`, 2026-09-23).
+#
+# A role's brief is AGNOSTIC - the hard rules that hold for every repository - and what is true of
+# ONE clone belongs here instead. The loader reads the file for the clone the RUN declared (`--clone`,
+# T50), so a link is told about the repository it is actually working in and about no other.
+#
+# **The path is derived from the clone's name, never typed into a role.** That is the whole point:
+# the alternative was a stack named in nine `system` prompts and nine `.agent.md` briefs, and measured
+# 2026-09-23 those two texts had drifted in **20 of 21** repo-identity tokens - including rules that
+# held in one and not the other.
+CLONE_CONVENTIONS = ("skills", "repo-conventions")
+
+
+def _plain_name(name: str) -> bool:
+    """Whether `name` is a bare directory name: no separator, not `.`/`..`, not absolute.
+
+    **`clone` is validated at the START of a run** (`commands.clone_name_problem`), so this is a
+    second belt rather than the only one - and it is here because this function builds a path the
+    first one has never seen. A loader that interpolated an uncontrolled string into a path would be
+    the one place in the package where a refusal upstream is worth nothing.
+    """
+    return bool(name) and name not in (".", "..") and "/" not in name and "\\" not in name
+
+
+def clone_conventions(cfg: Config, clone: str) -> tuple[str, str]:
+    """`(text, source)` for the declared clone's conventions - `("", "")` when it has none.
+
+    **Absence is the ordinary answer, and it is not an error.** A repository with nothing unusual
+    about it needs no file, and a run that declared `--clone none` is about no repository at all. So
+    a missing file is silent by design.
+
+    **What would NOT be acceptable is silence about a file that was EXPECTED** - a typo'd directory
+    would then read exactly like a clone that has no conventions, which is this repository's worst
+    failure class (a mechanism that reads as protecting something and does nothing). The guard is
+    that the CALLER names the source it loaded in the prompt it assembles, so the model and a reader
+    can both tell "loaded, from here" from "not loaded" without having to trust a path.
+    """
+    if not _plain_name(clone):
+        return "", ""
+    path = cfg.root.joinpath(".github", *CLONE_CONVENTIONS, f"{clone}.md")
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "", ""
+    if not text:
+        return "", ""
+    return text, path.relative_to(cfg.root).as_posix()
+
+
+def _role_prompt(cfg: Config, spec: dict, role: str, clone: str = "") -> str:
+    """The role's system prompt - AGNOSTIC - plus the declared clone's own conventions.
+
+    **The brief says what holds for every repository; the clone's file says what holds for this**
+    one. `T53`'s ruling (2026-09-23): the registry prompt and the `.agent.md` brief are both kept to
+    hard rules that apply to all work, and everything repository-specific moves behind this loader.
+
+    **Why a loader rather than more prose.** Until this existed there was no way for a brief to learn
+    WHICH repository it was in - `clone` appeared in no prompt or message construction anywhere in
+    the package, measured - so the only place a stack could live was the brief itself, and it landed
+    in two texts that drifted. The run already declares its clone (`T50`); this is the half that
+    consumes it.
+
+    With no clone declared the base prompt is returned **unchanged**, which is what makes the
+    `clone=""` path testable as an equality rather than a substring.
+    """
+    base = spec.get("system", f"You are the {role} specialist.")
+    text, source = clone_conventions(cfg, clone)
+    if not text:
+        return base
+    return (f"{base}\n\n## This repository's own conventions\n\n"
+            f"_Loaded from `{source}`, because this run declared `--clone {clone}`._\n\n{text}")
 
 
 def _chain_note(cfg: Config, chain_name: str) -> str:
@@ -116,17 +184,25 @@ def _execute(cfg: Config, state: SolarState, runner: str = "",
     re-decided here from the api key. `target` (v5.7.1) travels with it for the same
     reason - it was already resolved to answer the runner question, and resolving it
     again would be a second chance to disagree about which endpoint this node uses.
+
+    `clone` (T50, 2026-09-23) is the OTHER kind of target and shares no word with
+    `target`: it is WHICH CLONE this run is about, read off the state so it reaches
+    every tool layer a node builds. It is a value the run declared, and `""` means it
+    declared `none` - which a clone-scoped command refuses rather than defaults.
     """
     role = state.get("role", "implementer")
     spec = _role_spec(cfg, role)
     objective = state.get("objective", "")
-    res = executor.run(role=role, system_prompt=_role_prompt(spec, role),
+    res = executor.run(role=role,
+                       system_prompt=_role_prompt(cfg, spec, role,
+                                                 str(state.get("clone") or "")),
                        objective=objective, repo=cfg.root, cfg_model=cfg.model,
                        spec=spec, human_approval=cfg.human_approval,
                        cfg_reasoning=cfg.reasoning_effort, cfg_tier=cfg.model_tier,
                        runner=runner, cfg_provider=cfg.provider,
                        providers=executor.providers_table(cfg.providers),
-                       models=cfg.models, target=target)
+                       models=cfg.models, target=target,
+                       clone=str(state.get("clone") or ""))
     return {
         "output": res.get("output", ""),
         "model": res.get("model", "stub"),
@@ -137,6 +213,17 @@ def _execute(cfg: Config, state: SolarState, runner: str = "",
         "tool_calls": res.get("tool_calls", 0),
         "error": res.get("error") or "",
         "forced_final": bool(res.get("forced_final", False)),
+        "max_rounds": int(res.get("max_rounds", 0)),
+        # **The prompt the run was about to send, and the window it had been told it was sending it
+        # into** - carried together for `forced_final`/`max_rounds`' reason: an estimate with no
+        # window beside it answers nothing, and the window is declared per install.
+        "prompt_tokens": int(res.get("prompt_tokens", 0)),
+        "context_tokens": int(res.get("context_tokens", 0)),
+        # **The tool-call transcript (T10, 2026-09-23), and it rides the CHECKPOINT deliberately.**
+        # It is telemetry: `.solar/state/` is gitignored, per-machine, and nothing may cite it. It
+        # is NOT added to `runcard.write`'s field list, which is why the tracked card cannot carry
+        # it - the graph's checkpointer is already the harness part that dumps every node's state.
+        "tool_transcript": res.get("tool_transcript", []),
     }
 
 
@@ -152,7 +239,9 @@ def _dispatch_agent(cfg: Config, state: SolarState, attempts: int) -> dict:
     role = state.get("role", "implementer")
     spec = _role_spec(cfg, role)
     chain_note = _chain_note(cfg, state.get("chain", ""))
-    handoff = executor.write_handoff(role=role, system_prompt=_role_prompt(spec, role),
+    handoff = executor.write_handoff(role=role,
+                                     system_prompt=_role_prompt(
+                                         cfg, spec, role, str(state.get("clone") or "")),
                                      objective=state.get("objective", ""),
                                      repo=cfg.root, cfg_model=cfg.model,
                                      attempt=attempts, chain_note=chain_note,
@@ -215,6 +304,22 @@ def build_nodes(cfg: Config):
             return {"verdict": "REJECTED", "stage": "review",
                     "decisions_log": [f"review -> REJECTED (executor error: "
                                       f"{str(state['error'])[:80]} — no auto-approve)"]}
+        # **A FORCED FINAL IS THE SECOND WAY TO FAIL, and it used to be approved.** The
+        # tool-less last round exists so a node hands back what it did establish instead of
+        # failing outright — but `error` stays empty when that round answers, so the guard
+        # above did not fire and the verdict read APPROVED for a link the executor's own
+        # docstring calls *"cut off, and answered anyway"*. Measured 2026-09-22: exactly one
+        # card in the engagement carried the pair (`verdict: APPROVED` + `forced_final: true`,
+        # 753,729 tokens), and every reader had to notice a SECOND field to read it right.
+        # **Refused BEFORE the gate on purpose:** a person approving a cut-off link is not
+        # approving work, and asking them to is what made the card look honest while it was
+        # not. A cut-off link is a link that owes its product; its task's record carries the
+        # decision, not this card.
+        if state.get("forced_final"):
+            return {"verdict": "REJECTED", "stage": "review",
+                    "decisions_log": [f"review -> REJECTED (CUT OFF at the round limit "
+                                      f"({state.get('max_rounds', 0)} round(s) offered) — the "
+                                      f"answer was FORCED, not established; no auto-approve)"]}
         if cfg.human_approval:
             verdict = interrupt({"ask": f"Review {state.get('role', 'work')}: approve or deny?"})
         else:
@@ -223,6 +328,12 @@ def build_nodes(cfg: Config):
 
     def route(state: SolarState) -> str:
         if state.get("error"):                    # executor failure is terminal
+            return "complete"
+        # Terminal for `forced_final` too, and for the reason that makes it a failure rather
+        # than a rework: the link already spent its WHOLE round budget, so retrying it buys
+        # the same forced answer for the same money. Rework is for a link that answered and
+        # was refused - not for one the runtime had to wring out (`T18`, 2026-09-22).
+        if state.get("forced_final"):
             return "complete"
         if state.get("verdict") == "APPROVED" or state.get("attempts", 1) >= MAX_ATTEMPTS:
             return "complete"
@@ -295,11 +406,11 @@ def build_graph(cfg: Config):
     return b
 
 
-def initial_state(task: str, chain: str = "", role: str = "") -> dict:
+def initial_state(task: str, chain: str = "", role: str = "", clone: str = "") -> dict:
     """v5 §4: initial channel values for a light-profile run."""
-    return {"objective": task, "chain": chain, "role": role, "work_queue": [],
-            "decisions_log": [], "materials_status": "PENDING", "stage": "start",
-            "attempts": 0}
+    return {"objective": task, "chain": chain, "role": role, "clone": clone,
+            "work_queue": [], "decisions_log": [], "materials_status": "PENDING",
+            "stage": "start", "attempts": 0}
 
 
 def _ensure_checkpoint_dir(cfg: Config) -> None:
@@ -320,7 +431,8 @@ def _ensure_checkpoint_dir(cfg: Config) -> None:
 
 
 def run_step(cfg: Config, task: str, thread: str | None = None,
-             resume: str | None = None, chain: str = "", role: str = "") -> dict:
+             resume: str | None = None, chain: str = "", role: str = "",
+             clone: str = "") -> dict:
     """Execute exactly ONE graph step on a thread (SQLite checkpoint).
 
     - resume=None  -> fresh start for a new thread (optionally as a named chain,
@@ -343,7 +455,7 @@ def run_step(cfg: Config, task: str, thread: str | None = None,
         if resume is not None:
             return graph.invoke(Command(resume=resume), config)
         cleared = _clear_thread(cp, graph, config, thread)
-        seed = initial_state(task, chain=chain, role=role)
+        seed = initial_state(task, chain=chain, role=role, clone=clone)
         if cleared:
             seed["decisions_log"] = [cleared]
         return graph.invoke(seed, config)
@@ -403,7 +515,7 @@ def pending_interrupt(cfg: Config, thread: str | None = None) -> dict | None:
 
 def run_task(cfg: Config, task: str, thread: str | None = None,
              approve: str | None = None, resume_result: str | None = None,
-             chain: str = "", role: str = "") -> dict:
+             chain: str = "", role: str = "", clone: str = "") -> dict:
     """Interactive/one-shot runner: loop run_step until complete.
 
     Answers each interrupt on stdin when no value was supplied (kept for the
@@ -416,7 +528,7 @@ def run_task(cfg: Config, task: str, thread: str | None = None,
       - review (human_approval): answered via `approve` ('approve'|'deny').
     """
     thread = thread or "t1"
-    result = run_step(cfg, task, thread, chain=chain, role=role)
+    result = run_step(cfg, task, thread, chain=chain, role=role, clone=clone)
     while "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
         kind = payload.get("kind", "review")
