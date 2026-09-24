@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from solar_governor.workspace import MAX_READ_CHARS, Workspace  # noqa: E402
+from solar_governor.workspace import MAX_READ_CHARS, SEARCH_MAX_CHARS, Workspace  # noqa: E402
 
 
 def _tmp_repo() -> Path:
@@ -396,7 +396,8 @@ def test_tool_schemas_shape():
     r = _tmp_repo()
     schemas = Workspace(r).tool_schemas()
     names = {s["function"]["name"] for s in schemas}
-    assert names == {"list_tree", "read_file", "glob", "write_file"}
+    assert names == {"list_tree", "read_file", "glob", "search_text", "write_file",
+                     "replace_in_file"}
     for s in schemas:
         assert s["type"] == "function"
         assert s["function"]["description"]
@@ -464,6 +465,9 @@ def test_read_only_role_is_not_offered_write_file():
     ws = Workspace(r, {"tools": ["workspace"], "write": False})
     names = {s["function"]["name"] for s in ws.tool_schemas()}
     assert "write_file" not in names
+    # Asserted as a SET and from the single source, so a THIRD mutator cannot arrive unconsidered:
+    # a hand-written list here would have said nothing about `replace_in_file` (2026-09-21).
+    assert not (set(ws._MUTATING_TOOLS) & names), f"a read-only role was offered {sorted(names)}"
     assert {"list_tree", "read_file", "glob"} <= names
     shutil.rmtree(r)
 
@@ -513,7 +517,8 @@ def test_empty_tools_defaults_to_the_workspace_group():
     """`tools: []` is how pre-existing registries spell it; must stay permissive."""
     r = _tmp_repo()
     names = {s["function"]["name"] for s in Workspace(r, {"tools": []}).tool_schemas()}
-    assert names == {"list_tree", "read_file", "glob", "write_file"}
+    assert names == {"list_tree", "read_file", "glob", "search_text", "write_file",
+                     "replace_in_file"}
     shutil.rmtree(r)
 
 
@@ -570,6 +575,7 @@ def test_a_default_install_reviewer_is_not_offered_write_file():
     ws = Workspace(r, DEFAULT_SPECIALISTS["reviewer"])
     names = {s["function"]["name"] for s in ws.tool_schemas()}
     assert "write_file" not in names, f"a reviewer was handed write_file: {sorted(names)}"
+    assert not (set(ws._MUTATING_TOOLS) & names), f"a reviewer was handed {sorted(names)}"
     # Offered is not the enforcement, so the CALL is asserted too: a model can emit a call for a
     # tool it was never given, and "not offered" is not by itself a refusal.
     assert ws.write_file("records/x.md", "x").startswith("ERROR: refusing")
@@ -596,6 +602,132 @@ def test_every_built_in_role_states_its_write_capability():
     silent = sorted(name for name, spec in DEFAULT_SPECIALISTS.items() if "write" not in spec)
     assert not silent, (f"{silent} omit `write`, and an omitted key means ALLOW - declare it, "
                         f"whichever way it goes")
+
+
+# --- replace_in_file: the bounded edit (2026-09-21) --------------------------
+# Added because `write_file` was this layer's ONLY mutator and it OVERWRITES. A 101 KB message
+# catalog could therefore only be changed by reconstructing it out of reads capped at
+# MAX_READ_CHARS and writing the whole thing back - which, measured on 2026-09-21 in the Promyro
+# engagement, returned 820 lines and DELETED 2690 of a 2746-line file. These tests pin the property
+# that makes that impossible rather than merely discouraged: an anchor that is not exactly unique
+# changes NOTHING.
+
+def test_replace_in_file_edits_one_anchor_and_leaves_the_rest_byte_identical():
+    r = _tmp_repo()
+    p = r / "apps" / "a.test.ts"
+    before = p.read_text(encoding="utf-8")
+    out = Workspace(r).replace_in_file("apps/a.test.ts", "export const x = 1;",
+                                       "export const x = 2;")
+    assert out.startswith("edited apps/a.test.ts")
+    assert p.read_text(encoding="utf-8") == before.replace("export const x = 1;",
+                                                          "export const x = 2;")
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_edits_a_file_FAR_larger_than_the_read_cap():
+    """THE reason this tool exists. The file cannot be held in one read, and the edit still lands
+    with both the beginning and the far end intact - which is the thing write_file could not do."""
+    r = _tmp_repo()
+    body = "\n".join(f'  "k{i}": "v{i}",' for i in range(6000))
+    p = r / "apps" / "huge.json"
+    p.write_text('{\n' + body + '\n  "anchor": "old"\n}\n', encoding="utf-8")
+    assert p.stat().st_size > MAX_READ_CHARS, "the fixture must exceed the read cap to be a test"
+    before_size = p.stat().st_size
+    out = Workspace(r).replace_in_file("apps/huge.json", '"anchor": "old"',
+                                       '"anchor": "replacement"')
+    assert out.startswith("edited")
+    # A delta that is not zero, so a silent whole-file rewrite cannot pass by coincidence.
+    assert p.stat().st_size == before_size + len("replacement") - len("old")
+    text = p.read_text(encoding="utf-8")
+    assert '"anchor": "replacement"' in text
+    assert '"k5999": "v5999",' in text, "the far end of the file was lost"
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_refuses_a_missing_anchor_without_writing():
+    r = _tmp_repo()
+    p = r / "apps" / "a.test.ts"
+    before = p.read_text(encoding="utf-8")
+    out = Workspace(r).replace_in_file("apps/a.test.ts", "NOT IN THE FILE", "x")
+    assert out.startswith("ERROR")
+    assert "not found" in out
+    assert p.read_text(encoding="utf-8") == before
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_refuses_an_ambiguous_anchor_without_writing():
+    """Two matches must not silently edit 'the first one', and must not edit both. Mutation test:
+    drop the count guard and this fails, which is what makes it a test rather than a decoration."""
+    r = _tmp_repo()
+    p = r / "apps" / "dup.txt"
+    p.write_text("same\nsame\n", encoding="utf-8")
+    out = Workspace(r).replace_in_file("apps/dup.txt", "same", "different")
+    assert out.startswith("ERROR")
+    assert "2 times" in out
+    assert p.read_text(encoding="utf-8") == "same\nsame\n"
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_refuses_an_empty_anchor():
+    """`str.count("")` is len+1, so an empty anchor would read as ambiguous - say it plainly."""
+    r = _tmp_repo()
+    out = Workspace(r).replace_in_file("apps/a.test.ts", "", "x")
+    assert out.startswith("ERROR")
+    assert "empty" in out
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_cannot_create_a_file():
+    """It edits; it does not create. If it could create, it could also truncate into existence."""
+    r = _tmp_repo()
+    out = Workspace(r).replace_in_file("apps/new.ts", "x", "y")
+    assert out.startswith("ERROR")
+    assert not (r / "apps" / "new.ts").exists()
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_runs_the_same_policy_as_write_file():
+    """One policy, two mutators: the escape and the unconditional deny list both hold."""
+    r = _tmp_repo()
+    ws = Workspace(r)
+    assert ws.replace_in_file("../../escape.txt", "a", "b").startswith("ERROR")
+    assert ws.replace_in_file(".solar/registry.json", "implementer", "x").startswith("ERROR")
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_preserves_line_endings():
+    """A CRLF file comes back CRLF. `write_file` cannot promise this; this one can, because it
+    only ever writes back the text it read. A repo kept in LF must not come back in CRLF."""
+    r = _tmp_repo()
+    p = r / "apps" / "crlf.txt"
+    p.write_bytes(b"one\r\ntwo\r\n")
+    assert Workspace(r).replace_in_file("apps/crlf.txt", "two", "TWO").startswith("edited")
+    assert p.read_bytes() == b"one\r\nTWO\r\n"
+    shutil.rmtree(r)
+
+
+def test_replace_in_file_is_refused_for_a_read_only_role():
+    """The CALL is refused as well as the schema withheld - defence in depth, as for write_file."""
+    r = _tmp_repo()
+    ws = Workspace(r, {"tools": ["workspace"], "write": False})
+    assert "replace_in_file" not in {s["function"]["name"] for s in ws.tool_schemas()}
+    out = ws.replace_in_file("apps/a.test.ts", "export const x = 1;", "export const x = 9;")
+    assert out.startswith("ERROR: refusing to edit")
+    assert "read-only" in out
+    assert "export const x = 1;" in (r / "apps" / "a.test.ts").read_text(encoding="utf-8")
+    shutil.rmtree(r)
+
+
+def test_a_default_install_reviewer_is_not_offered_replace_in_file():
+    """The shipped-default hazard one tool later: `replace_in_file` mutates, so the reviewer must
+    be offered neither mutator and refused if it calls one anyway."""
+    from solar_governor.registry import DEFAULT_SPECIALISTS
+    r = _tmp_repo()
+    ws = Workspace(r, DEFAULT_SPECIALISTS["reviewer"])
+    names = {s["function"]["name"] for s in ws.tool_schemas()}
+    assert not (set(ws._MUTATING_TOOLS) & names), f"a reviewer was handed {sorted(names)}"
+    assert ws.replace_in_file("records/x.md", "a", "b").startswith("ERROR: refusing")
+    shutil.rmtree(r)
 
 
 # --- C2: the glob governs READS too (2026-09-20) -----------------------------
@@ -755,6 +887,162 @@ def test_reading_through_a_glob_needs_no_write_permission():
     ws = Workspace(root, {"write": False, "write_glob": ["../repos/sandbox/**"]})
     assert "inventory" in ws.read_file("../repos/sandbox/src/inventory.js")
     assert ws.write_file("../repos/sandbox/src/new.js", "x").startswith("ERROR: refusing")
+    shutil.rmtree(root.parent)
+
+
+# --- search_text (T34, 2026-09-23) ------------------------------------------
+# The `http` runner's only way to find a fact was to list a tree and read whole files, and
+# `messages` is never trimmed - so every read is re-sent and the cost is quadratic in the rounds.
+# These cases pin the two halves of the fix: a hit that can be CITED, and a miss that says how
+# far it looked.
+
+def test_search_text_finds_a_line_and_spells_it_for_a_citation():
+    """`path:line: text` is the point: a hit that cannot be cited costs a round to confirm."""
+    r = _tmp_repo()
+    out = Workspace(r).search_text("export const")
+    assert "apps/a.test.ts:1: export const x = 1;" in out, out
+    shutil.rmtree(r)
+
+
+def test_search_text_skips_vendored_and_binary_and_counts_what_it_READ():
+    """The miss has to say how far it looked.
+
+    `(no matches)` alone is indistinguishable from "the tool did not look", and the model pays a
+    round to find out which - which is the round this tool exists to remove.
+    """
+    r = _tmp_repo()
+    out = Workspace(r).search_text("module.exports")
+    assert "no matches" in out, out
+    assert "dep.js" not in out, out              # under node_modules
+    assert "1 file(s)" in out, out               # only apps/a.test.ts was ever read
+    shutil.rmtree(r)
+
+
+def test_search_text_accepts_a_single_file_as_the_thing_to_search():
+    r = _tmp_repo()
+    out = Workspace(r).search_text("export const", rel="apps/a.test.ts")
+    assert "a.test.ts:1:" in out and "1 file(s)" in out, out
+    shutil.rmtree(r)
+
+
+def test_search_text_refuses_an_empty_pattern_without_reading_anything():
+    """An empty regex matches every line of every file - a whole-tree dump as one call."""
+    r = _tmp_repo()
+    out = Workspace(r).search_text("")
+    assert out.startswith("ERROR: refusing an empty pattern"), out
+    shutil.rmtree(r)
+
+
+def test_search_text_reports_a_bad_regex_instead_of_raising():
+    """A refused pattern must come back as a string the model can act on in the same round."""
+    r = _tmp_repo()
+    out = Workspace(r).search_text("a(")
+    assert out.startswith("ERROR: bad regex"), out
+    shutil.rmtree(r)
+
+
+def test_search_text_include_narrows_by_name_or_by_path():
+    """One call narrows; three calls is the cost the tool is here to remove."""
+    r = _tmp_repo()
+    (r / "apps" / "b.py").write_text("export const y = 2;\n", encoding="utf-8")
+    ws = Workspace(r)
+    assert "b.py" in ws.search_text("export const", include="*.py")
+    ts_only = ws.search_text("export const", include="*.ts")
+    assert "a.test.ts" in ts_only and "b.py" not in ts_only, ts_only
+    shutil.rmtree(r)
+
+
+def test_search_text_ignore_case_is_opt_in():
+    r = _tmp_repo()
+    ws = Workspace(r)
+    assert "no matches" in ws.search_text("EXPORT CONST")
+    assert "a.test.ts" in ws.search_text("EXPORT CONST", ignore_case=True)
+    shutil.rmtree(r)
+
+
+def test_search_text_caps_name_themselves():
+    """A capped list that looks complete is how a model concludes it has seen everything."""
+    r = _tmp_repo()
+    (r / "apps" / "many.txt").write_text("".join(f"needle {i}\n" for i in range(50)),
+                                          encoding="utf-8")
+    out = Workspace(r).search_text("needle", max_matches=3)
+    assert "3 match(es)" in out, out
+    assert "stopped at max_matches=3" in out, out
+    shutil.rmtree(r)
+
+
+def test_search_text_says_when_it_only_looked_at_part_of_the_tree():
+    """A hit list bounded at file 17 of 187 must not read as the whole answer."""
+    r = _tmp_repo()
+    for i in range(4):
+        (r / "apps" / f"m{i}.txt").write_text(
+            "".join(f"needle {i} " + "z" * 200 + "\n" for _ in range(40)), encoding="utf-8")
+    out = Workspace(r).search_text("needle")
+    assert "the first" in out, out
+    assert "char budget" in out, out
+    shutil.rmtree(r)
+
+
+def test_search_text_clips_a_hit_to_a_POINTER_not_a_reading():
+    """Measured 2026-09-23: at `read_file`'s 4000-char line budget, two wide table rows spent the
+    whole result budget on two hits and cut the walk at 17 of 187 files."""
+    r = _tmp_repo()
+    (r / "apps" / "wide.txt").write_text("y" * 3_000 + " needle\n", encoding="utf-8")
+    out = Workspace(r).search_text("needle")
+    assert "[line 1 elided: 3007 chars, first 400 shown]" in out, out
+    shutil.rmtree(r)
+
+
+def test_search_text_holds_its_own_budget_under_the_executor_cap():
+    """It caps itself, because the executor's cap cuts the TAIL - which would delete the
+    `narrow it` marker first and leave the hit list looking complete."""
+    r = _tmp_repo()
+    (r / "apps" / "wide.txt").write_text("".join("x" * 300 + "needle\n" for _ in range(40)),
+                                          encoding="utf-8")
+    out = Workspace(r).search_text("needle")
+    assert len(out) <= SEARCH_MAX_CHARS + 400, len(out)
+    assert "char budget" in out, out
+    shutil.rmtree(r)
+
+
+def test_a_read_only_role_is_offered_search_text():
+    """Search is a READ, and the role that may not write is the one that most needs to find
+    something without reading whole files."""
+    r = _tmp_repo()
+    names = {s["function"]["name"] for s in Workspace(r, {"write": False}).tool_schemas()}
+    assert "search_text" in names, names
+    assert "write_file" not in names, names
+    shutil.rmtree(r)
+
+
+def test_search_text_reaches_a_glob_named_sibling_and_keeps_the_read_denial():
+    """A search that cannot reach the clone cannot find the code the work is about - and
+    reaching it must not turn the read deny list into a suggestion."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    out = ws.search_text("exports.stock", rel="../repos/sandbox")
+    assert "../repos/sandbox/src/inventory.js:1: exports.stock = 1;" in out, out
+    # `.env`, `.env.local` and their `package.json` are read-denied FOR A SIBLING, so a search
+    # must not become the way around the denial.
+    assert "no matches" in ws.search_text("SECRET", rel="../repos/sandbox")
+    assert "no matches" in ws.search_text("theirs", rel="../repos/sandbox")
+    shutil.rmtree(root.parent)
+
+
+def test_search_text_inside_the_root_denies_nothing():
+    """The deny list exists because a sibling is somebody else's tree. Applying it inside our
+    own would be a restriction nobody asked for - and `package.json` is in it."""
+    root = _root_and_sibling()
+    ws = Workspace(root, SIBLING_GLOB)
+    assert "ours" in ws.search_text("ours", rel=".")
+    shutil.rmtree(root.parent)
+
+
+def test_search_text_on_an_ungranted_sibling_is_an_error_string_not_a_crash():
+    root = _root_and_sibling()
+    ws = Workspace(root, {"write": False})
+    out = ws.call_tool("search_text", {"pattern": "stock", "rel": "../repos/sandbox"})
+    assert out.startswith("ERROR:"), out
     shutil.rmtree(root.parent)
 
 

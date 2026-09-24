@@ -51,6 +51,21 @@ MAX_TOOL_ROUNDS = int(os.environ.get("SOLAR_MAX_ROUNDS", "12"))
 DEFAULT_TEMPERATURE = "0.2"
 # tool rounds remaining from which the model is told it is running out
 NUDGE_ROUNDS_LEFT = 1
+# **The tool-call TRANSCRIPT (T10, 2026-09-23) - and it records a SHAPE, not the payload.**
+#
+# What could not be answered without it: `audit-run.py`'s own NOT ESTABLISHED line - *"did the link
+# that reported an edit actually call a write tool?"* - because `tool_calls` in the state DB is ONE
+# INTEGER per run (measured 2026-09-22: 56 writes, 1 byte each, summing to 808), while the calls
+# themselves lived in `_tool_loop`'s local `messages` list and were discarded when the link ended.
+#
+# **Why the arguments and results are not stored, and why the head is 200 chars.** All three uses -
+# which tool acted on what, how big each result was, and how many calls were REFUSED - are answered
+# by the row below; only the third wants any prose, and the refusal reason is what fits in a head.
+# Storing the bodies would put a second copy of every tool result into the database, and this
+# engagement's growth constraint (T00) is the reason not to: the state DB is 5.96 MB for 74 threads
+# and one 64-call link reads about 500 KB of results. The cap is the SAME 200 `uplink.FIELD_CAP`
+# already uses, rather than a number invented here.
+TRANSCRIPT_HEAD_CHARS = 200
 # the last round is called with NO tools offered, so it has to return text
 FINAL_ROUND_INSTRUCTION = (
     "Tool budget exhausted: there are no tool rounds left. Answer now, in plain "
@@ -70,6 +85,63 @@ def tool_output_chars() -> int:
         return int(os.environ.get("SOLAR_TOOL_OUTPUT_CHARS", "8000"))
     except ValueError:
         return 8000
+
+
+def context_tokens() -> int:
+    """The context window the endpoint actually serves, DECLARED (`0` = not declared).
+
+    **Declared rather than discovered, and that is not a shortcut.** The window cannot be read over
+    the OpenAI surface (`/v1/models` carries no `num_ctx`), so the only honest figure is the one the
+    operator states. It lives HERE, beside the other budget figure, because it is a property of the
+    resolved target rather than of the check that reads it - and `0` means UNDECLARED, the same
+    sentinel `tool_output_chars` uses for "unlimited", because a caller unable to tell "no window"
+    from "nobody said" would report a fit it never checked.
+
+    **Before 2026-09-22 this was a bare `os.environ` read inside `doctor`**, so the check was the
+    only place the window could be seen: a run-card carrying a prompt estimate had no way to ask the
+    same question, and the two would have drifted while both looked authoritative.
+    """
+    try:
+        return int(os.environ.get("SOLAR_CONTEXT_TOKENS", "0") or 0)
+    except ValueError:
+        return 0
+
+
+def estimate_tokens(chars: int) -> int:
+    """Characters -> tokens, ONE divisor for the whole runtime (3.5 chars per token).
+
+    **Not a new number: the divisor the tool-output budget already rests on.** 2,110,699 prompt
+    tokens were measured against a figure derived from it (`cli._tool_budget_tokens`), so a second
+    spelling here would let `doctor` and a run-card disagree about the same prompt while both looked
+    authoritative. Both call this.
+    """
+    return int(chars / 3.5)
+
+
+def prompt_tokens(messages: list[dict]) -> int:
+    """An ESTIMATE of what the assembled prompt costs, before the first round sends it.
+
+    **Labelled an estimate, and it is the only figure available at that moment:** the endpoint's own
+    count is authoritative and arrives WITH the answer (`usage.in`), so a run that has to know what
+    it is about to send cannot get it from there. Text length only - tool-call arguments, image
+    parts and the provider's own formatting are outside it - so it is a FLOOR, and the card records
+    it as one. See `runcard.write`, which writes it beside the window it was measured against.
+    """
+    return estimate_tokens(sum(len(str(m.get("content") or "")) for m in messages))
+
+
+def _target_of(args: dict) -> str:
+    """The ONE argument naming what a call acted on, taken in the order the tools declare it.
+
+    **Not `json.dumps(args)`**: a `write_file`'s arguments ARE the file, so dumping them would make
+    the transcript exactly the second copy this design refuses. The accountability question - did it
+    touch the clone, did it write that path - is a path, and the tools name it in a closed set.
+    """
+    for key in ("rel", "path", "command", "pattern"):
+        val = args.get(key)
+        if isinstance(val, str) and val:
+            return val
+    return ""
 
 
 def _cap_tool(text: str) -> str:
@@ -704,11 +776,22 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
     tools = ws.tool_schemas()
     total_in = total_out = tool_calls = 0
     usage_reported = False          # did the ENDPOINT report usage, or is 0/0 just "unknown"?
+    transcript: list[dict] = []     # one row per tool call - see TRANSCRIPT_HEAD_CHARS
 
     def _result(output: str, err: str | None, forced: bool) -> ExecutorResult:
+        # **`max_rounds` travels with the answer because `forced_final` cannot say enough on its own.**
+        # A tool-less last round is produced by ANY budget that ran out - including a deliberate
+        # one-round budget - so a card without the budget cannot tell "cut off" from "answered inside
+        # the budget it was given", nor whether the run used 12 rounds or an env-lifted
+        # `SOLAR_MAX_ROUNDS`. See `runcard.write`, which writes it.
         return ExecutorResult(output=output, usage={"in": total_in, "out": total_out},
                               tool_calls=tool_calls, error=err, model=model,
-                              forced_final=forced, usage_reported=usage_reported)
+                              forced_final=forced, usage_reported=usage_reported,
+                              max_rounds=rounds,
+                              # A COPY, so a returned result cannot be mutated by the loop's next
+                              # round - and always present, because "this link called NO tool" is
+                              # itself one of the answers the transcript exists to give.
+                              tool_transcript=list(transcript))
 
     for rnd in range(1, rounds + 1):
         final_round = rnd == rounds
@@ -761,8 +844,23 @@ def _tool_loop(client, model: str, messages: list[dict], ws, max_rounds: int,
             except Exception:
                 args = {}
             tool_calls += 1
-            messages.append({"role": "tool", "tool_call_id": tc.id,
-                             "content": _cap_tool(ws.call_tool(tc.function.name, args))})
+            result = _cap_tool(ws.call_tool(tc.function.name, args))
+            # **Recorded HERE, where the call is made and the round is known.** The row is what
+            # lets a later reader say which tool ran, on what, in which round, and how much came
+            # back - and `ok` is what turns "there is no count of refused writes" into a count
+            # (`agent-tool-surface.md` section 7), because every refusal this layer produces is the
+            # string `call_tool` returned, and those all begin `ERROR`.
+            transcript.append({
+                "n": len(transcript) + 1,
+                "round": rnd,
+                "tool": tc.function.name,
+                "target": _target_of(args),
+                "args_chars": len(tc.function.arguments or ""),
+                "result_chars": len(result),
+                "ok": not result.startswith("ERROR"),
+                "head": result[:TRANSCRIPT_HEAD_CHARS],
+            })
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
     # Unreachable: the final round always returns above. Defensive only, and it
     # keeps the old error id so anything keyed on it still recognises the case.
     return _result("ERROR: reached max tool rounds without a final answer",
@@ -792,7 +890,8 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         spec: dict | None = None, human_approval: bool = False,
         cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "",
         cfg_provider: str = "", providers: dict | None = None,
-        models: dict | None = None, target: dict | None = None) -> ExecutorResult:
+        models: dict | None = None, target: dict | None = None,
+        clone: str = "") -> ExecutorResult:
     """Run one specialist node: system prompt + objective, with workspace tools.
 
     `spec` is the role's registry entry (v5 §6). It is handed to the tool layers so
@@ -815,6 +914,12 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     would mean two chances to disagree; passed in, it is resolved once per node. Omitted,
     it is resolved here - and a config error still REJECTS the run rather than quietly
     reaching an endpoint nobody asked for.
+
+    `clone` (T50, 2026-09-23) shares not one word with `target`, and the two are the
+    two senses of "target" this runtime has. `target` is the ENDPOINT the node talks to;
+    `clone` is WHICH CLONE the run is about, and it reaches the command layer so that a
+    declaration spelled `repos/{clone}` can resolve. `""` is the run declaring `none`,
+    which every clone-scoped command refuses rather than defaulting to one.
 
     Falls back to a stub (no network) when the endpoint cannot be reached at all, so the
     graph stays runnable/testable without credentials.
@@ -849,7 +954,8 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
                               model=target["model"], provider=label,
                               usage_reported=False)
     ws = _ToolLayer(Workspace(repo, spec),
-                    CommandRunner(repo, spec, human_approval=human_approval))
+                    CommandRunner(repo, spec, human_approval=human_approval,
+                                  role=role, clone=clone))
     messages: list[dict] = [
         {"role": "system",
          "content": (system_prompt or f"You are the {role} specialist.")
@@ -860,9 +966,18 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         {"role": "user", "content": objective},
     ]
     effort = reasoning_effort(cfg_reasoning, (spec or {}).get("reasoning", ""))
+    # **Taken BEFORE the loop, because the loop MUTATES `messages`** - tool results, the budget
+    # notice, the final instruction all land in that list - so a figure read afterwards would
+    # describe the last round of a run that had already happened.
+    base_prompt = prompt_tokens(messages)
     res = _tool_loop(client, target["model"], messages, ws, max_rounds, effort,
                      extra_body=target["extra_body"])
     # Provenance travels with the result: the graph records it, and the run-card is how a
     # local run is told apart from a cloud run of the same model id.
     res["provider"] = label
+    # **What the run was about to send, and the window it had been told it was sending it into.**
+    # Both travel, because the estimate alone is half a fact: the window is declared per install and
+    # can be raised between two runs, so a card holding one of them cannot be judged.
+    res["prompt_tokens"] = base_prompt
+    res["context_tokens"] = context_tokens()
     return res

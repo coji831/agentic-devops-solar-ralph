@@ -128,6 +128,56 @@ def test_collapse_runs_before_the_glob_match():
     assert not _wrote(_sibling_ws(GLOB), "../repos/solar-sandbox/../../other-client/x.ts")
 
 
+# --- the CONSULTATION layer (T35, 2026-09-23) ------------------------------------------------
+# The policy used to be answerable only by being refused. `_write_denial` computed the reason on
+# every attempt and threw it away, so a role learned four layers one refusal at a time - and a
+# role told to write where it knew it would be refused reported that a test it cannot pass *"is
+# not a test of anything"*. These three cases are the whole instrument: no model call, no
+# network, and the answer is the enforcement's own.
+
+RECORDER = {"role": "Recorder", "tools": ["workspace"], "write": True,
+            "write_deny": ["repos", "emails"]}
+
+
+def test_the_policy_can_be_ASKED_rather_than_only_refused():
+    """The witness section 6 asked for: ask a recorder, and get `repos/` and `emails/` back."""
+    ws = _ws(RECORDER)
+    assert ws.verdict("records/x.md") == "allowed"
+    assert ws.verdict("repos/x.md") == "repos/ is denied for this role"
+    assert ws.verdict("emails/y.md") == "emails/ is denied for this role"
+    assert ws.verdict("repos/sub/deep/x.md") == "repos/ is denied for this role"
+    assert ws.verdict(".solar/registry.json").startswith(".solar/ is protected")
+    assert ws.verdict("package.json").startswith("package.json is protected")
+
+
+def test_the_reader_IS_the_enforcement():
+    """Not "agrees with" - IS. Two implementations of one policy is how they rot apart, and the
+    day they disagree the reader is the one that lies."""
+    ws = _ws(RECORDER)
+    for rel in ("repos/x.md", "records/x.md", ".github/workflows/deploy.yml"):
+        assert ws.verdict(rel) == (ws._write_denial(rel) or "allowed")
+
+
+def test_the_report_names_all_four_layers():
+    """Two of the four layers are not the role's, and they are the two a role cannot infer from
+    its own declaration - so a report that omitted them would answer half the question."""
+    report = _ws(RECORDER).policy("recorder")
+    assert report["role"] == "recorder", "the KEY, not the spec's display name"
+    assert report["may_write"] is True
+    assert report["write_deny"] == ["repos", "emails"]
+    assert report["allowed_prefixes"] == ["<anywhere the protected names and dirs do not cover>"]
+    assert ".solar" in report["protected_dirs"]
+    assert "package.json" in report["protected_names"]
+    assert report["root"] == str(Path(report["root"]).resolve())
+
+
+def test_a_scoped_role_reports_its_prefix_and_a_read_only_one_reports_nothing():
+    assert _ws(SCOPED).policy()["allowed_prefixes"] == ["repos/pvl-rentals/"]
+    read_only = _ws({"role": "Investigator", "tools": ["workspace"], "write": False}).policy()
+    assert read_only["may_write"] is False
+    assert read_only["allowed_prefixes"] == [], "a read-only role may write nowhere"
+
+
 def test_the_deny_layers_outrank_the_glob():
     """4 - an allow is not an amnesty: config, metadata and the lock still refuse."""
     ws = _sibling_ws(GLOB)

@@ -42,6 +42,12 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "objective": state.get("objective", ""),
         "role": state.get("role", ""),
         "chain": state.get("chain", ""),
+        # **WHICH CLONE THE RUN WAS ABOUT** (T50, 2026-09-23), and it belongs on the CARD rather
+        # than in the declaration: the target is a value the RUN supplies, so the record that says
+        # "this link passed" has to say which repository it passed in. `""` is the run declaring
+        # `none` - a fact, not a gap. Before this, a card carried `repo` (the RUNTIME root) and
+        # nothing that distinguished a pass from one clone from a pass from another.
+        "clone": state.get("clone", ""),
         "outcome": "complete" if state.get("stage") == "complete" else state.get("stage", ""),
         "verdict": state.get("verdict", ""),
         "attempts": state.get("attempts", 0),
@@ -55,6 +61,23 @@ def write(cfg, state: dict, thread: str, started_at: float) -> Path:
         "provider": state.get("provider", ""),
         "error": state.get("error", ""),
         "forced_final": bool(state.get("forced_final", False)),
+        # **The budget the run was GIVEN, without which `forced_final` is half a fact.** A tool-less
+        # last round is produced by any budget that ran out, including a deliberate one-round budget,
+        # so a reader could not tell "cut off" from "answered inside its budget" - nor spot a run
+        # that only finished because `SOLAR_MAX_ROUNDS` had been lifted. Measured 2026-09-22: 22 keys
+        # and not one of them was the budget. `0` means the writer was not told it.
+        "max_rounds": state.get("max_rounds", 0),
+        # **What the run was about to SEND, and the window it had been told it was sending it into.**
+        # The endpoint's own count is the authoritative one and it arrives WITH the answer
+        # (`tokens.in`) - which is exactly why this exists: a run cannot learn from its own answer
+        # whether it was about to overflow. `prompt_tokens` is an ESTIMATE of the assembled prompt
+        # taken before round 1 (`executor.prompt_tokens`, text length only, so a floor), and
+        # `context_tokens` is the window declared at that moment (`executor.context_tokens`, `0` =
+        # undeclared). **Carried together, because one without the other cannot be judged**: the
+        # window is declared per install and may have been raised between two runs. **Nothing aborts
+        # on either figure** - decided 2026-09-22, the number exists before anything acts on it.
+        "prompt_tokens": state.get("prompt_tokens", 0),
+        "context_tokens": state.get("context_tokens", 0),
         # What the run concluded. Without it `verdict: APPROVED` was the only thing
         # recoverable from a finished run, and a verdict the graph grants itself cannot
         # stand in for the answer (TD-5.7-6).

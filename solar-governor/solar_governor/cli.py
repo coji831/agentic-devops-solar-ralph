@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from . import bench, chain, eval as eval_mod, executor, install, runcard, server, uplink
+from .commands import clone_problem, clone_required, declares_clone, load_vocabulary
 from .core import Config
 from .core import read_json
 from .graph import build_graph, pending_interrupt, run_step, run_task
@@ -15,7 +16,7 @@ from .registry import chains as load_chains
 from .registry import declared as declared_roles
 from .registry import load as load_registry
 from .registry import role_keys
-from .workspace import MAX_READ_CHARS
+from .workspace import MAX_READ_CHARS, Workspace
 
 # exit codes for the --json step contract (agent wrapper drives on these)
 EXIT_OK = 0
@@ -27,6 +28,66 @@ EXIT_REJECTED = 12         # the graph completed, but the verdict is REJECTED
 
 def _cfg_path(root: Path) -> Path:
     return root / ".solar" / "config.json"
+
+
+def _pinned_roles(args, cfg) -> list[str]:
+    """The roles this invocation PINS: a chain's entries, or one `--role`.
+
+    **Empty does not mean "none in it" - it means "not knowable yet".** With neither flag the
+    classifier picks the role, so which commands will be reachable is a fact the run learns after
+    it starts. `_clone_refusal` says so rather than guessing, and the refusal then lands at the
+    first call that needs a target (`CommandRunner._cwd`).
+    """
+    if getattr(args, "role", None):
+        return [str(args.role)]
+    if not getattr(args, "chain", None):
+        return []
+    raw = load_chains(cfg.root / ".solar" / "registry.json").get(args.chain) or []
+    return [r for item in raw for r in (item if isinstance(item, list) else [item])]
+
+
+def _clone_refusal(args, cfg, vocabulary: dict) -> str:
+    """Why this run cannot start for want of a target clone, or `""` when it can.
+
+    **Three refusals, in the order a caller can act on them, and all of them BEFORE a dispatch.**
+    The requirement itself is read from the DECLARATION (`clone_required`), so an install whose
+    commands are all engagement-rooted never sees any of this.
+
+    1. **No `--clone` at all.** A clone-scoped command has nothing to resolve against, and the
+       whole item exists because the old answer - a name baked into the declaration - credited a
+       pass to the wrong repository silently.
+    2. **`--clone none` when the run PINS a role that cannot work without one.** Declaring `none`
+       is honest for the record-keeping roles; declaring it for a chain that opens with
+       `implementer` is a declaration that provably cannot hold, and it is knowable here instead of
+       at the first call - where the cost is a dispatched link that fails.
+    3. **A clone that does not resolve.** Validated with `clone_problem`, which is the same two
+       steps `_cwd` takes (escape refused, directory must exist) run once, at the start.
+    """
+    if not clone_required(vocabulary):
+        return ""
+    if not getattr(args, "clone", None):
+        return ("this install's commands run inside a CLONE, so a run has to say which one: "
+                "`--clone <name>` for a run that acts on one, or `--clone none` for a run that "
+                "does not. Refusing rather than defaulting, because a default here is a run "
+                "credited to a repository nobody named.")
+    if args.clone == "none":
+        roles = _pinned_roles(args, cfg)
+        if not roles:
+            return ""
+        registry = load_registry(cfg.root / ".solar" / "registry.json")
+        blockers = sorted({f"`{role}` holds `{name}`"
+                           for role in roles
+                           for name in (registry.get(role) or {}).get("exec_allow") or []
+                           if isinstance(vocabulary.get(str(name)), dict)
+                           and declares_clone(vocabulary[str(name)])})
+        if blockers:
+            return (f"--clone none cannot hold for this run: {', '.join(blockers)}, and this run "
+                    f"pins the role that holds them. Name the clone the work is about.")
+        return ""
+    problem = clone_problem(cfg.root, str(args.clone), vocabulary)
+    if problem:
+        return f"--clone {args.clone!r} is not a target: {problem}"
+    return ""
 
 
 def cmd_init(args):
@@ -127,6 +188,12 @@ def cmd_run(args):
             print(f"❌ no role '{args.role}' in registry (have: {role_keys(reg)})",
                   file=sys.stderr)
             sys.exit(2)
+    # **WHICH CLONE THIS RUN IS ABOUT, SETTLED BEFORE ANYTHING IS DISPATCHED** (T50, 2026-09-23),
+    # and before the `--chain` block below can dispatch a whole chain headless.
+    refusal = _clone_refusal(args, cfg, load_vocabulary(cfg.root))
+    if refusal:
+        print(f"❌ {refusal}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
     if args.chain:
         cm = load_chains(cfg.root / ".solar" / "registry.json")
         if args.chain not in cm:
@@ -145,7 +212,7 @@ def cmd_run(args):
     # interactive/one-shot path (stdin prompts at interrupts)
     state = run_task(cfg, args.task, thread=thread, approve=args.approve,
                      resume_result=args.result, chain=args.chain or "",
-                     role=args.role or "")
+                     role=args.role or "", clone=getattr(args, "clone", None) or "")
     _write_artifacts(cfg, state, thread, started)
     chain = f" chain={state.get('chain')}" if state.get("chain") else ""
     print(f"✅ run complete — stage={state.get('stage')} verdict={state.get('verdict')} "
@@ -247,7 +314,7 @@ def _cmd_run_json(cfg, args, thread, started) -> None:
         return
 
     state = run_step(cfg, args.task, thread, resume=resume, chain=args.chain or "",
-                     role=args.role or "")
+                     role=args.role or "", clone=getattr(args, "clone", None) or "")
     _write_artifacts(cfg, state, thread, started)
 
     if "__interrupt__" in state:
@@ -507,6 +574,27 @@ def _model_check(cfg, reg: dict, runner: str = "") -> tuple:
                     f"({', '.join(ids)}); may be an alias, or a typo")
 
 
+def _tool_budget_tokens(cap_chars: int, rounds: int) -> tuple[int, int]:
+    """(the largest round, the run's total input) in tokens, for `rounds` against a per-result cap.
+
+    **Two figures, because the one that stood here was neither of them.** Every round re-sends the
+    whole context, so with one capped tool result per round:
+
+        round r carries  ~ (r - 1) x cap    -> the LARGEST round is what has to fit the served window
+        summed over r    ~ cap x r(r+1)/2   -> the run's total prompt tokens, which is what you pay
+
+    What used to print was `cap x rounds` - the total NEW text - and it was labelled a worst case.
+    Measured 2026-09-22 against a real engagement link: **2,110,699 prompt tokens in**, where doctor
+    had reported 27.4k.
+
+    **The divisor lives in `executor.estimate_tokens`, called here rather than restated.** The same
+    3.5 is what a run-card's own prompt estimate is built from, and two spellings would let doctor
+    and a card disagree about one prompt while both looked authoritative.
+    """
+    per_round = executor.estimate_tokens(cap_chars)
+    return per_round * max(0, rounds - 1), int(per_round * rounds * (rounds + 1) / 2)
+
+
 def _tool_output_check() -> tuple:
     """Is the tool-output cap sized against the context the server actually serves?
 
@@ -517,10 +605,16 @@ def _tool_output_check() -> tuple:
     system prompt and the objective) silently. Its symptom is a model that read the file and
     missed the fact, which reads as a model defect and is not one.
 
-    Every round re-sends the whole context, so the worst case is `cap x SOLAR_MAX_ROUNDS`.
+    **The figure that decides FIT is the largest round; the total is the cost line, not the fit
+    line** - it is quadratic in rounds, because every round re-sends everything the earlier ones
+    accumulated. Both are printed, and neither is called a worst case: the system prompt and the
+    objective sit on top of both and doctor cannot see them. See `_tool_budget_tokens`.
+
     The served window cannot be read over the OpenAI surface (`/v1/models` carries no
     `num_ctx`), so it is DECLARED with `SOLAR_CONTEXT_TOKENS` rather than guessed - and when
-    it is not declared the arithmetic is printed anyway, because that line is the point.
+    it is not declared the arithmetic is printed anyway, because that line is the point. **The
+    declaration itself is `executor.context_tokens()`**, so this check and a run-card read ONE
+    answer; until 2026-09-22 it was a bare `os.environ` read here, and nothing else could see it.
     """
     cap = executor.tool_output_chars()
     rounds = executor.MAX_TOOL_ROUNDS
@@ -530,21 +624,23 @@ def _tool_output_check() -> tuple:
     label = "unlimited" if cap <= 0 else f"cap {cap} chars"
     note = ("" if cap <= 0 or cap <= MAX_READ_CHARS else
             f"; {cap} is above read_file's own {MAX_READ_CHARS}-char ceiling, which binds first")
-    worst = int(effective / 3.5) * rounds
-    est = f"{worst / 1000:.1f}k" if worst >= 1000 else str(worst)
-    try:
-        window = int(os.environ.get("SOLAR_CONTEXT_TOKENS", "0") or 0)
-    except ValueError:
-        window = 0
+    largest, total = _tool_budget_tokens(effective, rounds)
+    est = (f"~{largest / 1000:.1f}k in its largest round, ~{total / 1000:.1f}k over the run")
+    # **Read from the DECLARATION, not from `os.environ` here.** The same number is recorded on
+    # every run-card beside the prompt it was measured against, and two readers of one variable is
+    # how the two drift - see `executor.context_tokens`.
+    window = executor.context_tokens()
     if not window:
-        return "PASS", (f"{label} x {rounds} rounds ~ {est} tokens worst case{note}; declare "
-                        f"SOLAR_CONTEXT_TOKENS to have this checked against the served window")
-    if worst > window:
-        return "WARN", (f"{label} x {rounds} rounds ~ {est} tokens exceeds the declared window of "
-                        f"{window}: the server drops the OLDEST tokens silently (system prompt "
-                        f"and objective first). Raise the model's num_ctx, then the cap{note}")
-    return "PASS", (f"{label} x {rounds} rounds ~ {est} tokens, within the declared window of "
-                    f"{window}{note}")
+        return "PASS", (f"{label} x {rounds} rounds = {est} tokens, and the system prompt and the "
+                        f"objective are on top of both{note}; declare SOLAR_CONTEXT_TOKENS to have "
+                        f"the largest round checked against the served window")
+    if largest > window:
+        return "WARN", (f"{label} x {rounds} rounds = {est} tokens, and the largest round alone "
+                        f"exceeds the declared window of {window}: the server drops the OLDEST "
+                        f"tokens silently (system prompt and objective first). Raise the model's "
+                        f"num_ctx, then the cap{note}")
+    return "PASS", (f"{label} x {rounds} rounds = {est} tokens, and the largest round fits the "
+                    f"declared window of {window}{note}")
 
 
 def _print_doctor(checks: dict[str, tuple]) -> None:
@@ -586,6 +682,59 @@ def _arm_stdio() -> None:
             pass  # a replaced or detached stream is the caller's business, not ours
 
 
+def cmd_policy(args):
+    """Print one role's write policy - the consultation layer, with no model in it.
+
+    `agent-tool-surface.md` section 4 measured the gap this closes: the engagement has 42 checks
+    that can say **afterwards** that something was wrong and nothing that says beforehand what is
+    allowed, so a role discovers four layers of policy one refusal at a time. The answer is
+    `Workspace`'s own, ASKED rather than restated - which is what makes it incapable of
+    disagreeing with the enforcement it reports.
+
+    `--role` and `--repo` default to `SOLAR_ROLE` and `SOLAR_ROOT`, which the command layer puts
+    in the environment of every child it runs. That default is what lets ONE declared command
+    answer for whichever role called it, in an `argv` that cannot be parameterised.
+    """
+    role = (args.role or os.environ.get("SOLAR_ROLE", "")).strip()
+    root = Path(args.repo or os.environ.get("SOLAR_ROOT", ".")).expanduser().resolve()
+    try:
+        cfg = Config.load(_cfg_path(root))
+        reg = load_registry(cfg.root / ".solar" / "registry.json")
+    except Exception as e:
+        print(f"policy: cannot read the install under {root}: {e}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+    if not role:
+        print(f"policy: name a role with --role (or SOLAR_ROLE, when a command runs this). "
+              f"In the registry: {', '.join(sorted(role_keys(reg)))}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+    spec = reg.get(role) or {}
+    if "system" not in spec:
+        print(f"policy: no role '{role}' in the registry (have: {role_keys(reg)})",
+              file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+
+    ws = Workspace(cfg.root, spec)
+    report = ws.policy(role)
+    if args.path:
+        report["path"] = args.path
+        report["verdict"] = ws.verdict(args.path)
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return
+    print(f"write policy - {report['role']}   (root: {report['root']})")
+    print(f"  may write : {'yes' if report['may_write'] else 'NO - every mutating tool refuses'}")
+    print(f"  allowed   : {', '.join(report['allowed_prefixes']) or '(nothing)'}")
+    print(f"  denied    : {', '.join(report['write_deny']) or '(none declared for this role)'}")
+    glob = ', '.join(report["write_glob"]) or '(none declared)'
+    if report["write_glob_refused"]:
+        glob += f"   [refused as unanchored: {', '.join(report['write_glob_refused'])}]"
+    print(f"  glob      : {glob}")
+    print(f"  protected : dirs {', '.join(report['protected_dirs'])}")
+    print(f"              names {', '.join(report['protected_names'])}")
+    if args.path:
+        print(f"  verdict   : {report['verdict']}")
+
+
 def main():
     _arm_stdio()
     ap = argparse.ArgumentParser(prog="solar-governor", description="SOLAR-Ralph v5 runtime")
@@ -621,6 +770,12 @@ def main():
     p_run.add_argument("--role", default=None,
                        help="pin dispatch to one registry role (skip keyword classify) — "
                             "e.g. a Hermes intake decision")
+    p_run.add_argument("--clone", default=None,
+                       help="which CLONE this run is about (T50): the value a declaration's "
+                            "`repos/{clone}` cwd resolves against. Required when the vocabulary "
+                            "declares one, and `none` is a legal answer for a run that touches "
+                            "no clone — but not for one whose pinned roles hold a "
+                            "clone-scoped command.")
     p_run.add_argument("--approve", choices=["approve", "deny"], default=None)
     p_run.add_argument("--runner", choices=list(executor.RUNNERS), default=None,
                        help="run THIS task with another runner without touching "
@@ -638,6 +793,17 @@ def main():
     p_doct.add_argument("--repo", default=".")
     p_doct.add_argument("--json", action="store_true")
     p_doct.set_defaults(fn=cmd_doctor)
+
+    p_pol = sub.add_parser("policy", help="print one role's write policy, before any attempt")
+    p_pol.add_argument("--repo", default=None,
+                       help="the install root (default: SOLAR_ROOT, else .)")
+    p_pol.add_argument("--role", default="",
+                       help="the role key (default: SOLAR_ROLE, which the command layer passes "
+                            "to every child it runs)")
+    p_pol.add_argument("--path", default="",
+                       help="also answer for ONE path: which layer would refuse it, if any")
+    p_pol.add_argument("--json", action="store_true")
+    p_pol.set_defaults(fn=cmd_policy)
 
     p_serve = sub.add_parser("serve", help="run the headless HTTP API (POST /run)")
     p_serve.add_argument("--repo", default=".")

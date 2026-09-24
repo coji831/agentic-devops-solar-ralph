@@ -5,7 +5,9 @@ Two properties matter more than the features here:
 1. A command that is not declared, or not GRANTED to the role, must not exist for that
    role. Absence is the containment - a rule asking the model to avoid a command is not.
 2. There is no free-text command or argument field, so a vocabulary command cannot be
-   turned into an arbitrary one.
+   turned into an arbitrary one. **The one argument that exists is a PATH, declared by
+   the command (`accepts`), resolved against that command's own `cwd`, and refused
+   unless it names a real file there** - see the `accepts` section at the bottom.
 
 Everything runs offline against the local interpreter as argv[0], so the suite needs no
 network and no project toolchain. No API key is required.
@@ -20,20 +22,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from solar_governor.commands import CommandRunner, load_vocabulary  # noqa: E402
+from solar_governor.commands import (  # noqa: E402
+    CLONE, CLONE_NONE, CommandRunner, clone_problem, clone_required, load_vocabulary)
 
 PY = sys.executable
 
 
 def _tmp_repo(vocabulary: dict | None = None, spec: dict | None = None,
-              human_approval: bool = False) -> tuple[Path, CommandRunner]:
+              human_approval: bool = False, clone: str = "") -> tuple[Path, CommandRunner]:
     r = Path(tempfile.mkdtemp(prefix="solar-cmd-"))
     (r / ".solar").mkdir(parents=True)
     (r / "sub").mkdir()
     if vocabulary is not None:
         (r / ".solar" / "commands.json").write_text(json.dumps(vocabulary),
                                                     encoding="utf-8")
-    return r, CommandRunner(r, spec, human_approval=human_approval)
+    return r, CommandRunner(r, spec, human_approval=human_approval, clone=clone)
 
 
 def _vocab(**commands) -> dict:
@@ -341,7 +344,7 @@ def test_executor_offers_both_layers_gated_by_the_role():
     spec = {"tools": ["workspace", "exec"], "write": False, "exec_allow": ["peek"]}
     layer = _ToolLayer(Workspace(r, spec), CommandRunner(r, spec))
     names = {s["function"]["name"] for s in layer.tool_schemas()}
-    assert names == {"list_tree", "read_file", "glob", "run_command"}
+    assert names == {"list_tree", "read_file", "glob", "search_text", "run_command"}
     assert "[peek] PASS exit 0" in layer.call_tool("run_command", {"command": "peek"})
     assert layer.call_tool("nope", {}).startswith("ERROR: unknown tool")
     shutil.rmtree(r)
@@ -485,6 +488,207 @@ def test_a_long_failure_line_is_clipped():
     out = cr.call_tool("run_command", {"command": "long"})
     assert "chars elided" in out
     shutil.rmtree(r)
+
+
+# --- one path, and only where the command declares it (T40) ------------------
+#
+# The property under test is NOT "a path can be passed". It is that a path is the ONLY thing that
+# can be added to a frozen argv, that it is validated against the command's own cwd rather than
+# substituted into the declaration, and that a command which takes no argument refuses one instead
+# of quietly running something other than what was asked for.
+
+def _path_vocab(**commands) -> dict:
+    """Entries that echo their own arguments, so what arrived is what is asserted."""
+    return {name: {"argv": [PY, "-c", "import sys; print('ARGV:', sys.argv[1:])"],
+                   "kind": kind, "timeout": 30, **extra}
+            for name, (kind, extra) in commands.items()}
+
+
+def test_a_declared_path_is_appended_to_the_frozen_argv():
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path"})),
+                      spec={"exec_allow": ["one"]})
+    (r / "notes.md").write_text("# notes\n", encoding="utf-8")
+    out = cr.call_tool("run_command", {"command": "one", "path": "notes.md"})
+    assert "ARGV: ['notes.md']" in out
+    assert "path=notes.md" in out  # the target is on the record, like cwd
+    shutil.rmtree(r)
+
+
+def test_the_path_is_resolved_against_the_commands_own_cwd():
+    """`cwd`-relative, not root-relative: the child resolves its arguments in its own
+    working directory, which is also the base check 47 reads a declared argv from."""
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path",
+                                                          "cwd": "sub"})),
+                      spec={"exec_allow": ["one"]})
+    (r / "sub" / "notes.md").write_text("# notes\n", encoding="utf-8")
+    assert "ARGV: ['notes.md']" in cr.call_tool("run_command", {"command": "one",
+                                                                "path": "notes.md"})
+    # the same file named from the ROOT resolves to <cwd>/sub/notes.md, which is not there
+    escaped = cr.call_tool("run_command", {"command": "one", "path": "sub/notes.md"})
+    assert escaped.startswith("ERROR:")
+    shutil.rmtree(r)
+
+
+def test_a_path_that_escapes_the_root_is_refused():
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path"})),
+                      spec={"exec_allow": ["one"]})
+    out = cr.call_tool("run_command", {"command": "one", "path": "../outside.md"})
+    assert out.startswith("ERROR:") and "escapes" in out
+    assert "ARGV" not in out  # it never ran
+    shutil.rmtree(r)
+
+
+def test_a_path_that_is_not_a_file_is_refused():
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path"})),
+                      spec={"exec_allow": ["one"]})
+    assert cr.call_tool("run_command", {"command": "one", "path": "sub"}).startswith("ERROR:")
+    assert cr.call_tool("run_command", {"command": "one",
+                                         "path": "nothing.md"}).startswith("ERROR:")
+    shutil.rmtree(r)
+
+
+def test_an_argument_cannot_be_composed_into_one():
+    """No splitting and no quoting: `--write .` is ONE path, and a path that names no file
+    is refused - so a caller cannot turn the vocabulary back into a shell."""
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path"})),
+                      spec={"exec_allow": ["one"]})
+    for attempt in ("--write .", "--write", "notes.md --write"):
+        assert cr.call_tool("run_command", {"command": "one",
+                                             "path": attempt}).startswith("ERROR:")
+    shutil.rmtree(r)
+
+
+def test_a_command_that_takes_no_path_refuses_one():
+    """Silently dropping it would run something other than what was asked for."""
+    r, cr = _tmp_repo(vocabulary=_path_vocab(plain=("read", {})),
+                      spec={"exec_allow": ["plain"]})
+    (r / "notes.md").write_text("# notes\n", encoding="utf-8")
+    out = cr.call_tool("run_command", {"command": "plain", "path": "notes.md"})
+    assert out.startswith("ERROR:") and "declares no `accepts`" in out
+    assert "ARGV" not in out
+    shutil.rmtree(r)
+
+
+def test_a_command_that_declares_accepts_requires_the_path():
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path"})),
+                      spec={"exec_allow": ["one"]})
+    out = cr.call_tool("run_command", {"command": "one"})
+    assert out.startswith("ERROR:") and "none was supplied" in out
+    shutil.rmtree(r)
+
+
+def test_the_path_field_is_advertised_only_by_the_commands_that_take_one():
+    r, cr = _tmp_repo(vocabulary=_path_vocab(one=("read", {"accepts": "path"}),
+                                            plain=("read", {})),
+                      spec={"exec_allow": ["one", "plain"]})
+    params = cr.tool_schemas()[0]["function"]["parameters"]
+    assert sorted(params["properties"]) == ["command", "path"]
+    assert params["required"] == ["command"]           # the argument stays optional overall
+    assert "one" in params["properties"]["path"]["description"]
+    assert "plain" not in params["properties"]["path"]["description"]
+    shutil.rmtree(r)
+
+
+def test_an_unknown_argument_kind_is_refused():
+    r, cr = _tmp_repo(vocabulary=_path_vocab(odd=("read", {"accepts": "directory"})),
+                      spec={"exec_allow": ["odd"]})
+    out = cr.call_tool("run_command", {"command": "odd", "path": "sub"})
+    assert out.startswith("ERROR:") and "unknown `accepts`" in out
+    shutil.rmtree(r)
+
+
+# --- T50: which CLONE this run is about -------------------------------------
+# The target moved from the DECLARATION to the RUN, so these four cases are the whole claim:
+# a vocabulary that names no clone needs no target, a real one resolves into a real cwd, a run
+# that declared none is refused rather than defaulted, and a target that does not resolve is
+# refused by the same two steps that have always guarded a `cwd`.
+
+WHOAMI = "import os; print(os.getcwd())"
+
+
+def _clone_vocab():
+    """One entry that runs in the run's clone, spelled the way `.solar/commands.json` spells it."""
+    return {"where": {"argv": [PY, "-c", WHOAMI], "kind": "read", "timeout": 30,
+                       "cwd": f"repos/{CLONE}"}}
+
+
+def test_a_vocabulary_that_names_no_clone_needs_no_target():
+    """The rule is read from the DECLARATION, so an install with no clones is untouched by it."""
+    assert clone_required(_vocab(peek=("print('ok')", "read"))) is False
+    assert clone_required(_clone_vocab()) is True
+
+
+def test_the_run_clone_resolves_into_a_real_cwd():
+    r, cr = _tmp_repo(vocabulary=_clone_vocab(), spec={"exec_allow": ["where"]},
+                      clone="alpha")
+    (r / "repos" / "alpha").mkdir(parents=True)
+    out = cr.call_tool("run_command", {"command": "where"})
+    assert "cwd=repos" in out and "alpha" in out          # the record names the target it used
+    assert str((r / "repos" / "alpha").resolve()).lower() in out.lower()   # and it ran THERE
+    shutil.rmtree(r)
+
+
+def test_a_run_that_declared_no_clone_is_refused_at_the_call():
+    """Not defaulted, not guessed - and the message says what to do instead."""
+    r, cr = _tmp_repo(vocabulary=_clone_vocab(), spec={"exec_allow": ["where"]})
+    (r / "repos" / "alpha").mkdir(parents=True)
+    out = cr.call_tool("run_command", {"command": "where"})
+    assert out.startswith("ERROR:")
+    assert "declared none" in out and "--clone" in out
+    shutil.rmtree(r)
+
+
+def test_one_vocabulary_serves_every_clone():
+    """The point of the whole item: the SAME declaration runs in a different repository, so a
+    role working on clone B cannot be handed a pass from clone A's checks."""
+    r, _ = _tmp_repo(vocabulary=_clone_vocab())
+    for name in ("alpha", "beta"):
+        (r / "repos" / name).mkdir(parents=True)
+    runs = {name: CommandRunner(r, {"exec_allow": ["where"]}, clone=name)
+            .call_tool("run_command", {"command": "where"}).lower()
+            for name in ("alpha", "beta")}
+    assert str((r / "repos" / "alpha").resolve()).lower() in runs["alpha"]
+    assert str((r / "repos" / "beta").resolve()).lower() in runs["beta"]
+    assert str((r / "repos" / "beta").resolve()).lower() not in runs["alpha"]
+    shutil.rmtree(r)
+
+
+def test_the_word_for_no_clone_is_reserved_not_a_name():
+    """`none` is a DECLARATION, so it cannot also be a clone's name - and a run that declared it
+    gets its own reason at the call rather than "not a directory: repos/none"."""
+    r, _ = _tmp_repo(vocabulary=_clone_vocab())
+    (r / "repos" / "alpha").mkdir(parents=True)
+    assert "touches NO clone" in clone_problem(r, CLONE_NONE, _clone_vocab())
+    cr = CommandRunner(r, {"exec_allow": ["where"]}, clone=CLONE_NONE)
+    out = cr.call_tool("run_command", {"command": "where"})
+    assert out.startswith("ERROR:") and f"--clone {CLONE_NONE}" in out
+    shutil.rmtree(r)
+
+
+def test_a_target_that_does_not_resolve_is_refused_before_anything_runs():
+    r, _ = _tmp_repo(vocabulary=_clone_vocab())
+    (r / "repos" / "alpha").mkdir(parents=True)
+    assert clone_problem(r, "alpha", _clone_vocab()) == ""
+    assert "not a directory" in clone_problem(r, "nope", _clone_vocab())
+    # **A NAME, not a path** - and this is the case that made the rule: `alpha/../..` resolves to
+    # the ROOT itself, which exists, so the escape test and the is-a-directory test both pass it
+    # and the command would run in the root while the record said a clone.
+    assert "plain directory name" in clone_problem(r, "../../etc", _clone_vocab())
+    assert "plain directory name" in clone_problem(r, "alpha/../..", _clone_vocab())
+    shutil.rmtree(r)
+
+
+def test_the_clone_reaches_the_command_layer_through_the_executor():
+    """The parameter is on `executor.run` and must arrive at the runner it builds - the hop a
+    signature change can silently drop."""
+    import inspect
+
+    from solar_governor import executor
+    sig = inspect.signature(executor.run)
+    assert sig.parameters["clone"].default == ""
+    src = inspect.getsource(executor.run)
+    assert "clone=clone" in src          # the one call site that builds the runner
+    assert sig.parameters["target"].default is None    # the OTHER target, still the model endpoint
 
 
 if __name__ == "__main__":

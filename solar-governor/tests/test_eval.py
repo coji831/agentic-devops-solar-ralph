@@ -4,6 +4,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -97,8 +98,42 @@ def test_eval_patched_pass():
     shutil.rmtree(r)
 
 
+def test_a_write_case_is_measured_against_the_tree_and_the_clock():
+    """`T15` (2026-09-22): a writing role is graded by what is on disk, and by WHEN it got there.
+
+    `must_contain` reads the model's final OUTPUT, so every case the battery had could grade a
+    read-only `investigator` and nothing else - while a writing role's characteristic failure is not
+    a wrong sentence, it is a REPORT about a file that is not there. **The clock is the whole guard
+    against grading the tree's history**, because nothing is deleted first on purpose.
+    """
+    r = _tmp_repo()
+    case = {"must_write": [{"path": "probe.md", "contains": ["hello"]}]}
+
+    ok, why = ev.check_writes(r, case, time.time())
+    assert ok is False and "nothing was written" in why, why
+
+    # A file that was already there says nothing about this run, however right it looks.
+    (r / "probe.md").write_text("hello\n", encoding="utf-8")
+    ok, why = ev.check_writes(r, case, time.time() + 5)
+    assert ok is False and "NOT written by this run" in why, why
+
+    # Written by this run, with the wrong body - and the FAIL has to say which of the two it is.
+    started = time.time() - 1
+    (r / "probe.md").write_text("goodbye\n", encoding="utf-8")
+    ok, why = ev.check_writes(r, case, started)
+    assert ok is False and "missing" in why, why
+
+    (r / "probe.md").write_text("hello, world\n", encoding="utf-8")
+    assert ev.check_writes(r, case, started) == (True, "")
+
+    # A read-only case carries no `must_write` and is unaffected.
+    assert ev.check_writes(r, {"must_contain": ["x"]}, started) == (True, "")
+    shutil.rmtree(r)
+
+
 if __name__ == "__main__":
-    for fn in (test_check_substrings, test_tool_output_cap, test_eval_patched_pass):
+    for fn in (test_check_substrings, test_tool_output_cap, test_eval_patched_pass,
+               test_a_write_case_is_measured_against_the_tree_and_the_clock):
         fn()
         print(f"PASS {fn.__name__}")
     print("all eval tests passed")

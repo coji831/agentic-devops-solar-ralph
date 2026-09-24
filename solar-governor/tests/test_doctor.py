@@ -111,3 +111,39 @@ def test_an_explicit_stub_runner_is_reported_as_a_choice_not_a_fallback(capsys):
         assert "no provider call" in check["detail"]
     finally:
         shutil.rmtree(root)
+
+
+def test_the_tool_output_arithmetic_reports_two_figures_not_a_worst_case():
+    """The fit figure is the LARGEST ROUND; the cost figure is the run's TOTAL.
+
+    Measured before this change: one real engagement link was carded at **2,110,699 prompt tokens in**,
+    while `doctor` reported a "worst case" of 27.4k. That figure was `cap x rounds` - the total NEW
+    tool text - which is neither what a round has to fit nor what the run pays, and it was named a
+    worst case in a report whose whole value is that its wording invites no wrong reading.
+    """
+    per_round = int(8000 / 3.5)
+    largest, total = cli._tool_budget_tokens(8000, 12)
+    assert largest == per_round * 11            # every round re-sends what the earlier ones added
+    assert total == int(per_round * 12 * 13 / 2)
+    assert total > largest > per_round          # the cost line is not the fit line
+    assert cli._tool_budget_tokens(8000, 1)[0] == 0     # one round accumulates nothing to re-send
+
+
+def test_the_served_window_is_declared_in_one_place(monkeypatch):
+    """`T14` job (i), 2026-09-22: the window had no constant, default or config key.
+
+    It was a bare `os.environ` read INSIDE this check, so nothing else in the runtime could see the
+    number a run records against the prompt it is about to send - and `0` still means UNDECLARED,
+    not zero, because a caller unable to tell "no window" from "nobody said" would report a fit it
+    never checked.
+    """
+    from solar_governor import executor
+    monkeypatch.delenv("SOLAR_CONTEXT_TOKENS", raising=False)
+    assert executor.context_tokens() == 0
+    assert "declare SOLAR_CONTEXT_TOKENS" in cli._tool_output_check()[1]
+    monkeypatch.setenv("SOLAR_CONTEXT_TOKENS", "1000")
+    assert executor.context_tokens() == 1000
+    status, detail = cli._tool_output_check()
+    assert status == "WARN" and "1000" in detail
+    monkeypatch.setenv("SOLAR_CONTEXT_TOKENS", "not a number")
+    assert executor.context_tokens() == 0           # the same sentinel, and never a raise

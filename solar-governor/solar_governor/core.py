@@ -37,6 +37,11 @@ class SolarState(TypedDict):
     objective: str
     role: str                                  # routed specialist role (or chain entry)
     chain: str                                 # named chain, when running one (else "")
+    # **WHICH CLONE THIS RUN IS ABOUT** (T50, 2026-09-23), declared by the RUN rather than inferred
+    # from a role's name or a command's: twelve entries used to hard-code one client, so a link
+    # working on another clone could take a PASS from the wrong repository. `""` is the run saying
+    # `none`, which every clone-scoped command refuses - see `commands.CommandRunner._cwd`.
+    clone: str
     materials_status: str                      # PENDING / READY / INSUFFICIENT
     work_queue: Annotated[list, operator.add]
     decisions_log: Annotated[list, operator.add]
@@ -67,6 +72,21 @@ class SolarState(TypedDict):
     forced_final: bool                         # answer came from the tool-less last round
     provider: str                              # endpoint the run went to (host:port, or "stub")
     usage_reported: bool                       # endpoint reported usage (0/0 is "unknown" if not)
+    # The tool-call TRANSCRIPT (T10, 2026-09-23), written by `executor._tool_loop`: one row per
+    # tool call - `n`, `round`, `tool`, `target`, `args_chars`, `result_chars`, `ok`, `head`.
+    #
+    # **It is carried as a state CHANNEL so the checkpoint stores it, and it is telemetry.**
+    # `runcard.write` builds its card from an explicit field list, so this channel cannot reach the
+    # tracked record - which is the boundary `T11` ruled: `.solar/state/` is gitignored, per-machine,
+    # and nothing may cite it. Adding the key here is the whole delivery mechanism: the harness part
+    # that owns instrumentation is the graph's own checkpointer, and a table of our own would have
+    # been the fifth sink `05` section 4 forbids.
+    #
+    # **A plain channel rather than an `operator.add` one**, deliberately: a reducer would
+    # concatenate every node's calls into one list and lose which LINK made which call, while a
+    # plain channel writes ONE ROW PER NODE into `writes` - so the attribution is free, and it is
+    # the thing the item is for.
+    tool_transcript: list
 
 
 DEFAULTS: dict = {

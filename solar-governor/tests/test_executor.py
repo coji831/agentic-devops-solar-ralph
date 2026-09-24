@@ -367,11 +367,17 @@ def test_a_model_that_only_calls_tools_is_cut_off_not_failed():
 
 
 def test_a_single_round_budget_is_still_answered():
+    """`forced_final` alone is half a fact: a ONE-ROUND budget produces it too.
+
+    So the answer carries the budget it ran under (`T12`). Without it a card could not tell
+    "answered inside its budget" from "cut off", which is the distinction the flag exists for.
+    """
     client = _FakeClient([_text("one-shot")])
     res = _loop(client, max_rounds=1)
     assert "tools" not in client.payloads[0]
     assert res["output"] == "one-shot"
     assert res["forced_final"] is True
+    assert res["max_rounds"] == 1
 
 
 def test_a_normal_answer_is_not_marked_forced():
@@ -416,14 +422,90 @@ def test_usage_and_tool_call_counts_accumulate():
 
 def test_run_card_records_a_forced_answer():
     """An operator must be able to tell 'answered' from 'cut off, and answered
-    anyway' from the run-card alone."""
+    anyway' from the run-card alone - which needs the BUDGET as well as the flag,
+    because a one-round budget sets the flag too (`T12`, 2026-09-22).
+
+    **The `verdict: APPROVED` in the state below is fixture data, not a real card:** after
+    `T18` (2026-09-22) the graph cannot produce that pair - `review()` refuses a forced
+    final - and this test is about `runcard.write` rendering whatever state it is handed.
+    """
     from solar_governor import runcard
     r = _tmp_repo()
     cfg = _cfg(r)
     state = {"stage": "complete", "verdict": "APPROVED", "forced_final": True,
-             "decisions_log": []}
+             "max_rounds": 12, "decisions_log": []}
     path = runcard.write(cfg, state, "t-forced", time.time())
-    assert json.loads(path.read_text(encoding="utf-8"))["forced_final"] is True
+    card = json.loads(path.read_text(encoding="utf-8"))
+    assert card["forced_final"] is True
+    assert card["max_rounds"] == 12
+    shutil.rmtree(r)
+
+
+def test_a_forced_final_is_never_approved():
+    """`T18` (2026-09-22): a link cut off at its round limit used to be recorded APPROVED.
+
+    The budget has TWO endings and only one of them was guarded. The loop falling out with
+    no answer at all sets `error` (`executor.py:817`), which `review()` already refuses. The
+    tool-less FINAL round answering leaves `error` empty and sets `forced_final` alone
+    (`executor.py:799`), so nothing fired, the verdict read APPROVED, and the RECORD called a
+    forced answer an accepted one. The executor's own docstring is the witness - it calls that
+    answer *"cut off, and answered anyway"* - and so is the card it wrote: exactly one in the
+    engagement carried `verdict: APPROVED` with `forced_final: true` and 753,729 input tokens.
+    """
+    from solar_governor.graph import build_nodes
+
+    r = _tmp_repo()
+    cfg = _cfg(r)
+    cfg.human_approval = False          # the auto-approve path is the one under test
+    nodes = build_nodes(cfg)
+
+    forced = {"objective": "x", "role": "recorder", "attempts": 1, "error": None,
+              "forced_final": True, "max_rounds": 12, "decisions_log": []}
+    out = nodes["review"](forced)
+    assert out["verdict"] == "REJECTED"
+    assert "FORCED" in out["decisions_log"][0]
+
+    # Terminal, not rework: the budget is already spent, so a retry buys the same answer twice.
+    assert nodes["route"]({**forced, **out}) == "complete"
+
+    # The endings that were ALREADY right must not have moved with it.
+    assert nodes["review"]({**forced, "error": "max_rounds", "forced_final": False})\
+        ["verdict"] == "REJECTED"
+    assert nodes["review"]({**forced, "forced_final": False})["verdict"] == "APPROVED"
+    assert nodes["route"]({**forced, "forced_final": False, "verdict": "APPROVED"}) == "complete"
+
+    shutil.rmtree(r)
+
+
+def test_the_prompt_estimate_is_a_floor_and_shares_one_divisor():
+    """`T14` job (ii), decided 2026-09-22: the figure exists before anything acts on it.
+
+    The estimate counts TEXT LENGTH only - tool-call arguments, image parts and the provider's own
+    formatting are outside it - so it is a floor, and the card records it as one. What matters is
+    that it is the same arithmetic `doctor` already rests on: two spellings of the divisor would let
+    the check and a card disagree about one prompt while both looked authoritative.
+    """
+    from solar_governor import cli
+    messages = [{"role": "system", "content": "x" * 350},
+                {"role": "user", "content": "y" * 350}]
+    assert executor.prompt_tokens(messages) == 200      # 700 chars at 3.5 chars per token
+    assert executor.estimate_tokens(8000) == 2285
+    # Doctor's largest round IS this divisor x (rounds - 1), not a second ratio.
+    assert cli._tool_budget_tokens(8000, 12)[0] == executor.estimate_tokens(8000) * 11
+
+
+def test_the_run_card_records_the_prompt_and_the_window_it_faced():
+    """Both or neither. An estimate with no window beside it cannot be judged, and the window is
+    declared per install - so it may have been raised between two runs of the same role."""
+    from solar_governor import runcard
+    r = _tmp_repo()
+    cfg = _cfg(r)
+    state = {"stage": "complete", "decisions_log": [], "prompt_tokens": 12345,
+             "context_tokens": 32768}
+    path = runcard.write(cfg, state, "t-window", time.time())
+    card = json.loads(path.read_text(encoding="utf-8"))
+    assert card["prompt_tokens"] == 12345
+    assert card["context_tokens"] == 32768
     shutil.rmtree(r)
 
 
@@ -685,6 +767,105 @@ def test_reasoning_effort_is_absent_unless_configured():
     client = _FakeClient([_text("ok")])
     _loop(client, effort="high")
     assert client.payloads[0]["reasoning_effort"] == "high"
+
+
+# --- the tool-call transcript (T10, 2026-09-23) ------------------------------
+# `audit-run.py`'s one NOT ESTABLISHED line - "did the link that reported an edit actually call a
+# write tool?" - had no answer: `tool_calls` is an INTEGER, and the calls themselves died with the
+# link. These cases pin the row, the refusal flag, the BOUNDARY (it is telemetry, so it must not
+# reach the tracked card) and the deliberate absence of a payload.
+
+class _DenyingWs(_StubWs):
+    """A layer whose calls are refused - the shape a count of refusals needs."""
+
+    def call_tool(self, name, args):
+        self.calls.append((name, args))
+        return f"ERROR: refusing to edit {args.get('rel', '?')}: old_string not found"
+
+
+class _LongWs(_StubWs):
+    """A layer returning far more than a viewport, so the head cap can be measured."""
+
+    def call_tool(self, name, args):
+        self.calls.append((name, args))
+        return "x" * 900
+
+
+def test_the_transcript_records_one_row_per_call_and_its_round():
+    client = _FakeClient([_calls(_tool_call(1), _tool_call(2)), _calls(_tool_call(3)),
+                          _text("done")])
+    rows = _loop(client)["tool_transcript"]
+    assert [r["n"] for r in rows] == [1, 2, 3]
+    assert [r["round"] for r in rows] == [1, 1, 2], "the round is the unit the cost is per"
+    assert [r["tool"] for r in rows] == ["read_file"] * 3
+
+
+def test_the_transcript_names_the_TARGET_and_never_the_arguments():
+    """A `write_file`'s arguments ARE the file, so dumping them would make the transcript the
+    second copy this design refuses. The accountability question is a path."""
+    args = '{"rel": "apps/x.ts", "content": "' + "z" * 500 + '"}'
+    client = _FakeClient([_calls(_FakeToolCall("c1", "write_file", args)), _text("done")])
+    row = _loop(client)["tool_transcript"][0]
+    assert row["target"] == "apps/x.ts", row
+    assert row["args_chars"] == len(args), row     # the LENGTH is kept; the body is not
+    assert "zzz" not in row["head"], row
+
+
+def test_a_refused_call_is_recorded_as_not_ok():
+    """`agent-tool-surface.md` section 7: *"there is no count of refused writes"*. This is it."""
+    client = _FakeClient([_calls(_tool_call(1)), _text("done")])
+    row = _loop(client, ws=_DenyingWs())["tool_transcript"][0]
+    assert row["ok"] is False, row
+    assert "old_string not found" in row["head"], row
+
+
+def test_the_head_is_capped_and_the_real_length_survives_the_cap():
+    client = _FakeClient([_calls(_tool_call(1)), _text("done")])
+    row = _loop(client, ws=_LongWs())["tool_transcript"][0]
+    assert len(row["head"]) == executor.TRANSCRIPT_HEAD_CHARS, len(row["head"])
+    assert row["result_chars"] == 900, row
+
+
+def test_a_link_that_called_no_tool_says_so_rather_than_omitting_the_field():
+    """"This link called no tool" is one of the answers the transcript exists to give, so the
+    field is present and empty rather than absent."""
+    out = _loop(_FakeClient([_text("answered without looking")]))
+    assert "tool_transcript" in out
+    assert out["tool_transcript"] == []
+
+
+def test_the_target_argument_is_taken_in_the_order_the_tools_declare_it():
+    assert executor._target_of({"rel": "a.ts", "pattern": "x"}) == "a.ts"
+    assert executor._target_of({"command": "peek"}) == "peek"
+    assert executor._target_of({"pattern": "**/*.ts"}) == "**/*.ts"
+    assert executor._target_of({"rel": "", "command": "c"}) == "c"
+    assert executor._target_of({}) == ""
+
+
+def test_the_transcript_never_reaches_the_tracked_card():
+    """`T11` ruled the state DB telemetry and NOTHING may cite it. The card is the record, so the
+    transcript must not be on it - and the reason it cannot be is structural rather than a rule:
+    `runcard.write` builds its card from an explicit field list."""
+    from solar_governor import runcard
+    r = _tmp_repo()
+    cfg = _cfg(r)
+    path = runcard.write(cfg, {"objective": "x", "role": "reviewer",
+                               "tool_transcript": [{"n": 1, "tool": "write_file"}]},
+                         "t-transcript", time.time())
+    card = json.loads(path.read_text(encoding="utf-8"))
+    assert "tool_transcript" not in card, sorted(card)
+    shutil.rmtree(r)
+
+
+def test_the_transcript_reaches_the_graph_state_the_checkpoint_stores():
+    """The delivery mechanism is the CHANNEL, not a table: `05` section 4 forbids a fifth sink,
+    and the graph's own checkpointer is already the harness part that dumps every node's state."""
+    from solar_governor import graph
+    r = _tmp_repo()
+    cfg = _cfg(r)
+    out = graph._execute(cfg, {"role": "reviewer", "objective": "audit the change"})
+    assert "tool_transcript" in out, sorted(out)
+    shutil.rmtree(r)
 
 
 if __name__ == "__main__":

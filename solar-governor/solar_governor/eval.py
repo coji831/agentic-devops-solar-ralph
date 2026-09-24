@@ -4,11 +4,18 @@ Deterministic quality signal for tuning — unlike auto-APPROVED verdicts (which
 can rubber-stamp an error), each case has a known-good answer checked against
 the model's final output via must_contain / not_contain substrings.
 
-Cases are read-only and repo-grounded. Resolution order: `--cases <file.json>` >
-`<repo>/.solar/eval-cases.json` > the built-in battery below.
+**Two kinds of case, and the second one is why this file changed on 2026-09-22 (`T15`).**
+A case with `must_contain` grades the final OUTPUT, and every case the battery had was of that kind
+and every one of them a read-only `investigator` - so the instrument could not measure the roles
+that cost the money. `must_write` grades the TREE instead: a writing role's characteristic failure
+is not a wrong sentence, it is a REPORT about a file that is not there.
 
     [{"id": "...", "role": "...", "objective": "...",
-      "must_contain": ["..."], "not_contain": ["..."]}]
+      "must_contain": ["..."], "not_contain": ["..."],
+      "must_write": [{"path": "...", "contains": ["..."]}]}]
+
+Cases are repo-grounded; a `must_write` path must be one the case's ROLE is allowed to write, and
+`check_writes` says why it is not a deletion-based test.
 
 Run:  solar-governor eval --repo <path> [--n 3] [--id <case>] [--cases <file>]
 """
@@ -67,6 +74,35 @@ def check(output: str, case: dict) -> bool:
     must = [c.lower() for c in case.get("must_contain", [])]
     notc = [c.lower() for c in case.get("not_contain", [])]
     return all(c in low for c in must) and not any(c in low for c in notc)
+
+
+def check_writes(root: Path, case: dict, since: float) -> tuple[bool, str]:
+    """A WRITING case's real assertion: what is on disk, not what was said about it.
+
+    Three things are asked of every `must_write` entry, and the third is the one that makes this a
+    measurement of THIS run rather than of the tree's history:
+
+      * the file exists;
+      * it carries each required substring;
+      * **it was written since the run began** (`st_mtime >= since`) - a file left by an earlier run
+        satisfies the first two, so without the clock a case can pass on somebody else's work.
+
+    **Nothing is deleted first, deliberately.** A battery that removes a path it was handed is one
+    bad case away from eating a record, and the timestamp answers the same question without touching
+    anything. `(ok, why)` is returned rather than a bare bool so a FAIL can say which path and what
+    was missing - a case that fails for an unstated reason is the thing the battery exists to avoid.
+    """
+    for want in case.get("must_write", []):
+        p = (root / want["path"]).resolve()
+        if not p.exists():
+            return False, f"nothing was written at {want['path']}"
+        if p.stat().st_mtime < since:
+            return False, f"{want['path']} was NOT written by this run"
+        body = p.read_text(encoding="utf-8", errors="replace").lower()
+        missing = [c for c in want.get("contains", []) if c.lower() not in body]
+        if missing:
+            return False, f"{want['path']} is missing {missing}"
+    return True, ""
 
 
 def load_cases(repo: Path, explicit: str | None = None) -> tuple[list[dict], str]:
@@ -129,16 +165,17 @@ def run(repo: str, cases: list[dict] | None = None, n: int = 1,
                                  approve="approve", role=case["role"])
                 out = state.get("output") or ""
                 err = state.get("error") or ""
+                wrote_ok, why = check_writes(root, case, started)
                 ok = (state.get("stage") == "complete"
                       and state.get("verdict") == "APPROVED"
-                      and not err and check(out, case))
+                      and not err and check(out, case) and wrote_ok)
                 rows.append({
                     "id": case["id"], "role": case["role"], "pass": ok,
                     "tokens_in": state.get("tokens_in", 0),
                     "tokens_out": state.get("tokens_out", 0),
                     "tool_calls": state.get("tool_calls", 0),
                     "duration_ms": int((time.time() - started) * 1000),
-                    "error": err, "output": out[:160],
+                    "error": err or why, "output": out[:160],
                 })
             except Exception as e:  # pragma: no cover - provider failure
                 rows.append({"id": case["id"], "role": case["role"], "pass": False,

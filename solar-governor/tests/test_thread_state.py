@@ -20,6 +20,7 @@ Offline deterministically: no key, therefore the stub runner, therefore no netwo
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import time
@@ -93,6 +94,33 @@ def test_a_first_run_on_a_thread_is_untouched():
         first = run_task(cfg, "refactor the API layer", thread="t3")
         assert not any("fresh start" in d for d in first["decisions_log"])
         assert first["work_queue"][0]["task"] == "refactor the API layer"
+    finally:
+        shutil.rmtree(repo)
+
+
+def test_the_transcript_channel_is_written_into_the_state_db():
+    """`T10` (2026-09-23): the transcript is TELEMETRY, and telemetry here means it rides the state
+    DB the checkpointer already writes rather than a table of its own - `05` section 4 forbids a
+    fifth sink, and section 5's ruling is that this store is per-machine and never citable.
+
+    **A stub run makes no tool calls, so what this asserts is the MECHANISM, not a populated row:**
+    the channel exists in `writes`, keyed by the thread. That a call produces a row with a tool name
+    and a target is `test_executor.py`'s subject, and the two are the two halves of one claim.
+    """
+    repo = _tmp_repo()
+    try:
+        cfg = _cfg(repo)
+        run_task(cfg, "refactor the API layer", thread="t-transcript")
+        # **`with sqlite3.connect(...)` does NOT close the connection** - it commits or rolls back
+        # and leaves the handle open, so on Windows the `rmtree` below fails with `WinError 32`
+        # and the test reads as a failure of the thing it just proved. Closed explicitly.
+        db = sqlite3.connect(cfg.checkpoint_path)
+        try:
+            row = db.execute("SELECT COUNT(*) FROM writes WHERE channel = 'tool_transcript'")
+            total = row.fetchone()[0]
+        finally:
+            db.close()
+        assert total >= 1, f"tool_transcript never reached {cfg.checkpoint_path.name}"
     finally:
         shutil.rmtree(repo)
 

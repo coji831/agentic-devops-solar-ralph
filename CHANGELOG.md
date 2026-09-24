@@ -18,6 +18,268 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## Unreleased - 2026-09-22 - nine repairs the engagement's own tracker asked for
+
+**Unversioned on purpose, and the reason it was written down turned out to be WRONG - corrected
+2026-09-22.** It read: *"the second install is on `5.7.3` - so this section is now the only place that
+measures the gap between the two. Promote them, or record why not."* **Measured the same day: there is
+no second install to promote to.** This governor is installed **editable** into the one interpreter on
+this machine, so `import solar_governor` resolves to THIS source tree for every tree that uses it -
+including `mandarin-vite-react-ts`, which has no venv and no vendored copy. A saved file is live in both
+setups immediately.
+
+**What is actually stale is three version strings disagreeing about one install:** this source declares
+**5.7.5** (`solar_governor.__version__`), the registered metadata still says **5.3.1**
+(`solar_governor-5.3.1.dist-info`), and `mandarin-vite-react-ts/.solar/VERSION` says **5.7.3**. **And
+Mandarin has not run since 2026-09-19** - which is why its cards still show the shape `review()` now
+refuses: they are history, not a live difference. So the work this section implies is a version-string
+correction and a mistaken premise, not a release.
+
+### `T35` - the write policy can be ASKED, not only enforced
+
+`_write_denial` derived the reason for a refusal on every attempt and threw the string away, so a role
+learned four layers of policy one refusal at a time - and a role told to write where it knew it would
+be refused reported that a test it cannot pass *"is not a test of anything"*. **`Workspace.policy()`**
+returns the whole policy as data (role, resolved root, `may_write`, `write_scope`, `write_glob` and its
+unanchored refusals, `write_deny`, the unconditional protected dirs and names, and the derived allowed
+prefixes); **`Workspace.verdict(rel)`** returns the refusal for ONE path and is literally
+`self._write_denial(rel) or "allowed"`, so the reader cannot disagree with the enforcement it reports.
+
+Reached with no model in it: `solar-governor policy --role <key> [--path <rel>] [--json]`, whose
+`--role`/`--repo` default to **`SOLAR_ROLE`/`SOLAR_ROOT`** - two variables `CommandRunner._execute` now
+puts in the environment of every child it runs, which is what lets ONE declared command answer for
+whichever role called it in an `argv` that cannot be parameterised. `CommandRunner` therefore takes the
+registry KEY (`role=`) rather than reading the spec's display name, and `executor.run` passes it.
+
+Tested where the tool layer is tested: `tests/test_write_policy.py` gains four cases - a recorder asked
+for `repos/`, `emails/`, `.solar/` and `package.json`; the reader equal to `_write_denial` on three
+paths; the report carrying all four layers; and a read-only role reporting that it may write nowhere.
+Suite **280 -> 284 passed**, with no network and no API key.
+
+### `T40` - a declared command may take ONE path, and only where it declares one
+
+`format_check` ran the whole clone and was *documented as expected to fail on CRLF*, so the one command a
+link would want right after an edit was the one nobody could act on. **A declaration may now carry
+`accepts: path`, and the runner VALIDATES a supplied path rather than substituting one into a frozen
+`argv`:** it is resolved against the command's own `cwd` through the same `resolve_in_root` that confines
+`cwd`, refused unless it names a real file there, and appended as a `cwd`-relative path. The target is
+printed on every call beside `cwd` (`path=...`), so the call record names what it acted on.
+
+**The rule that `argv` is frozen is not weakened - the path is never written in the declaration.**
+`npm run format` stays impossible, because `--write` is not something a caller can compose: `"--write"`,
+`"package.json --write"` and a `..` escape all resolve to names that are not files and are refused.
+Supplying a path to a command that declares no `accepts` is refused rather than ignored, and the tool
+schema advertises `path` only for the commands that take one, naming them in its description.
+
+Proved live against the real vocabulary and the real clone, with no model call:
+`pvl_rentals_format_check_file` - the one command built on it, granted to `implementer` beside the
+whole-clone entry it answers - reports `PASS` on `package.json` and `worker/index.js`, and `FAIL exit 1` on
+`README.md`, whose style issues are real. **And the measurement that shaped it:** their tree is CRLF while
+their config leaves `endOfLine` at prettier's `lf` default, so the whole-clone run reports **587 files**
+and the same command with `--end-of-line auto` reports **65** - 522 of the 587 were line endings and
+nothing else. The per-file entry therefore carries that flag, and the whole-clone entry keeps their own
+script and now says which number means what.
+
+Tests: `tests/test_commands.py` gains nine cases - the append, the `cwd` base, the escape, a directory and
+a missing name, an argument that cannot be composed, a path on a command that takes none, a missing path,
+the advertised field, and an unknown kind.
+
+### `T34` - the role tool surface gains a content search, and the premise was LOCALIZED first
+
+**The `http` path had no way to find anything.** A role was offered `list_tree`, `read_file`, `glob`,
+`write_file`, `replace_in_file` and nothing else, so a link found a fact by listing a tree and reading
+whole files - and `messages` is never trimmed, so every read is RE-SENT on the next round and cumulative
+input is **quadratic in the number of tool rounds**. The recorded baseline is **396 tool calls for one
+task** at **32,980 prompt tokens per link**, the dearest link being 64 calls and 2,110,699 tokens.
+
+**The premise was checked before the tool was written, and it localized rather than held in general.**
+*"A role cannot grep"* is true of one surface: every IDE-agent surface already lists `search`, and the
+396-call baseline ran on the **`http` runner** - the only real task that ever has. So the cost was taken
+on the surface with no search, and adding one there **narrows** a disagreement this repo has already
+recorded rather than creating a sixth.
+
+**`search_text(pattern, rel, include, ignore_case, max_matches)` is the sixth tool, and it is a READ** -
+offered to a read-only role, which is the role that most needs to find without reading. It returns
+`path:line: text`, the shape `git grep` prints, so a hit can be CITED rather than counted and
+`read_file(rel, n, n)` on it costs one call. `rel` may name a glob-covered sibling, and inside the root
+reads are exactly what they were.
+
+**Three bounds, and each names itself.** A hit is clipped to **400** characters rather than `read_file`'s
+4,000, because a hit is a POINTER: measured on the real tree, two wide table rows in one instruction file
+spent the entire result budget on two hits and cut the walk at **17 of 187** files. The result stops at a
+6,000-character budget or at `max_matches`, and the header says **"in the first N file(s) examined"**
+whenever it stopped - a bounded hit list that reads as a complete answer is how a model concludes it has
+seen everything. A miss says **"in N file(s)"**, because a miss always ran to the end, and that count is
+what makes `(no matches)` a fact rather than a suspicion that the tool did not look.
+
+**The routing rule lost a copy rather than gaining one.** `glob`'s "a pattern that names a sibling is
+searched there" moved into `_read_roots`, which both tools now ask, and `_search_files` is the one place
+that decides what a search may look in - applying the read deny list to a sibling only, because that is
+somebody else's tree.
+
+**Both sides of the ledger, measured live on the real engagement tree with no model call.** One call
+returned **13 citable hits drawn from 17 files in 6,104 chars (1,744 est. tokens)** - less than ONE
+`read_file` result's 8,000-char cap - where reading that same scope is **187 calls** and **27.4M**
+cumulative prompt tokens. **And it is not free:** a schema rides in `payload["tools"]` on every round,
+where no output cap can reach it, and `search_text`'s is **1,127 B - the largest of the six** - so it
+adds **12,397 B over 11 rounds, about 3,542 tokens per link**, repaid by ONE avoided read. The engagement
+leaf's older figure (*"four tool schemas at 1,714 B each"*) was corrected in place rather than replaced:
+measured, the five cost 2,656 B per round.
+
+Tests: `tests/test_workspace.py` gains fifteen cases - the citation shape, the counted miss, a
+single-file scope, an empty pattern, a bad regex, `include` by name and by path, `ignore_case`, both
+caps, the pointer budget, the partial-scope wording, a read-only role being offered it, the sibling route
+with the denial held, and the refusal on an ungranted sibling. **Suite 293 -> 308; the file 69 -> 84.**
+`test_commands.py` gains the sixth name in the composite-surface assertion.
+
+**Not witnessed end to end, deliberately said so:** no `http` link has run with the tool in context, so
+the counterfactual above is COMPUTED from the real file sizes rather than observed in a run.
+
+### `T10` - the tool-call transcript, and it rides the telemetry that already existed
+
+**The one thing captured nowhere.** `writes.tool_calls` is a channel, but its values are an INTEGER
+(measured 2026-09-22: 56 writes, 1 byte each, summing to 808), while the calls themselves lived in
+`_tool_loop`'s local `messages` list and were discarded when the link ended. So `audit-run.py`'s own NOT
+ESTABLISHED line - *"whether a link that reported an edit actually called a write tool: a card holds the
+COUNT of tool calls and nothing about the calls"* - had no answer.
+
+**It is a state CHANNEL rather than a table, and that is the containment decision.** `05` section 4's
+rule is that a new sink must not become a record layer; the graph's checkpointer is already the harness
+part that dumps every node's state, so the transcript rides it. **A plain channel rather than
+`operator.add`**, deliberately: a reducer would concatenate every node's calls into one list and lose
+which LINK made which call, while a plain channel writes ONE ROW PER NODE into `writes` - so the
+attribution is free, and the attribution is the item.
+
+**The row is a SHAPE, and the bodies are deliberately not stored.** `n`, `round`, `tool`, `target`,
+`args_chars`, `result_chars`, `ok`, `head` (200 chars, the same cap `uplink.FIELD_CAP` already uses).
+All three uses - which tool acted on what, how big each result was, and how many calls were REFUSED -
+are answered by that, and only the third wants prose. A body copy would be a second copy of every tool
+result, and the engagement's growth constraint (its `T00`) is why not: one 64-call link reads about
+**500 KB** of results. `args_chars` is kept and the arguments are not, for the same reason one level
+down: a `write_file`'s arguments ARE the file, so `_target_of` names the ONE argument that says what
+the call acted on rather than dumping `args`.
+
+**Witnessed end to end on a real checkpoint through the real tool layer**, with only the model response
+scripted - a key-less `run()` falls back to the stub and a stub makes no calls, so a stub cannot witness
+this: **1 `writes` row carrying the channel, msgpack 119 B**, decoding to `n=1, round=1,
+tool='read_file', target='src/a.ts', args_chars=19, result_chars=39, ok=True`. **And it does not reach
+the tracked card, nor can it:** `runcard.write` builds its card from an explicit field list, which is
+the boundary `T11` ruled - telemetry is never citable.
+
+`audit-run.py`'s NOT ESTABLISHED line is **left as written**, because it is a statement about where that
+tool looks and it remains true of the card. What the transcript changes is that the line is now
+answerable, and answering it in a report means deciding whether a report may read telemetry at all -
+which is `T11`'s ruling rather than `T10`'s. Filed as that engagement's `T56`.
+
+Tests: nine cases - eight in `tests/test_executor.py` (a row per call with its round, the target rather
+than the arguments, a refused call recorded `ok: False`, the head capped with the real length surviving,
+a link that called nothing saying so, the target precedence, the card boundary, and the channel reaching
+the graph's result) and one in `tests/test_thread_state.py` asserting the channel is really in `writes`
+in a real SQLite checkpoint. **Suite 308 -> 317.** One trap found and named: `with sqlite3.connect(...)`
+commits but does NOT close, so the test's own `rmtree` failed with `WinError 32` and read as a failure
+of the thing it had just proved.
+
+### `T12` - the round budget travels with the answer
+
+`forced_final` is half a fact: a tool-less last round is produced by ANY budget that ran out,
+including a deliberately small one. `max_rounds` now flows `executor._result` -> `graph._execute` ->
+`runcard.write`, with an assertion at both hops. `ExecutorResult` is a plain dict, so no constructor
+changed.
+
+### `T13` - `doctor`'s tool-output figure was neither the fit line nor the cost line
+
+It printed `cap x rounds` - the total NEW text - and labelled it a worst case. Measured against a
+real engagement link: **2,110,699 prompt tokens in**, where doctor had reported 27.4k. Now two figures
+from one extraction (`_tool_budget_tokens`): the **largest round** = `cap x (rounds - 1)`, which is
+what has to FIT the served window, and the **run total** = `cap x rounds(rounds + 1)/2`, which is what
+the run COSTS - quadratic in rounds, because every round re-sends what the earlier ones accumulated.
+
+### `T14` - the served window is DECLARED, and what a run sends is now on the card
+
+`SOLAR_CONTEXT_TOKENS` was a bare `os.environ` read inside `doctor`, with no constant, no default and
+no config key - so one check was the only place the window could be seen. It now comes from
+`executor.context_tokens()` (`0` = undeclared, the sentinel `tool_output_chars` already uses for
+unlimited), beside the other budget figure, because the window is a property of the RESOLVED TARGET
+rather than of the check that reads it.
+
+**And the prompt is recorded.** `executor.prompt_tokens()` estimates the assembled prompt BEFORE the
+first round sends it - `messages` is mutated by the loop, so a figure taken afterwards would describe
+the last round of a different run - and it lands on the run-card beside the window it was measured
+against. Carried together because the window is declared per install and may have been raised between
+two runs, so one without the other cannot be judged. **Nothing aborts on either figure:** the ruling
+was that the number exists before anything acts on it.
+
+**One divisor, one home:** `executor.estimate_tokens()` (3.5 chars per token) is what both `doctor`'s
+arithmetic and the card's estimate are built from. The ratio had been written out inline where doctor
+needed it, and a run-card needing the same ratio would have had to write it out again.
+
+**Tests: 275 -> 278.**
+
+### `T18` - a link cut off at its round limit was recorded APPROVED, and the graph approved it
+
+**The budget has two endings and only one was guarded.** `executor.py:817` sets `error="max_rounds"`
+when the loop falls out with no answer at all, and `review()` refuses any non-empty `error` - that half
+was already right. `executor.py:799` returns `_result(msg.content, None, final_round)` when the tool-less
+FINAL round does answer: `error` stays empty, only `forced_final` says what happened, and **no guard
+fired** - so the verdict read `APPROVED` for an answer the executor's own docstring calls *"cut off,
+and answered anyway"*.
+
+**The record is what made it visible.** Measured 2026-09-22 across all **32 cards** in the engagement:
+exactly one carried the pair - `verdict: APPROVED`, `outcome: complete`, `error: ""`,
+`forced_final: true`, with **753,729 input tokens** behind it. A card a reader must check a SECOND field
+to read correctly is a card that lies to the reader who does not.
+
+**The fix is one clause in each of two nodes, on the branch that was already there.** `review()` refuses
+a forced final beside the executor-error refusal - the same shape, one more way to fail - and `route()`
+sends it to `complete` rather than back to `specialist`, because the link already spent its whole round
+budget and a retry buys the same forced answer for the same money. **A `human_approval: true` install
+never reaches the gate for such a link**, deliberately: a person approving a cut-off link is not
+approving work, and the card's `APPROVED` was what made asking look reasonable.
+
+**The exit code moved, and the engagement's wrapper had to move with it.** `cli._exit_for` returns
+`EXIT_REJECTED` (12) for a `REJECTED` verdict, so a cut-off link now arrives as **12** where it arrived as
+**0**. The truncation notice that explains the cause lived on the wrapper's success path, so
+`scripts/solar-run.py` gained `EXIT_REJECTED` and translates a cut-off 12 back to `EXIT_NO_PRODUCT` (5).
+**No CHAIN behaviour moves** - a cut-off link still stops the chain with 5, the contract the engagement
+established on 2026-09-21 - and what changes is that a SINGLE cut-off link no longer reports itself as a
+pass.
+
+**One test: 278 -> 279.** `test_a_forced_final_is_never_approved` drives both nodes directly and asserts
+that the endings already correct did not move. **Not covered:** the wrapper arm, which needs a live
+forced-final run; `test-scripts/t08-chain-mode.py` is where it would go.
+
+### `T15` - the battery could only grade a read-only role, and nothing had ever been benchmarked here
+
+**Two instruments, both blind to the roles that cost the money.** All six of the engagement's eval
+cases were `role: investigator` and the model scored 18/18 - saturated, so no change could show - and
+`bench` had been run only in the OTHER setup, against `investigator` with one tool call.
+
+**`eval.py` gained `must_write`.** `must_contain` reads the model's final OUTPUT, and a writing role's
+characteristic failure is not a wrong sentence - it is a REPORT about a file that is not there. An entry
+names a path and the substrings the file must carry, and three things are asked: the file exists, it
+carries the text, and **it was written since the run began**. **The clock is the whole guard against
+grading the tree's history, and nothing is deleted first on purpose** - a battery that removes a path it
+was handed is one bad case away from eating a record.
+
+**The first case failed on a real absence, and it is the finding to keep.** It targeted `.solar/state/`,
+and `.solar` is in `_WRITE_DENY_DIRS` - the unconditionally deny-listed set, like `.git`, `.github` and
+`.vscode`. Every other ignored-and-writable directory is denied too, and `repos/` is denied to `recorder`
+by its own registry entry, so there was **no legal target in the tree** for a writing case until an
+ignored `Promyro/eval-probes/` was declared.
+
+**Measured live:** `recorder` 24,049 in / 493 out / 6 tool calls, `implementer` 27,332 / 1,008 / 11 -
+both PASS. **And the first bench here:** `implementer` 3/3 approved, avg **15,376 in / 850 out / 9.3
+calls / 22.1 s**, three cards written to `.solar/runs/` - whose three answers came back with three
+different hashes, and whose runs #1 and #2 open with *"The file already exists"*, so **a bench of a
+writing task is not idempotent** and its aggregate cannot be compared across versions until the target
+is per-repetition.
+
+**Test: 279 -> 280.** `test_a_write_case_is_measured_against_the_tree_and_the_clock` asserts the absent
+case, the pre-existing-file case and the wrong-body case, because each is a way this could silently
+grade the wrong thing.
+
+---
+
 ## v5.7.5 — Released (2026-09-20) — the chat client had no clock, and a hung link cost thirty minutes
 
 **Theme:** the last unbounded number in this runtime is now bounded by something in this repo rather

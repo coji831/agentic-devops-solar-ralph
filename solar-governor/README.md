@@ -467,7 +467,7 @@ path; exit 11 → ask the user approve/deny and resume with `--approve`.
 ## Test
 
 ```bash
-python -m pytest tests/           # 205 tests: graph, routing, ledger, executor, server,
+python -m pytest tests/           # 278 tests: graph, routing, ledger, executor, server,
                                   # workspace guards, command vocabulary + approval gate,
                                   # tool-loop termination, runner selection, uplink,
                                   # doctor + eval case resolution, install surface,

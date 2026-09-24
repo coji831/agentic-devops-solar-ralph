@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import copy
 import fnmatch
+import os
+import re
 from pathlib import Path
 
 # dirs never surfaced / written, even inside the repo
@@ -16,6 +18,20 @@ _SKIP_DIRS = {".git", "node_modules", ".solar", ".next", "dist", "build",
 _SKIP_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff",
               ".woff2", ".ttf", ".eot", ".map", ".sqlite", ".db", ".lock"}
 MAX_READ_CHARS = 40_000
+
+# The budget ONE search result keeps, and it is deliberately under `SOLAR_TOOL_OUTPUT_CHARS`'s
+# 8000 default (`executor.tool_output_chars`). That cap cuts a result's TAIL and appends its own
+# marker - which on a search means the "narrow it" advice is the first thing lost, and the model is
+# left holding a hit list that looks complete. A budget the tool applies itself can name the limit
+# it hit and what to do instead, so the elision stays a fact the model can report (T34, 2026-09-23).
+SEARCH_MAX_CHARS = 6_000
+
+# A SEARCH hit is a POINTER, not a reading - its job is to be citable and to make the NEXT call
+# cheap. `MAX_LINE_CHARS` is the right budget for `read_file`, where a long line is a legitimate
+# answer, and the wrong one here: measured 2026-09-23, two wide table rows in one instruction file
+# spent the whole result budget on two hits and cut the walk at 17 of 187 files. 400 chars is
+# enough to recognise the line, and `read_file(rel, n, n)` returns it in full.
+SEARCH_MAX_LINE_CHARS = 400
 
 # A line is NOT a size bound (TD-5.7-5). `read_file(rel, 1, 60)` on a file whose only line was
 # 282,604 chars - a `.tsbuildinfo`, minified JS, a lockfile, a one-line data blob - returned
@@ -26,12 +42,16 @@ MAX_READ_CHARS = 40_000
 MAX_LINE_CHARS = 4_000
 
 
-def _clip_line(text: str, lineno: int) -> str:
-    """One line of a file, bounded, with the elision spelling itself out (see MAX_LINE_CHARS)."""
-    if len(text) <= MAX_LINE_CHARS:
+def _clip_line(text: str, lineno: int, cap: int = MAX_LINE_CHARS) -> str:
+    """One line of a file, bounded, with the elision spelling itself out (see MAX_LINE_CHARS).
+
+    `cap` is a parameter because the two callers want different budgets and both are right:
+    `read_file` returns a READING, where one long line is a legitimate answer, and `search_text`
+    returns a POINTER, where it is not (T34, 2026-09-23).
+    """
+    if len(text) <= cap:
         return text
-    return (f"{text[:MAX_LINE_CHARS]}…[line {lineno} elided: {len(text)} chars, "
-            f"first {MAX_LINE_CHARS} shown]")
+    return (f"{text[:cap]}…[line {lineno} elided: {len(text)} chars, first {cap} shown]")
 
 
 def _numbered(lines: list[str], lo: int, hi: int, total: int) -> str:
@@ -364,6 +384,51 @@ class Workspace:
                     f"({', '.join(a + '/' for a in scope)}){hint}")
         return None
 
+    def verdict(self, rel: str) -> str:
+        """Why a write to `rel` would be refused, or `"allowed"`.
+
+        **The READER of the policy, and the reason it cannot disagree with the enforcement is
+        that it IS the enforcement:** `_write_denial` computes this on every attempt and throws
+        the string away, so a role learns its boundary one refusal at a time - and a role told to
+        write where it knows it will be refused reports that a test it cannot pass *"is not a
+        test of anything"* (measured 2026-09-20, recorded in `_resolve_for_read` above).
+        """
+        return self._write_denial(rel) or "allowed"
+
+    def policy(self, role: str = "") -> dict:
+        """The whole write policy as data, rather than as a refusal.
+
+        Answers *"may I write here?"* **before** the attempt, which is the one question this
+        engagement could not ask: `agent-tool-surface.md` section 4 measured it and the shape is
+        the finding - **42 checks that can say afterwards that something was wrong, and nothing
+        that says beforehand what is allowed.**
+
+        Four layers decide a write and only two of them are the role's: its `write_deny`, and
+        its `write_scope` with `write_glob` as the single exception that reaches a sibling. The
+        other two are unconditional and hold whatever the role says.
+
+        `role` is the registry KEY when the caller knows it, because the spec's own `role` field
+        is a display name (`"Recorder"`) and the key is the identity every other record uses. The
+        resolved `root` is reported because it is the directory a relative path resolves
+        against - the one thing the IDE path cannot answer for itself.
+        """
+        scope = _norm_prefixes(self.spec.get("write_scope"))
+        globs, refused = _glob_parts(self.spec.get("write_glob"))
+        may = self.allows_write()
+        return {
+            "role": role or str(self.spec.get("role") or ""),
+            "root": str(self.root),
+            "may_write": may,
+            "write_scope": scope,
+            "write_glob": globs,
+            "write_glob_refused": refused,
+            "write_deny": _norm_prefixes(self.spec.get("write_deny")),
+            "protected_dirs": sorted(_WRITE_DENY_DIRS),
+            "protected_names": sorted(_WRITE_DENY_NAMES),
+            "allowed_prefixes": [f"{a}/" for a in scope] if scope else (
+                ["<anywhere the protected names and dirs do not cover>"] if may else []),
+        }
+
     # --- role capability --------------------------------------------------
     def _declared_tools(self) -> set[str]:
         """The tool GROUPS this role declares.
@@ -377,13 +442,14 @@ class Workspace:
         return {str(t).lower() for t in declared}
 
     def allows_write(self) -> bool:
-        """Whether this role may be offered — or use — `write_file` at all.
+        """Whether this role may be offered — or use — ANY mutating tool.
 
         Capability rather than compliance, deliberately: this node overrides
         prose constraints (0/8 on an explicit read-only instruction), so the way
-        to make a role read-only is to not hand it the tool. `write_file` ALSO
-        refuses when this is False, because a model can emit a call for a tool it
-        was never offered and "not offered" is not by itself an enforcement.
+        to make a role read-only is to not hand it the tool. Every tool in
+        `_MUTATING_TOOLS` ALSO refuses when this is False, because a model can
+        emit a call for a tool it was never offered and "not offered" is not by
+        itself an enforcement.
 
         No spec at all (a legacy direct call) leaves write access unchanged.
         """
@@ -500,14 +566,8 @@ class Workspace:
         for a place; silently widening it to a second tree would make the result set a thing the
         caller did not ask for, and `../repos/...` in the answer would look like a bug.
         """
-        roots = [(self.root, "")]
-        for base, prefix in self._glob_roots():
-            if pattern.startswith(prefix):
-                roots.append((base, prefix))
-
         matches: list[str] = []
-        for base, prefix in roots:
-            pat = pattern[len(prefix):] if prefix else pattern
+        for base, prefix, pat in self._read_roots(pattern):
             for p in base.rglob("*"):
                 if not p.is_file():
                     continue
@@ -526,6 +586,161 @@ class Workspace:
                 matches.append(prefix + rel)
         matches.sort()
         return "\n".join(matches[:200]) or "(no matches)"
+
+    def _read_roots(self, pattern: str) -> list[tuple[Path, str, str]]:
+        """The `(base, prefix, remainder)` triples a read-wide pattern routes to.
+
+        **Prefix-routed rather than searched-everywhere, deliberately**, and this is `glob`'s
+        rule: a pattern that NAMES a sibling root is searched there, and one that does not stays in
+        the repo root. Silently widening a request to a second tree would make the result set a
+        thing the caller did not ask for, and `../repos/...` in an answer would look like a bug.
+
+        **ONE home, two callers (2026-09-23).** `glob` and `search_text` need exactly this, and a
+        second copy of a routing rule is a second thing to keep in sync - the defect this
+        engagement has already paid for twice.
+        """
+        out = [(self.root, "", pattern)]
+        for base, prefix in self._glob_roots():
+            if pattern.startswith(prefix):
+                out.append((base, prefix, pattern[len(prefix):]))
+        return out
+
+    def _sibling_root(self, start: Path) -> tuple[Path | None, str]:
+        """`(root, prefix)` when a resolved path sits in a glob-named sibling, else `(None, "")`.
+
+        The prefix is the `../` spelling `list_tree`, `read_file` and `glob` all keep, because a
+        hit the reader cannot hand straight back to `read_file` costs a round rather than saving
+        one - which is the entire point of the tool that calls this.
+        """
+        for base, prefix in self._glob_roots():
+            if start == base or base in start.parents:
+                return base, prefix
+        return None, ""
+
+    def _search_files(self, start: Path):
+        """Yield `(path, shown)` for every file a search may look in.
+
+        **One place decides what is searchable**, so the file count reported on a MISS is the count
+        that was really searched - and an honest miss is half of what `search_text` is for. The
+        skips are `glob`'s, for `glob`'s reason: a vendored or build directory, a binary extension,
+        and - for a SIBLING only, because that is somebody else's tree - the read deny list.
+
+        `os.walk` rather than `rglob` because the directories are PRUNED rather than enumerated and
+        then discarded. A search is called far more often than a listing, and walking a
+        `node_modules` in order to throw it away is the cost this tool exists to remove.
+        """
+        sib, prefix = self._sibling_root(start)
+        base = sib if sib is not None else self.root
+
+        if start.is_file():
+            yield start, prefix + start.relative_to(base).as_posix()
+            return
+        for dirpath, dirnames, filenames in os.walk(start):
+            dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+            here = Path(dirpath)
+            for name in sorted(filenames):
+                p = here / name
+                if p.suffix.lower() in _SKIP_EXTS:
+                    continue
+                shown = prefix + p.relative_to(base).as_posix()
+                if sib is not None and _read_denial(shown):
+                    continue
+                yield p, shown
+
+    def search_text(self, pattern: str, rel: str = ".", include: str | None = None,
+                    ignore_case: bool = False, max_matches: int = 60) -> str:
+        """Find lines matching a regex under `rel`. READ-ONLY, and `git grep`-shaped.
+
+        **Why this tool exists - and it is the largest measured lever (T34, 2026-09-23).** The
+        `http` runner offers no content search, so a link finds a fact by listing a tree and
+        reading whole files, and `messages` is never trimmed: every read is RE-SENT on the next
+        round, which makes cumulative input quadratic in the number of rounds. The measured
+        baseline is **396 tool calls for one task** at **32,980 prompt tokens per link**. The lever
+        is therefore FEWER READS rather than better prompts - and the IDE path, which already had
+        `search`, is not the path the cost was taken on.
+
+        **The answer is shaped like `git grep` on purpose.** `path:line: text` means a hit can be
+        CITED rather than merely counted, and `read_file(rel, n - 5, n + 5)` on any hit costs one
+        call because the number is already in hand. **Every line passes through `_clip_line` at
+        `SEARCH_MAX_LINE_CHARS`, not at `read_file`'s budget**, because a hit is a pointer rather
+        than a reading: one wide table row would otherwise spend the budget that buys the next ten
+        hits, and `read_file(rel, n, n)` returns that line whole.
+
+        **A miss that says how far it looked is the other half of the lever.** `(no matches in 412
+        file(s))` is a fact; `(no matches)` is indistinguishable from "the tool did not look", and
+        the model pays a round to find out. It is the same reason both caps name themselves rather
+        than truncating silently.
+
+        Routing is `glob`'s, through `_read_roots`' sibling rule: `rel` may name a glob-covered
+        sibling (`../repos/<name>`), and inside the root reads are exactly what they were.
+        """
+        if not str(pattern).strip():
+            return ("ERROR: refusing an empty pattern - it matches every line of every file. "
+                    "Pass a regex, e.g. 'def search_text' or 'class Workspace'.")
+        try:
+            rx = re.compile(pattern, re.IGNORECASE if ignore_case else 0)
+        except re.error as e:
+            return (f"ERROR: bad regex {pattern!r}: {e}. Nothing was searched - fix the pattern "
+                    f"rather than falling back to reading files one at a time.")
+        try:
+            limit = int(max_matches)
+        except (TypeError, ValueError):
+            return f"ERROR: max_matches must be an integer (got {max_matches!r})"
+        limit = max(1, limit)
+
+        start = self._resolve_for_read(rel)
+        if not start.exists():
+            return f"ERROR: no such path: {rel}"
+
+        hits: list[str] = []
+        files = 0
+        chars = 0
+        stopped = ""
+        for p, shown in self._search_files(start):
+            # `include` is tried against BOTH spellings - the repo-relative path and the bare name
+            # - so `*.py` and `scripts/*.py` both work and the caller does not have to know which
+            # one this wants. One call narrows; two calls is the cost the tool is here to remove.
+            if include and not (fnmatch.fnmatch(shown, include)
+                                or fnmatch.fnmatch(p.name, include)):
+                continue
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "\x00" in text:
+                continue                        # a binary that happens to decode as text
+            files += 1
+            for n, line in enumerate(text.splitlines(), 1):
+                if not rx.search(line):
+                    continue
+                rendered = f"{shown}:{n}: {_clip_line(line, n, SEARCH_MAX_LINE_CHARS)}"
+                # The budget is consulted only once a hit EXISTS, so one enormous matching line
+                # can never turn a real match into a reported miss.
+                if hits and chars + len(rendered) + 1 > SEARCH_MAX_CHARS:
+                    stopped = (f"{len(hits)} hit(s) held under a {SEARCH_MAX_CHARS}-char budget; "
+                               f"narrow with rel= or include=, or tighten the pattern")
+                    break
+                hits.append(rendered)
+                chars += len(rendered) + 1
+                if len(hits) >= limit:
+                    stopped = (f"stopped at max_matches={limit}; raise it, or narrow with rel= or "
+                               f"include=")
+                    break
+            if stopped:
+                break
+
+        opts = (" (ignore case)" if ignore_case else "") + (
+            f" (include={include})" if include else "")
+        # A stopped search examined only PART of the tree, and the header must say so: `13 match(es)
+        # in 17 file(s)` on a 187-file tree reads as a complete answer to anyone who does not
+        # scroll to the marker. On a miss the walk always ran to the end, so that count is exact.
+        scope = f"the first {files} file(s) examined" if stopped else f"{files} file(s)"
+        head = (f"--- search: {pattern!r} under {rel}{opts} - {len(hits)} match(es) in "
+                f"{scope} ---")
+        if not hits:
+            return f"{head}\n(no matches in {files} file(s); every line of each was checked)"
+        body = "\n".join(hits)
+        return f"{head}\n{body}" + (f"\n…[{stopped}]" if stopped else "")
 
     def write_file(self, rel: str, content: str) -> str:
         """Create/overwrite a file inside the repo, or in a glob-named sibling.
@@ -552,8 +767,80 @@ class Workspace:
         p.write_text(content, encoding="utf-8")
         return f"wrote {rel} ({len(content)} chars)"
 
+    def replace_in_file(self, rel: str, old_string: str, new_string: str) -> str:
+        """Replace ONE uniquely-anchored passage inside an EXISTING file, in place.
+
+        **Added 2026-09-21, because its absence made a whole class of edit impossible and the
+        only workaround DESTROYED a file.** `write_file` is this layer's only mutator and it
+        OVERWRITES, so the sole way to change two lines of a 101 KB JSON catalog was to
+        reconstruct all 2746 lines out of reads capped at `MAX_READ_CHARS`, then write the whole
+        thing back. Measured in the Promyro engagement that day: an `implementer` link took that
+        route on a message catalog and returned **820 lines, deleting 2690 of them**. Four further
+        attempts on the same two catalogs changed nothing at all, and the fifth refused in as many
+        words - *"the only file-mutating tool available to me is `write_file`, which overwrites the
+        whole file"*. **A role that cannot make a bounded edit makes an unbounded one.**
+
+        Safe by construction rather than by instruction, which is the whole point:
+
+        - the target must already EXIST - this tool edits, it never creates, so it cannot be used
+          to truncate a file into existence;
+        - the anchor must occur EXACTLY ONCE. Zero matches and two matches are both refusals with
+          NOTHING written, so an ambiguous anchor can never edit the wrong occurrence;
+        - nothing outside the anchor is touched, which is what makes a 101 KB file as cheap and as
+          safe to edit as a 4 KB one - size stops being a factor in whether the edit is possible.
+
+        The same refusals as `write_file` run first, through the same helpers, so a role's
+        `write_scope`, its own denies and the unconditional deny list all apply unchanged.
+
+        Line endings are PRESERVED: the file is opened with `newline=""` on both sides, so a
+        working tree the repo keeps in LF does not come back in CRLF. The search is therefore on
+        the raw text, and an anchor that spans a line break will not match a file using the other
+        convention - keep anchors inside one line where you can.
+        """
+        if not self.allows_write():
+            return (f"ERROR: refusing to edit {rel}: this role is read-only "
+                    f"(`write` is false in the registry)")
+        try:
+            p, inside = self._resolve_for_write(rel)
+        except (OSError, ValueError) as e:
+            return f"ERROR: refusing to edit {rel}: {e}"
+        denial = self._write_denial(rel)
+        if denial:
+            return f"ERROR: refusing to edit {rel}: {denial}"
+        if not inside and not self._glob_allows(rel):
+            return f"ERROR: refusing to edit {rel}: path escapes repo root: {rel!r}"
+        if not p.is_file():
+            return f"ERROR: not a file: {rel}"
+        if old_string == "":
+            return f"ERROR: refusing to edit {rel}: old_string is empty"
+        try:
+            with open(p, "r", encoding="utf-8", newline="") as fh:
+                text = fh.read()
+        except (OSError, UnicodeDecodeError) as e:
+            return f"ERROR reading {rel}: {e}"
+        found = text.count(old_string)
+        if found == 0:
+            return (f"ERROR: refusing to edit {rel}: old_string not found - "
+                    f"nothing was written. Read the exact text first.")
+        if found > 1:
+            return (f"ERROR: refusing to edit {rel}: old_string occurs {found} times - "
+                    f"nothing was written. Include more surrounding text so it is unique.")
+        try:
+            with open(p, "w", encoding="utf-8", newline="") as fh:
+                fh.write(text.replace(old_string, new_string, 1))
+        except OSError as e:
+            return f"ERROR writing {rel}: {e}"
+        return (f"edited {rel}: 1 occurrence, {len(old_string)} -> {len(new_string)} chars "
+                f"({len(text)} -> {len(text) - len(old_string) + len(new_string)} chars)")
+
     # --- OpenAI-compatible function schema --------------------------------
-    _TOOL_NAMES = ("list_tree", "read_file", "glob", "write_file")
+    _TOOL_NAMES = ("list_tree", "read_file", "glob", "search_text", "write_file",
+                   "replace_in_file")
+
+    # Every tool that MUTATES the tree, in ONE place (2026-09-21): a read-only role must be offered
+    # none of them, and a second copy of this set is a second thing to keep in sync - which is how
+    # the shipped default install came to hand `write_file` to `reviewer` (see registry.py).
+    _MUTATING_TOOLS = ("write_file", "replace_in_file")
 
     def handles(self, name: str) -> bool:
         """Whether this layer owns a tool name (used by the executor's composite)."""
@@ -562,9 +849,10 @@ class Workspace:
     def tool_schemas(self) -> list[dict]:
         """The function schemas for the tools THIS role may be offered.
 
-        Gated by the role. A read-only role is never handed `write_file`: a tool
-        that is not in the list cannot be argued into use, and this node overrides
-        prose constraints (0/8 on an explicit read-only instruction).
+        Gated by the role. A read-only role is never handed any tool in
+        `_MUTATING_TOOLS`: a tool that is not in the list cannot be argued into
+        use, and this node overrides prose constraints (0/8 on an explicit
+        read-only instruction).
         """
         schemas = [
             {"type": "function", "function": {
@@ -596,12 +884,46 @@ class Workspace:
                     "pattern": {"type": "string", "description": "glob, e.g. '**/*.test.ts'"}},
                     "required": ["pattern"]}}},
             {"type": "function", "function": {
+                "name": "search_text",
+                "description": ("Search file CONTENTS with a regex and return `path:line: text`, "
+                                "the shape git grep prints. USE THIS FIRST: one call finds a "
+                                "symbol, a string or a citation anywhere in the tree, where "
+                                "reading files one at a time costs a round each and every read "
+                                "is re-sent afterwards. Bounded by max_matches and by a "
+                                "character budget, and it names the limit it hit - narrow with "
+                                "`rel` or `include` instead of re-running the same search. "
+                                "`(no matches in N file(s))` means the search RAN across N "
+                                "files and found nothing; it is not a failure."),
+                "parameters": {"type": "object", "properties": {
+                    "pattern": {"type": "string", "description": "regex, e.g. 'def search' or 'T34'"},
+                    "rel": {"type": "string", "description": "repo-relative dir or file to search under, default '.'"},
+                    "include": {"type": "string", "description": "glob for the path, e.g. '*.py' (optional)"},
+                    "ignore_case": {"type": "boolean", "description": "case-insensitive (default false)"},
+                    "max_matches": {"type": "integer", "description": "stop after this many hits, default 60"}},
+                    "required": ["pattern"]}}},
+            {"type": "function", "function": {
                 "name": "write_file",
-                "description": "Create or overwrite a file inside the repo.",
+                "description": ("Create or overwrite a WHOLE file inside the repo. If the file "
+                                "already exists, prefer replace_in_file: this one rewrites "
+                                "every byte, so anything you did not read back is lost."),
                 "parameters": {"type": "object", "properties": {
                     "rel": {"type": "string", "description": "repo-relative file path"},
                     "content": {"type": "string", "description": "full file content"}},
                     "required": ["rel", "content"]}}},
+            {"type": "function", "function": {
+                "name": "replace_in_file",
+                "description": ("Change ONE passage inside an EXISTING file, in place. Use this "
+                                "rather than write_file for any file bigger than one read: it "
+                                "never rewrites the file, so a 100 KB file is as cheap and as "
+                                "safe to change as a 1 KB one. old_string must occur EXACTLY "
+                                "once - no match, or more than one, is refused and nothing is "
+                                "written. Read the file first and copy the text exactly; keep "
+                                "the anchor inside a single line."),
+                "parameters": {"type": "object", "properties": {
+                    "rel": {"type": "string", "description": "repo-relative file path"},
+                    "old_string": {"type": "string", "description": "exact text to find; must occur exactly once"},
+                    "new_string": {"type": "string", "description": "text to replace it with"}},
+                    "required": ["rel", "old_string", "new_string"]}}},
         ]
         if "workspace" not in self._declared_tools():
             return []
@@ -615,11 +937,11 @@ class Workspace:
             note = (f" Reachable siblings: {', '.join(reach)} "
                     f"(this role's `write_glob`; reads there are granted, writes too).")
             for s in schemas:
-                if s["function"]["name"] in ("list_tree", "read_file", "glob"):
+                if s["function"]["name"] in ("list_tree", "read_file", "glob", "search_text"):
                     s["function"]["description"] += note
         if not self.allows_write():
             return [s for s in schemas
-                    if s["function"]["name"] != "write_file"]
+                    if s["function"]["name"] not in self._MUTATING_TOOLS]
         return schemas
 
     def call_tool(self, name: str, args: dict) -> str:
