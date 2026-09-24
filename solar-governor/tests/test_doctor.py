@@ -140,7 +140,8 @@ def test_the_served_window_is_declared_in_one_place(monkeypatch):
     from solar_governor import executor
     monkeypatch.delenv("SOLAR_CONTEXT_TOKENS", raising=False)
     assert executor.context_tokens() == 0
-    assert "declare SOLAR_CONTEXT_TOKENS" in cli._tool_output_check()[1]
+    assert "context_tokens" in cli._tool_output_check()[1]
+    assert ".solar/config.json" in cli._tool_output_check()[1]
     monkeypatch.setenv("SOLAR_CONTEXT_TOKENS", "1000")
     assert executor.context_tokens() == 1000
     status, detail = cli._tool_output_check()
@@ -165,3 +166,28 @@ def test_the_fit_figure_follows_a_role_declaring_its_own_budget():
     assert (rounds, who) == (24, "`recorder`")
     # and the figures really move with it, rather than only the label
     assert cli._tool_budget_tokens(8000, rounds)[0] > cli._tool_budget_tokens(8000, 12)[0]
+
+
+def test_the_window_prefers_an_explicit_env_var_to_the_install_declaration(monkeypatch):
+    """2026-09-25: the window gained a durable home, so `0` stops being the permanent answer.
+
+    It was `SOLAR_CONTEXT_TOKENS` or nothing - an env var with no committed file to live in, which is
+    why no install ever declared one, every card recorded `0`, and `doctor` advised an action the
+    runtime gave no way to take. The env var survives as the per-run override.
+    """
+    from solar_governor import executor
+    monkeypatch.delenv("SOLAR_CONTEXT_TOKENS", raising=False)
+    assert executor.context_tokens(600000) == 600000      # the install's declaration is now readable
+    assert executor.context_tokens() == 0                 # nothing declared anywhere
+    monkeypatch.setenv("SOLAR_CONTEXT_TOKENS", "1234")
+    assert executor.context_tokens(600000) == 1234        # an explicit one outranks the install's
+    monkeypatch.setenv("SOLAR_CONTEXT_TOKENS", "not a number")
+    assert executor.context_tokens(600000) == 0           # the same sentinel, and never a raise
+
+
+def test_the_config_carries_the_window_as_a_field():
+    """A file home for the window, which is the half that was missing rather than the reading."""
+    from solar_governor import core
+    assert core.DEFAULTS["context_tokens"] == 0
+    assert core.Config().context_tokens == 0
+    assert "context_tokens" in core.DEFAULTS

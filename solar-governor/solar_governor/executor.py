@@ -108,8 +108,8 @@ def tool_output_chars() -> int:
         return 8000
 
 
-def context_tokens() -> int:
-    """The context window the endpoint actually serves, DECLARED (`0` = not declared).
+def context_tokens(cfg_value: int = 0) -> int:
+    """The INPUT window this install is measured against, DECLARED (`0` = not declared).
 
     **Declared rather than discovered, and that is not a shortcut.** The window cannot be read over
     the OpenAI surface (`/v1/models` carries no `num_ctx`), so the only honest figure is the one the
@@ -121,10 +121,26 @@ def context_tokens() -> int:
     **Before 2026-09-22 this was a bare `os.environ` read inside `doctor`**, so the check was the
     only place the window could be seen: a run-card carrying a prompt estimate had no way to ask the
     same question, and the two would have drifted while both looked authoritative.
+
+    **Precedence since 2026-09-25: an explicit `SOLAR_CONTEXT_TOKENS` > the install's declared
+    `context_tokens` > `0`.** The env var was the ONLY route until then, which is exactly why it was
+    never set: there was no committed file to hold it, so the figure `doctor` asks for could not be
+    supplied by anyone. The config is the home now and the env var is the per-run override.
+
+    **What the number MEANS is the input budget, not the raw served size.** A provider that serves N
+    and needs some of it for the ANSWER leaves N minus that reserve for the prompt - 1,000,000 with
+    40% held back is 600,000 - and the answer reserve is the thing a near-window run has already
+    spent. See `docs/tooling/cost.md` for the readings this is measured against.
     """
+    explicit = os.environ.get("SOLAR_CONTEXT_TOKENS", "").strip()
+    if explicit:
+        try:
+            return int(explicit)
+        except ValueError:
+            return 0
     try:
-        return int(os.environ.get("SOLAR_CONTEXT_TOKENS", "0") or 0)
-    except ValueError:
+        return int(cfg_value or 0)
+    except (TypeError, ValueError):
         return 0
 
 
@@ -916,6 +932,7 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
         cfg_model: str = "", max_rounds: int | None = None,
         spec: dict | None = None, human_approval: bool = False,
         cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "",
+        cfg_context: int = 0,
         cfg_provider: str = "", providers: dict | None = None,
         models: dict | None = None, target: dict | None = None,
         clone: str = "") -> ExecutorResult:
@@ -1009,5 +1026,5 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     # Both travel, because the estimate alone is half a fact: the window is declared per install and
     # can be raised between two runs, so a card holding one of them cannot be judged.
     res["prompt_tokens"] = base_prompt
-    res["context_tokens"] = context_tokens()
+    res["context_tokens"] = context_tokens(cfg_context)
     return res

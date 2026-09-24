@@ -61,10 +61,11 @@ largest round where the truth is `~52.6k`**, and `~178.2k` over the run where th
 than fit.
 
 The budget is now asked of `round_budget`, the one resolver, and the line names whose it is
-(`x 24 rounds (\`recorder\` declares 24)`). `reg` is also bound in the `except` rather than only inside
-the `try`, so an unreadable registry reports the default instead of raising `NameError` in the check
-below it - which is what a failed registry read was one line away from doing. Suite **332 -> 333
-passed**.
+(`x 24 rounds (\`recorder\` declares 24)`). Suite **332 -> 333 passed**.
+
+**CORRECTED the same day: this section also claimed the change fixed a latent `NameError`, and THAT
+WAS FALSE.** `reg` was already bound before the `try` - a read that began one line late hid it - so the
+line added to the `except` was redundant and has been removed. Nothing was broken; only the claim was.
 
 ---
 

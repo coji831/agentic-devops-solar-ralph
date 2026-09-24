@@ -388,10 +388,6 @@ def cmd_doctor(args):
             detail += f", chains: {sorted(cm)}"
         checks["registry"] = ("PASS", detail)
     except Exception as e:
-        # **`reg` is bound anyway, so the checks BELOW still run.** An unreadable registry means no role
-        # declares a budget, which is a fact the fit line can report rather than an error it should
-        # inherit by raising `NameError` - and the registry check above already FAILs in this case.
-        reg = {}
         checks["registry"] = ("FAIL", str(e))
     runner = ""
     try:
@@ -423,7 +419,7 @@ def cmd_doctor(args):
     checks["routing"] = _routing_check(cfg, reg)
     checks["uplink"] = uplink.status(cfg)
     checks["install"] = install.version_status(root)
-    checks["tool-output"] = _tool_output_check(reg)
+    checks["tool-output"] = _tool_output_check(reg, cfg.context_tokens)
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
@@ -620,7 +616,7 @@ def _rounds_for_fit(registry: dict | None) -> tuple[int, str]:
     return best, who
 
 
-def _tool_output_check(registry: dict | None = None) -> tuple:
+def _tool_output_check(registry: dict | None = None, declared: int = 0) -> tuple:
     """Is the tool-output cap sized against the context the server actually serves?
 
     The cap itself fails LOUDLY: `_cap_tool` keeps the head of one tool result and appends
@@ -657,18 +653,20 @@ def _tool_output_check(registry: dict | None = None) -> tuple:
     # **Read from the DECLARATION, not from `os.environ` here.** The same number is recorded on
     # every run-card beside the prompt it was measured against, and two readers of one variable is
     # how the two drift - see `executor.context_tokens`.
-    window = executor.context_tokens()
+    window = executor.context_tokens(declared)
     if not window:
         return "PASS", (f"{label} x {rounds} rounds{budget} = {est} tokens, and the system prompt "
-                        f"and the objective are on top of both{note}; declare SOLAR_CONTEXT_TOKENS "
-                        f"to have the largest round checked against the served window")
+                        f"and the objective are on top of both{note}; declare `context_tokens` in "
+                        f"`.solar/config.json` (or SOLAR_CONTEXT_TOKENS) to have the largest round "
+                        f"checked against the input window")
     if largest > window:
         return "WARN", (f"{label} x {rounds} rounds{budget} = {est} tokens, and the largest round "
-                        f"alone exceeds the declared window of {window}: the server drops the OLDEST "
+                        f"alone exceeds the declared INPUT window of {window}: the reserve for the "
+                        f"ANSWER is gone, and past the served window the server drops the OLDEST "
                         f"tokens silently (system prompt and objective first). Raise the model's "
                         f"num_ctx, then the cap{note}")
     return "PASS", (f"{label} x {rounds} rounds{budget} = {est} tokens, and the largest round fits "
-                    f"the declared window of {window}{note}")
+                    f"the declared input window of {window}{note}")
 
 
 def _print_doctor(checks: dict[str, tuple]) -> None:

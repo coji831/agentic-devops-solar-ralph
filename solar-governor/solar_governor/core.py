@@ -129,6 +129,12 @@ DEFAULTS: dict = {
     #   "http"         -> OpenAI-compatible HTTP client
     #   "agent-dispatch" -> hand off to the repo's .agent.md agents (IDE-native)
     "runner": "",
+    # **The context window this install is measured against, in TOKENS of INPUT** (2026-09-25).
+    # Until then it was an environment variable alone (`SOLAR_CONTEXT_TOKENS`) and there was no
+    # durable file to put it in - so no install ever declared one, every card recorded `0`, and
+    # `doctor` advised an action the runtime gave no way to take. `0` is UNDECLARED, the same
+    # sentinel `tool_output_chars` uses. The env var still overrides it.
+    "context_tokens": 0,
 }
 
 
@@ -151,6 +157,7 @@ class Config:
     models: dict = dataclasses.field(default_factory=dict)
     reasoning_effort: str = DEFAULTS["reasoning_effort"]
     runner: str = DEFAULTS["runner"]
+    context_tokens: int = DEFAULTS["context_tokens"]
     # Where this config was read from. Runtime-only: never persisted, because it IS
     # the file's location - and it is how `root` is derived.
     loaded_from: Path | None = dataclasses.field(default=None, repr=False, compare=False)

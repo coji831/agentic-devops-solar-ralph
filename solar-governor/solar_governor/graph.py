@@ -202,6 +202,7 @@ def _execute(cfg: Config, state: SolarState, runner: str = "",
                        runner=runner, cfg_provider=cfg.provider,
                        providers=executor.providers_table(cfg.providers),
                        models=cfg.models, target=target,
+                       cfg_context=cfg.context_tokens,
                        clone=str(state.get("clone") or ""))
     return {
         "output": res.get("output", ""),
