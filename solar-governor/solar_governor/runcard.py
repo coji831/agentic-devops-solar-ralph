@@ -2,7 +2,12 @@
 
 Layered capture: checkpoint = full state (SQLite), run-card = structured
 metrics (tokens, duration, verdict, routing). Written to
-`.solar/runs/<thread_id>.json` (repo-local, gitignored).
+`.solar/runs/<thread_id>.json`, **outside the generated ignore block - and whether a repo TRACKS it is
+that repo's decision, not this writer's.** **CORRECTED 2026-09-25:** this line called the card
+"gitignored", and the Promyro engagement deliberately does the opposite - `.gitignore` leaves
+`.solar/runs/` NOT ignored, 50 cards tracked - on the argument that a record which is gitignored does
+not survive a fresh clone. The generated block ignores `state/`, `handoffs/`, `chains/`, `objectives/`
+and `approvals/` only, so the claim was never this writer's to make.
 """
 from __future__ import annotations
 
