@@ -743,9 +743,15 @@ class _ToolLayer:
         return [schema for layer in self.layers for schema in layer.tool_schemas()]
 
     def call_tool(self, name: str, args: dict) -> str:
+        """One call over every layer, and the LAST line is the only error this owes.
+
+        No ownership test to consult first: a layer answers `None` when the tool is not its own,
+        so the composite tries and the name nobody claims ends here.
+        """
         for layer in self.layers:
-            if layer.handles(name):
-                return layer.call_tool(name, args)
+            out = layer.call_tool(name, args)
+            if out is not None:
+                return out
         return f"ERROR: unknown tool {name}"
 
 

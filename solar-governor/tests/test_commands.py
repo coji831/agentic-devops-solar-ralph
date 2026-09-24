@@ -85,11 +85,13 @@ def test_the_tool_offers_no_free_text_field():
     shutil.rmtree(r)
 
 
-def test_handles_only_the_command_tool():
+def test_claims_only_the_command_tool():
+    """`None` means "not mine", and that is now the ONLY ownership question: a layer answers it
+    by returning `None`, rather than a predicate the composite consults before calling."""
     r, cr = _tmp_repo(spec={"exec_allow": []})
-    assert cr.handles("run_command") is True
-    assert cr.handles("read_file") is False
-    assert cr.handles("write_file") is False
+    assert cr.call_tool("run_command", {"command": "nope"}) is not None
+    assert cr.call_tool("read_file", {}) is None
+    assert cr.call_tool("write_file", {}) is None
     shutil.rmtree(r)
 
 
@@ -232,8 +234,12 @@ def test_extra_arguments_are_rejected():
 
 
 def test_unknown_tool_name_is_rejected():
+    """`None` at the layer; the message at the composite - see `_ToolLayer.call_tool`."""
+    from solar_governor.executor import _ToolLayer
+
     r, cr = _tmp_repo(spec={"exec_allow": []})
-    assert cr.call_tool("not_a_tool", {}).startswith("ERROR: unknown tool")
+    assert cr.call_tool("not_a_tool", {}) is None
+    assert _ToolLayer(cr).call_tool("not_a_tool", {}) == "ERROR: unknown tool not_a_tool"
     shutil.rmtree(r)
 
 

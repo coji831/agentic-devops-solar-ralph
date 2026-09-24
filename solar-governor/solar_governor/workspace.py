@@ -919,10 +919,6 @@ class Workspace:
     # the shipped default install came to hand `write_file` to `reviewer` (see registry.py).
     _MUTATING_TOOLS = ("write_file", "replace_in_file")
 
-    def handles(self, name: str) -> bool:
-        """Whether this layer owns a tool name (used by the executor's composite)."""
-        return name in self._TOOL_NAMES
-
     def tool_schemas(self) -> list[dict]:
         """The function schemas for the tools THIS role may be offered.
 
@@ -956,12 +952,19 @@ class Workspace:
                     if s["function"]["name"] not in self._MUTATING_TOOLS]
         return schemas
 
-    def call_tool(self, name: str, args: dict) -> str:
-        fn = getattr(self, name, None)
-        if fn is None:
-            return f"ERROR: unknown tool {name}"
+    def call_tool(self, name: str, args: dict) -> str | None:
+        """Run one tool, or `None` when this layer does not own that name.
+
+        **`None` rather than a predicate**: `handles()` asked "is this tool mine?" one method above
+        where `call_tool` asked it again, and two answers to one question is how they come to
+        disagree. The composite asks nothing - it tries each layer and raises
+        `ERROR: unknown tool {name}` once, at the end. The names are `_TOOL_NAMES`, derived from
+        `_SCHEMA_LIST`, so ownership and the offered surface cannot drift apart.
+        """
+        if name not in self._TOOL_NAMES:
+            return None
         try:
-            return fn(**args)
+            return getattr(self, name)(**args)
         except TypeError as e:
             return f"ERROR: bad args for {name}: {e}"
         except ValueError as e:

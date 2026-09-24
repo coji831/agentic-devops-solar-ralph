@@ -330,9 +330,6 @@ class CommandRunner:
         self.clone = str(clone)
 
     # --- surface ----------------------------------------------------------
-    def handles(self, name: str) -> bool:
-        return name == TOOL_NAME
-
     def granted(self) -> dict:
         """The vocabulary entries this role may actually run."""
         allowed = self.spec.get("exec_allow") or []
@@ -364,9 +361,10 @@ class CommandRunner:
             "parameters": {"type": "object", "properties": props,
                            "required": ["command"]}}}]
 
-    def call_tool(self, name: str, args: dict) -> str:
+    def call_tool(self, name: str, args: dict) -> str | None:
+        """Run the command tool, or `None` when the name is not this layer's. See `workspace.py`."""
         if name != TOOL_NAME:
-            return f"ERROR: unknown tool {name}"
+            return None
         try:
             return self.run_command(**(args or {}))
         except TypeError as e:

@@ -436,8 +436,17 @@ def test_every_advertised_tool_has_a_handler():
 
 
 def test_call_tool_unknown_tool_reports_error():
+    """`None` at the layer, the message at the composite.
+
+    The old shape raised `ERROR: unknown tool` inside every layer, one method above a predicate
+    that answered the same question; now the layer returns `None` and the composite - the only
+    caller that knows the other layers exist - says it once.
+    """
+    from solar_governor.executor import _ToolLayer
+
     r = _tmp_repo()
-    assert Workspace(r).call_tool("nope", {}).startswith("ERROR: unknown tool")
+    assert Workspace(r).call_tool("nope", {}) is None
+    assert _ToolLayer(Workspace(r)).call_tool("nope", {}) == "ERROR: unknown tool nope"
     shutil.rmtree(r)
 
 
