@@ -147,3 +147,21 @@ def test_the_served_window_is_declared_in_one_place(monkeypatch):
     assert status == "WARN" and "1000" in detail
     monkeypatch.setenv("SOLAR_CONTEXT_TOKENS", "not a number")
     assert executor.context_tokens() == 0           # the same sentinel, and never a raise
+
+
+def test_the_fit_figure_follows_a_role_declaring_its_own_budget():
+    """A role may raise its own budget, so the fit line has to follow it - measured 2026-09-25.
+
+    The check read `executor.MAX_TOOL_ROUNDS` directly, so once `recorder` declared 24 it printed the
+    arithmetic for 12: HALF the largest round, which is the one figure this check exists to report.
+    The budget is now asked of the resolver, and the line says whose it is.
+    """
+    from solar_governor import executor
+    assert cli._rounds_for_fit(None) == (executor.MAX_TOOL_ROUNDS, "the default")
+    assert cli._rounds_for_fit({}) == (executor.MAX_TOOL_ROUNDS, "the default")
+    # a non-dict entry carries no `max_rounds`, so it cannot raise the figure either
+    assert cli._rounds_for_fit({"chains": {}, "_chains_note": "x"})[0] == executor.MAX_TOOL_ROUNDS
+    rounds, who = cli._rounds_for_fit({"recorder": {"max_rounds": 24}})
+    assert (rounds, who) == (24, "`recorder`")
+    # and the figures really move with it, rather than only the label
+    assert cli._tool_budget_tokens(8000, rounds)[0] > cli._tool_budget_tokens(8000, 12)[0]

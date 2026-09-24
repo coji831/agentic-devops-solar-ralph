@@ -51,6 +51,21 @@ decides. Precedence is **an explicit `SOLAR_MAX_ROUNDS` > the role's declaration
 because the wrapper's `--max-rounds` is documented as *"the record"* and a role able to veto it would
 make the flag a suggestion. `tests/test_executor.py` gains the precedence. Suite **331 -> 332 passed**.
 
+### `doctor`'s fit line follows the role, because the arithmetic was half of it
+
+The check read `executor.MAX_TOOL_ROUNDS` directly, so the moment a role could declare its own budget
+it printed the arithmetic for the WRONG one - and the largest round is the single figure this check
+exists to report. Measured on the engagement's registry with `recorder` at 24: **`~25.1k` in its
+largest round where the truth is `~52.6k`**, and `~178.2k` over the run where the truth is **`~685.5k`**
+- so the line under-reported by **half**, and by nearly **4x** on the figure that is about cost rather
+than fit.
+
+The budget is now asked of `round_budget`, the one resolver, and the line names whose it is
+(`x 24 rounds (\`recorder\` declares 24)`). `reg` is also bound in the `except` rather than only inside
+the `try`, so an unreadable registry reports the default instead of raising `NameError` in the check
+below it - which is what a failed registry read was one line away from doing. Suite **332 -> 333
+passed**.
+
 ---
 
 ## Unreleased - 2026-09-22 - nine repairs the engagement's own tracker asked for

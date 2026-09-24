@@ -388,6 +388,10 @@ def cmd_doctor(args):
             detail += f", chains: {sorted(cm)}"
         checks["registry"] = ("PASS", detail)
     except Exception as e:
+        # **`reg` is bound anyway, so the checks BELOW still run.** An unreadable registry means no role
+        # declares a budget, which is a fact the fit line can report rather than an error it should
+        # inherit by raising `NameError` - and the registry check above already FAILs in this case.
+        reg = {}
         checks["registry"] = ("FAIL", str(e))
     runner = ""
     try:
@@ -419,7 +423,7 @@ def cmd_doctor(args):
     checks["routing"] = _routing_check(cfg, reg)
     checks["uplink"] = uplink.status(cfg)
     checks["install"] = install.version_status(root)
-    checks["tool-output"] = _tool_output_check()
+    checks["tool-output"] = _tool_output_check(reg)
     if args.json:
         print(json.dumps({k: {"status": v[0], "detail": v[1]} for k, v in checks.items()}, indent=2))
         return
@@ -595,7 +599,28 @@ def _tool_budget_tokens(cap_chars: int, rounds: int) -> tuple[int, int]:
     return per_round * max(0, rounds - 1), int(per_round * rounds * (rounds + 1) / 2)
 
 
-def _tool_output_check() -> tuple:
+def _rounds_for_fit(registry: dict | None) -> tuple[int, str]:
+    """The LARGEST round budget any role in this registry may run under, and which role sets it.
+
+    **`MAX_TOOL_ROUNDS` alone stopped being the answer on 2026-09-25**, when a role gained the right
+    to declare its own `max_rounds`: this engagement's `recorder` asks for 24, so the install's largest
+    round is TWICE what the default says - and the largest round is the single figure this check
+    exists to report. Asking the resolver rather than the constant is what keeps it honest.
+
+    A non-dict entry (`chains`, `_chains_note`) carries no `max_rounds` and resolves to the default,
+    so it cannot raise the figure; no `role_keys` filter is needed for that.
+    """
+    best, who = executor.MAX_TOOL_ROUNDS, "the default"
+    for role, spec in (registry or {}).items():
+        if not isinstance(spec, dict):
+            continue
+        budget = executor.round_budget(spec)
+        if budget > best:
+            best, who = budget, f"`{role}`"
+    return best, who
+
+
+def _tool_output_check(registry: dict | None = None) -> tuple:
     """Is the tool-output cap sized against the context the server actually serves?
 
     The cap itself fails LOUDLY: `_cap_tool` keeps the head of one tool result and appends
@@ -617,7 +642,7 @@ def _tool_output_check() -> tuple:
     answer; until 2026-09-22 it was a bare `os.environ` read here, and nothing else could see it.
     """
     cap = executor.tool_output_chars()
-    rounds = executor.MAX_TOOL_ROUNDS
+    rounds, who = _rounds_for_fit(registry)
     # `read_file` caps its OWN output first (`MAX_READ_CHARS`), so a value above that buys no
     # more text - it only spends more of the window. The effective figure is the smaller one.
     effective = MAX_READ_CHARS if cap <= 0 else min(cap, MAX_READ_CHARS)
@@ -626,21 +651,24 @@ def _tool_output_check() -> tuple:
             f"; {cap} is above read_file's own {MAX_READ_CHARS}-char ceiling, which binds first")
     largest, total = _tool_budget_tokens(effective, rounds)
     est = (f"~{largest / 1000:.1f}k in its largest round, ~{total / 1000:.1f}k over the run")
+    # **Which budget these figures are for, said out loud.** A role may now declare its own, so the
+    # round count is an ASSUMPTION that has to be visible rather than left for the reader to infer.
+    budget = "" if who == "the default" else f" ({who} declares {rounds})"
     # **Read from the DECLARATION, not from `os.environ` here.** The same number is recorded on
     # every run-card beside the prompt it was measured against, and two readers of one variable is
     # how the two drift - see `executor.context_tokens`.
     window = executor.context_tokens()
     if not window:
-        return "PASS", (f"{label} x {rounds} rounds = {est} tokens, and the system prompt and the "
-                        f"objective are on top of both{note}; declare SOLAR_CONTEXT_TOKENS to have "
-                        f"the largest round checked against the served window")
+        return "PASS", (f"{label} x {rounds} rounds{budget} = {est} tokens, and the system prompt "
+                        f"and the objective are on top of both{note}; declare SOLAR_CONTEXT_TOKENS "
+                        f"to have the largest round checked against the served window")
     if largest > window:
-        return "WARN", (f"{label} x {rounds} rounds = {est} tokens, and the largest round alone "
-                        f"exceeds the declared window of {window}: the server drops the OLDEST "
+        return "WARN", (f"{label} x {rounds} rounds{budget} = {est} tokens, and the largest round "
+                        f"alone exceeds the declared window of {window}: the server drops the OLDEST "
                         f"tokens silently (system prompt and objective first). Raise the model's "
                         f"num_ctx, then the cap{note}")
-    return "PASS", (f"{label} x {rounds} rounds = {est} tokens, and the largest round fits the "
-                    f"declared window of {window}{note}")
+    return "PASS", (f"{label} x {rounds} rounds{budget} = {est} tokens, and the largest round fits "
+                    f"the declared window of {window}{note}")
 
 
 def _print_doctor(checks: dict[str, tuple]) -> None:
