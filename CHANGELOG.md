@@ -18,6 +18,41 @@ Format: newest version first. Each entry covers what changed from the previous v
 
 ---
 
+## Unreleased - 2026-09-25 - the budget a run had, and a role's right to declare its own
+
+**Two facts about one number were both on disk, and neither was readable.** `runcard.write` has carried
+`max_rounds`, `prompt_tokens` and `context_tokens` since `T12`/`T14`, with its own sentence *"`0` means
+the writer was not told it"* printed beside them - and the writer was never told them, because
+**`SolarState` did not declare the three keys**. A LangGraph state IS its schema: an undeclared key is
+not a channel, so `graph._execute`'s three fields were dropped **in silence** (witnessed: a node that
+returns one ends with it absent from the result, no warning). **Every card in the engagement recorded
+`0`**, all 47 of them.
+
+### The schema now declares what the node returns
+
+`SolarState` gains `max_rounds`, `prompt_tokens`, `context_tokens`. Nothing else moved - `_execute`
+already returned them and `runcard.write` already read them - so this is the missing declaration, not a
+new mechanism. **Witnessed end to end:** the real `SolarState` driven through a real graph, written by
+the real `runcard.write`, produces a card reading `12`, `153997`, `131072` where every card before it
+read `0`. These three are what `audit-run.py` reports beside the window a run was aimed at, and until
+now it could only say *"not on the card"* and *"undeclared"*.
+
+### `executor.round_budget` - a role may declare its own round budget
+
+The budget was one number for every role and every link (`SOLAR_MAX_ROUNDS`, default 12), and it was
+wrong in both directions: measured 2026-09-25, a `recorder` cut off at 12 rounds came back **REJECTED
+twice** while the same work at 24 **finished on its own terms** - and the cut-off run cost **more**
+(153,997 in-tokens against 148,205), so the low cap bought nothing.
+
+**A role declares `max_rounds` in its registry entry**, beside the `reasoning` key this executor already
+reads from a spec. `executor.run`'s `max_rounds` default becomes `None`, which means *"nobody narrowed
+it"* and is why the default is no longer a sentinel value: with no number from the caller the spec
+decides. Precedence is **an explicit `SOLAR_MAX_ROUNDS` > the role's declaration > `MAX_TOOL_ROUNDS`**,
+because the wrapper's `--max-rounds` is documented as *"the record"* and a role able to veto it would
+make the flag a suggestion. `tests/test_executor.py` gains the precedence. Suite **331 -> 332 passed**.
+
+---
+
 ## Unreleased - 2026-09-22 - nine repairs the engagement's own tracker asked for
 
 **Unversioned on purpose, and the reason it was written down turned out to be WRONG - corrected

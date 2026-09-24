@@ -70,6 +70,15 @@ class SolarState(TypedDict):
     node_ms: Annotated[int, operator.add]
     error: str                                 # executor error, if any
     forced_final: bool                         # answer came from the tool-less last round
+    # **THE THREE THE NODE RETURNS THAT THIS SCHEMA DID NOT DECLARE** (2026-09-25). A LangGraph
+    # state IS its schema: an undeclared key is not a channel, so it is dropped in SILENCE - proven
+    # by returning one from a node and watching it vanish, with no warning. `_execute` has returned
+    # these three since `T12`/`T14` and `runcard.write` reads all three, so **every card recorded
+    # `0`**; `audit-run.py` prints them beside the window a run was aimed at, which is why it could
+    # only ever say "not on the card" and "undeclared".
+    max_rounds: int                            # round-trips this node was allowed
+    prompt_tokens: int                         # prompt assembled before round 1 (text only, a floor)
+    context_tokens: int                        # window declared at that moment (0 = none declared)
     provider: str                              # endpoint the run went to (host:port, or "stub")
     usage_reported: bool                       # endpoint reported usage (0/0 is "unknown" if not)
     # The tool-call TRANSCRIPT (T10, 2026-09-23), written by `executor._tool_loop`: one row per

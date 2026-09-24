@@ -43,6 +43,27 @@ MODEL_TIERS: dict[str, dict[str, str]] = {
 # model round-trips per specialist node; configurable via SOLAR_MAX_ROUNDS
 # (complex read-heavy roles like investigator/code-reviewer exceed a low cap)
 MAX_TOOL_ROUNDS = int(os.environ.get("SOLAR_MAX_ROUNDS", "12"))
+
+
+def round_budget(spec: dict | None = None) -> int:
+    """How many round-trips THIS ROLE gets. The precedence is the whole function.
+
+    An explicit `SOLAR_MAX_ROUNDS` wins, because the wrapper's `--max-rounds` is documented as
+    "the record" - a role able to veto it would make the flag a suggestion. Absent one, the role's
+    own `max_rounds` in the registry decides, beside the `reasoning` key this module already reads
+    from a spec. Absent both, `MAX_TOOL_ROUNDS`.
+
+    A role declares its own budget because the budget is a property of what the role DOES:
+    measured 2026-09-25, a `recorder` cut off at 12 rounds came back REJECTED twice while the same
+    work at 24 finished on its own terms - and the cut-off run cost MORE, so the low cap bought
+    nothing. See row H in `Promyro/context/solar-evaluation/`.
+    """
+    explicit = os.environ.get("SOLAR_MAX_ROUNDS", "").strip()
+    if explicit.isdigit():
+        return max(1, int(explicit))
+    return max(1, int((spec or {}).get("max_rounds") or MAX_TOOL_ROUNDS))
+
+
 # Sampling temperature for specialist calls. The loop used to send none and so
 # inherited the provider default, which made tool-use convergence a coin flip:
 # identical role + objective + model finished in 5 rounds on one run and burned
@@ -892,7 +913,7 @@ def stub_result(role: str, objective: str, why: str) -> ExecutorResult:
 
 
 def run(role: str, system_prompt: str, objective: str, repo: Path,
-        cfg_model: str = "", max_rounds: int = MAX_TOOL_ROUNDS,
+        cfg_model: str = "", max_rounds: int | None = None,
         spec: dict | None = None, human_approval: bool = False,
         cfg_reasoning: str = "", cfg_tier: str = "", runner: str = "",
         cfg_provider: str = "", providers: dict | None = None,
@@ -976,7 +997,10 @@ def run(role: str, system_prompt: str, objective: str, repo: Path,
     # notice, the final instruction all land in that list - so a figure read afterwards would
     # describe the last round of a run that had already happened.
     base_prompt = prompt_tokens(messages)
-    res = _tool_loop(client, target["model"], messages, ws, max_rounds, effort,
+    # `None` is "nobody narrowed it", which is NOT the same as the default: the spec is what carries
+    # a role's own declaration, and this is the only call site that has it. See `round_budget`.
+    rounds = round_budget(spec) if max_rounds is None else max_rounds
+    res = _tool_loop(client, target["model"], messages, ws, rounds, effort,
                      extra_body=target["extra_body"])
     # Provenance travels with the result: the graph records it, and the run-card is how a
     # local run is told apart from a cloud run of the same model id.

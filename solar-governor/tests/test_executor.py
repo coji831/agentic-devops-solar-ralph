@@ -652,6 +652,27 @@ def test_the_stub_says_which_reason_produced_it():
     assert fell_back["model"] == by_request["model"] == "stub"
 
 
+def test_round_budget_precedence():
+    """A role may declare its own budget - and the operator's flag still outranks it.
+
+    Row H (2026-09-25): the budget was undecided because nothing said which role needed more than
+    the default, while the wrapper's `--max-rounds` is documented as "the record" - so an explicit
+    one has to win, or the flag becomes a suggestion. A role's own number sits in the registry
+    beside the `reasoning` key this module already reads from a spec.
+    """
+    original = os.environ.pop("SOLAR_MAX_ROUNDS", None)
+    try:
+        assert executor.round_budget(None) == executor.MAX_TOOL_ROUNDS
+        assert executor.round_budget({}) == executor.MAX_TOOL_ROUNDS
+        assert executor.round_budget({"max_rounds": 24}) == 24
+        os.environ["SOLAR_MAX_ROUNDS"] = "6"
+        assert executor.round_budget({"max_rounds": 24}) == 6
+    finally:
+        os.environ.pop("SOLAR_MAX_ROUNDS", None)
+        if original is not None:
+            os.environ["SOLAR_MAX_ROUNDS"] = original
+
+
 def test_resolve_model_reports_which_level_supplied_the_id():
     """TD-5.4-6 needs the provenance, not just the id: a deliberate env override and
     a stale config pin otherwise resolve to the same kind of string."""
