@@ -235,6 +235,82 @@ def resolve_in_root(root: Path, rel: str) -> Path:
     return p
 
 
+# **THE TOOL SURFACE, STATED ONCE** (2026-09-25): the names the composite routes on and the
+# descriptions that carry the sibling note are DERIVED from this tuple, because three statements of
+# one list is how a tool gets half-removed - offered and routed while the surface says it is absent.
+_SCHEMA_LIST: tuple[dict, ...] = (
+    {"type": "function", "function": {
+        "name": "list_tree",
+        "description": "List the repo directory tree (skips vendored/build dirs).",
+        "parameters": {"type": "object", "properties": {
+            "rel": {"type": "string", "description": "repo-relative dir, default '.'"},
+            "depth": {"type": "integer", "description": "max depth, default 3"}},
+            "required": []}}},
+    {"type": "function", "function": {
+        "name": "read_file",
+        "description": ("Read a file inside the repo. Returns the whole file "
+                        "(truncated at 40000 chars) unless start/end give a "
+                        "1-based inclusive line range, in which case only "
+                        "those lines are returned — prefer a range over "
+                        "re-reading a large file. A very long line, or a range "
+                        "larger than the read budget, is elided with a marker "
+                        "saying so; narrow the range rather than assuming the "
+                        "file continues past it."),
+        "parameters": {"type": "object", "properties": {
+            "rel": {"type": "string", "description": "repo-relative file path"},
+            "start": {"type": "integer", "description": "first line, 1-based (optional)"},
+            "end": {"type": "integer", "description": "last line, inclusive (optional)"}},
+            "required": ["rel"]}}},
+    {"type": "function", "function": {
+        "name": "glob",
+        "description": "Find files matching a glob pattern inside the repo.",
+        "parameters": {"type": "object", "properties": {
+            "pattern": {"type": "string", "description": "glob, e.g. '**/*.test.ts'"}},
+            "required": ["pattern"]}}},
+    {"type": "function", "function": {
+        "name": "search_text",
+        "description": ("Search file CONTENTS with a regex and return `path:line: text`, "
+                        "the shape git grep prints. USE THIS FIRST: one call finds a "
+                        "symbol, a string or a citation anywhere in the tree, where "
+                        "reading files one at a time costs a round each and every read "
+                        "is re-sent afterwards. Bounded by max_matches and by a "
+                        "character budget, and it names the limit it hit - narrow with "
+                        "`rel` or `include` instead of re-running the same search. "
+                        "`(no matches in N file(s))` means the search RAN across N "
+                        "files and found nothing; it is not a failure."),
+        "parameters": {"type": "object", "properties": {
+            "pattern": {"type": "string", "description": "regex, e.g. 'def search' or 'T34'"},
+            "rel": {"type": "string", "description": "repo-relative dir or file to search under, default '.'"},
+            "include": {"type": "string", "description": "glob for the path, e.g. '*.py' (optional)"},
+            "ignore_case": {"type": "boolean", "description": "case-insensitive (default false)"},
+            "max_matches": {"type": "integer", "description": "stop after this many hits, default 60"}},
+            "required": ["pattern"]}}},
+    {"type": "function", "function": {
+        "name": "write_file",
+        "description": ("Create or overwrite a WHOLE file inside the repo. If the file "
+                        "already exists, prefer replace_in_file: this one rewrites "
+                        "every byte, so anything you did not read back is lost."),
+        "parameters": {"type": "object", "properties": {
+            "rel": {"type": "string", "description": "repo-relative file path"},
+            "content": {"type": "string", "description": "full file content"}},
+            "required": ["rel", "content"]}}},
+    {"type": "function", "function": {
+        "name": "replace_in_file",
+        "description": ("Change ONE passage inside an EXISTING file, in place. Use this "
+                        "rather than write_file for any file bigger than one read: it "
+                        "never rewrites the file, so a 100 KB file is as cheap and as "
+                        "safe to change as a 1 KB one. old_string must occur EXACTLY "
+                        "once - no match, or more than one, is refused and nothing is "
+                        "written. Read the file first and copy the text exactly; keep "
+                        "the anchor inside a single line."),
+        "parameters": {"type": "object", "properties": {
+            "rel": {"type": "string", "description": "repo-relative file path"},
+            "old_string": {"type": "string", "description": "exact text to find; must occur exactly once"},
+            "new_string": {"type": "string", "description": "text to replace it with"}},
+            "required": ["rel", "old_string", "new_string"]}}},
+)
+
+
 class Workspace:
     """Repo-bounded file access for one governor run.
 
@@ -834,8 +910,9 @@ class Workspace:
                 f"({len(text)} -> {len(text) - len(old_string) + len(new_string)} chars)")
 
     # --- OpenAI-compatible function schema --------------------------------
-    _TOOL_NAMES = ("list_tree", "read_file", "glob", "search_text", "write_file",
-                   "replace_in_file")
+    # The surface is `_SCHEMA_LIST`, at the top of this module; `_MUTATING_TOOLS` stays a
+    # declaration because "which of these writes" is the one thing the schemas cannot say.
+    _TOOL_NAMES = tuple(s["function"]["name"] for s in _SCHEMA_LIST)
 
     # Every tool that MUTATES the tree, in ONE place (2026-09-21): a read-only role must be offered
     # none of them, and a second copy of this set is a second thing to keep in sync - which is how
@@ -854,77 +931,9 @@ class Workspace:
         use, and this node overrides prose constraints (0/8 on an explicit
         read-only instruction).
         """
-        schemas = [
-            {"type": "function", "function": {
-                "name": "list_tree",
-                "description": "List the repo directory tree (skips vendored/build dirs).",
-                "parameters": {"type": "object", "properties": {
-                    "rel": {"type": "string", "description": "repo-relative dir, default '.'"},
-                    "depth": {"type": "integer", "description": "max depth, default 3"}},
-                    "required": []}}},
-            {"type": "function", "function": {
-                "name": "read_file",
-                "description": ("Read a file inside the repo. Returns the whole file "
-                                "(truncated at 40000 chars) unless start/end give a "
-                                "1-based inclusive line range, in which case only "
-                                "those lines are returned — prefer a range over "
-                                "re-reading a large file. A very long line, or a range "
-                                "larger than the read budget, is elided with a marker "
-                                "saying so; narrow the range rather than assuming the "
-                                "file continues past it."),
-                "parameters": {"type": "object", "properties": {
-                    "rel": {"type": "string", "description": "repo-relative file path"},
-                    "start": {"type": "integer", "description": "first line, 1-based (optional)"},
-                    "end": {"type": "integer", "description": "last line, inclusive (optional)"}},
-                    "required": ["rel"]}}},
-            {"type": "function", "function": {
-                "name": "glob",
-                "description": "Find files matching a glob pattern inside the repo.",
-                "parameters": {"type": "object", "properties": {
-                    "pattern": {"type": "string", "description": "glob, e.g. '**/*.test.ts'"}},
-                    "required": ["pattern"]}}},
-            {"type": "function", "function": {
-                "name": "search_text",
-                "description": ("Search file CONTENTS with a regex and return `path:line: text`, "
-                                "the shape git grep prints. USE THIS FIRST: one call finds a "
-                                "symbol, a string or a citation anywhere in the tree, where "
-                                "reading files one at a time costs a round each and every read "
-                                "is re-sent afterwards. Bounded by max_matches and by a "
-                                "character budget, and it names the limit it hit - narrow with "
-                                "`rel` or `include` instead of re-running the same search. "
-                                "`(no matches in N file(s))` means the search RAN across N "
-                                "files and found nothing; it is not a failure."),
-                "parameters": {"type": "object", "properties": {
-                    "pattern": {"type": "string", "description": "regex, e.g. 'def search' or 'T34'"},
-                    "rel": {"type": "string", "description": "repo-relative dir or file to search under, default '.'"},
-                    "include": {"type": "string", "description": "glob for the path, e.g. '*.py' (optional)"},
-                    "ignore_case": {"type": "boolean", "description": "case-insensitive (default false)"},
-                    "max_matches": {"type": "integer", "description": "stop after this many hits, default 60"}},
-                    "required": ["pattern"]}}},
-            {"type": "function", "function": {
-                "name": "write_file",
-                "description": ("Create or overwrite a WHOLE file inside the repo. If the file "
-                                "already exists, prefer replace_in_file: this one rewrites "
-                                "every byte, so anything you did not read back is lost."),
-                "parameters": {"type": "object", "properties": {
-                    "rel": {"type": "string", "description": "repo-relative file path"},
-                    "content": {"type": "string", "description": "full file content"}},
-                    "required": ["rel", "content"]}}},
-            {"type": "function", "function": {
-                "name": "replace_in_file",
-                "description": ("Change ONE passage inside an EXISTING file, in place. Use this "
-                                "rather than write_file for any file bigger than one read: it "
-                                "never rewrites the file, so a 100 KB file is as cheap and as "
-                                "safe to change as a 1 KB one. old_string must occur EXACTLY "
-                                "once - no match, or more than one, is refused and nothing is "
-                                "written. Read the file first and copy the text exactly; keep "
-                                "the anchor inside a single line."),
-                "parameters": {"type": "object", "properties": {
-                    "rel": {"type": "string", "description": "repo-relative file path"},
-                    "old_string": {"type": "string", "description": "exact text to find; must occur exactly once"},
-                    "new_string": {"type": "string", "description": "text to replace it with"}},
-                    "required": ["rel", "old_string", "new_string"]}}},
-        ]
+        # **COPIED, because the note below is APPENDED.** `_SCHEMA_LIST` is shared by every
+        # instance and every round, so its own dicts would grow the surface by ~60 B per call.
+        schemas = copy.deepcopy(list(_SCHEMA_LIST))
         if "workspace" not in self._declared_tools():
             return []
         # **The model cannot guess where it may go, and the first version of this grant made it find
@@ -936,8 +945,11 @@ class Workspace:
         if reach:
             note = (f" Reachable siblings: {', '.join(reach)} "
                     f"(this role's `write_glob`; reads there are granted, writes too).")
+            # The readers are DERIVED - "not a writer" is the only rule that has ever described
+            # exactly these four, so a new read tool inherits the note instead of needing an edit.
+            readers = set(self._TOOL_NAMES) - set(self._MUTATING_TOOLS)
             for s in schemas:
-                if s["function"]["name"] in ("list_tree", "read_file", "glob", "search_text"):
+                if s["function"]["name"] in readers:
                     s["function"]["description"] += note
         if not self.allows_write():
             return [s for s in schemas
